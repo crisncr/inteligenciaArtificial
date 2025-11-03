@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motor de Inferencia de Sentimientos | Análisis de Emociones</title>
+    <meta name="description" content="Analiza el sentimiento de frases en español. Detecta si un texto es positivo, negativo o neutral." />
+    <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Motor de Inferencia de Sentimientos</h1>
+            <p class="subtitle">
+                Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>moderada/neutral</strong>.
+                <br />El sistema analiza el texto usando inteligencia artificial y reglas de procesamiento de lenguaje natural.
+            </p>
+        </header>
+
+        <form id="analyze-form">
+            <label for="text">Frase a analizar</label>
+            <textarea 
+                id="text" 
+                name="text" 
+                rows="4" 
+                placeholder="Ej: excelente atención, muy rápido y eficiente..."
+                autocomplete="off"
+                required
+            ></textarea>
+            <button type="submit" id="submit-btn">
+                <span class="btn-text">Analizar Sentimiento</span>
+            </button>
+        </form>
+
+        <div id="result" class="result hidden">
+            <div class="badge" id="emoji">🟡</div>
+            <div class="result-content">
+                <div class="sentiment" id="sentiment">moderado/neutral</div>
+                <div class="score" id="score">Score: 0.0</div>
+            </div>
+        </div>
+
+        <footer>
+            <small>
+                💡 <strong>Ejemplos:</strong> "excelente atención", "pésimo servicio", "no es muy bueno", 
+                "increíblemente rápido y eficiente", "extremadamente decepcionante"
+            </small>
+        </footer>
+    </div>
+
+    <script>
+        const form = document.getElementById('analyze-form');
+        const textEl = document.getElementById('text');
+        const resultEl = document.getElementById('result');
+        const sentimentEl = document.getElementById('sentiment');
+        const scoreEl = document.getElementById('score');
+        const emojiEl = document.getElementById('emoji');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = submitBtn.querySelector('.btn-text');
+
+        function setBadgeColor(label) {
+            resultEl.classList.remove('pos', 'neg', 'neu');
+            if (label === 'positivo') {
+                resultEl.classList.add('pos');
+            } else if (label === 'negativo') {
+                resultEl.classList.add('neg');
+            } else {
+                resultEl.classList.add('neu');
+            }
+        }
+
+        function setLoading(loading) {
+            if (loading) {
+                form.classList.add('loading');
+                submitBtn.disabled = true;
+                btnText.textContent = 'Analizando...';
+            } else {
+                form.classList.remove('loading');
+                submitBtn.disabled = false;
+                btnText.textContent = 'Analizar Sentimiento';
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = textEl.value.trim();
+            
+            if (!text) {
+                return;
+            }
+
+            setLoading(true);
+            resultEl.classList.add('hidden');
+
+            try {
+                const res = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+
+                if (!res.ok) {
+                    throw new Error(`Error ${res.status}: ${res.statusText}`);
+                }
+
+                const data = await res.json();
+                
+                sentimentEl.textContent = data.sentiment;
+                scoreEl.textContent = `Score: ${data.score}`;
+                emojiEl.textContent = data.emoji;
+                setBadgeColor(data.sentiment);
+                
+                // Small delay for better UX
+                setTimeout(() => {
+                    resultEl.classList.remove('hidden');
+                    setLoading(false);
+                }, 300);
+
+            } catch (err) {
+                console.error('Error:', err);
+                sentimentEl.textContent = 'Error analizando la frase';
+                scoreEl.textContent = 'Por favor, intenta de nuevo';
+                emojiEl.textContent = '⚠️';
+                setBadgeColor('');
+                resultEl.classList.remove('hidden');
+                setLoading(false);
+            }
+        });
+
+        // Auto-resize textarea
+        textEl.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Clear result when user starts typing
+        textEl.addEventListener('input', function() {
+            if (resultEl && !resultEl.classList.contains('hidden')) {
+                resultEl.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
