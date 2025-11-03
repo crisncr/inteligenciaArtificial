@@ -27,7 +27,7 @@ if os.path.exists("app/static/dist"):
     async def favicon():
         return FileResponse("public/favicon.svg")
 else:
-    # Desarrollo: mensaje informativo
+    # Desarrollo: mensaje informativo o fallback
     @app.get("/")
     async def index_dev():
         return JSONResponse({
@@ -37,6 +37,9 @@ else:
             "api": "La API está disponible en /analyze",
             "health": "Health check en /health"
         })
+    # Si no existe app/static, crear estructura básica
+    if not os.path.exists("app/static"):
+        os.makedirs("app/static", exist_ok=True)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/health")
