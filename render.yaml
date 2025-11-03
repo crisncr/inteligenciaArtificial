@@ -3,9 +3,17 @@ services:
     name: motor-sentimientos
     env: python
     buildCommand: |
-      mkdir -p app/static || true
+      echo "Instalando Node.js..."
+      npm --version
+      echo "Instalando dependencias Node.js..."
       npm install
+      echo "Verificando app/static..."
+      mkdir -p app/static || echo "app/static ya existe"
+      echo "Construyendo React..."
       npm run build
+      echo "Verificando build..."
+      ls -la app/static/dist/ || echo "Build no encontrado"
+      echo "Instalando dependencias Python..."
       pip install -r requirements.txt
     startCommand: gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
     envVars:

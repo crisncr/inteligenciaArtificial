@@ -18,20 +18,46 @@ app.add_middleware(
 )
 
 # En producción: servir React build
-if os.path.exists("app/static/dist"):
-    app.mount("/assets", StaticFiles(directory="app/static/dist/assets"), name="assets")
+# Buscar el build en diferentes ubicaciones posibles
+dist_paths = [
+    "app/static/dist",
+    "./app/static/dist",
+    os.path.join(os.path.dirname(__file__), "static", "dist"),
+]
+
+dist_path = None
+for path in dist_paths:
+    if os.path.exists(path) and os.path.isdir(path):
+        dist_path = path
+        break
+
+if dist_path:
+    assets_path = os.path.join(dist_path, "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
     @app.get("/")
     async def index():
-        return FileResponse("app/static/dist/index.html")
+        index_file = os.path.join(dist_path, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return JSONResponse({"error": "index.html no encontrado en build"})
     @app.get("/favicon.svg")
     async def favicon():
-        return FileResponse("public/favicon.svg")
+        favicon_path = "public/favicon.svg"
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path)
+        return JSONResponse({"error": "favicon no encontrado"})
 else:
     # Desarrollo: mensaje informativo o fallback
     @app.get("/")
     async def index_dev():
         return JSONResponse({
             "message": "Frontend React no construido",
+            "debug": {
+                "checked_paths": dist_paths,
+                "cwd": os.getcwd(),
+                "app_dir": os.path.dirname(__file__),
+            },
             "instructions": "Para desarrollo: ejecuta 'npm run dev' en otra terminal (puerto 5173)",
             "instructions_prod": "Para producción: ejecuta 'npm run build' y luego reinicia el servidor",
             "api": "La API está disponible en /analyze",
