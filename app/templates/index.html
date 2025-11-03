@@ -5,47 +5,96 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Motor de Inferencia de Sentimientos | Análisis de Emociones</title>
     <meta name="description" content="Analiza el sentimiento de frases en español. Detecta si un texto es positivo, negativo o neutral." />
+    <meta property="og:title" content="Motor de Sentimientos" />
+    <meta property="og:description" content="Analiza emociones en español: positivo, negativo o neutral." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="/" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Motor de Inferencia de Sentimientos</h1>
-            <p class="subtitle">
-                Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>moderada/neutral</strong>.
-                <br />El sistema analiza el texto usando inteligencia artificial y reglas de procesamiento de lenguaje natural.
-            </p>
-        </header>
-
-        <form id="analyze-form">
-            <label for="text">Frase a analizar</label>
-            <textarea 
-                id="text" 
-                name="text" 
-                rows="4" 
-                placeholder="Ej: excelente atención, muy rápido y eficiente..."
-                autocomplete="off"
-                required
-            ></textarea>
-            <button type="submit" id="submit-btn">
-                <span class="btn-text">Analizar Sentimiento</span>
-            </button>
-        </form>
-
-        <div id="result" class="result hidden">
-            <div class="badge" id="emoji">🟡</div>
-            <div class="result-content">
-                <div class="sentiment" id="sentiment">moderado/neutral</div>
-                <div class="score" id="score">Score: 0.0</div>
-            </div>
+    <nav class="nav">
+        <div class="nav__brand">
+            <img src="/static/favicon.svg" alt="logo" width="24" height="24" />
+            <span>Sentimetría</span>
         </div>
+        <div class="nav__links">
+            <a href="#features">Características</a>
+            <a href="#precio">Precios</a>
+            <a class="btn--ghost" href="#analizar">Demo</a>
+            <a class="btn" href="#analizar">Probar gratis</a>
+        </div>
+    </nav>
 
-        <footer>
-            <small>
-                💡 <strong>Ejemplos:</strong> "excelente atención", "pésimo servicio", "no es muy bueno", 
-                "increíblemente rápido y eficiente", "extremadamente decepcionante"
-            </small>
+    <div class="container">
+        <section class="hero">
+            <div class="hero__copy">
+                <h1>Analiza sentimientos en segundos</h1>
+                <p class="lead">Clasifica textos en <strong>positivo</strong>, <strong>negativo</strong> o <strong>neutral</strong> con un motor optimizado para español.</p>
+                <div class="hero__ctas">
+                    <a class="btn" href="#analizar">Probar ahora</a>
+                    <a class="btn--ghost" href="#features">Ver características</a>
+                </div>
+            </div>
+            <div class="hero__mock">
+                <div class="device">
+                    <div class="device__top"></div>
+                    <div class="device__screen">
+                        <div class="pill pill--pos">🟢 Excelente atención</div>
+                        <div class="pill pill--neu">🟡 Aceptable, podría mejorar</div>
+                        <div class="pill pill--neg">🔴 Pésimo servicio</div>
+                        <div class="pill pill--pos">🟢 Muy rápido y amable</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="analizar" class="panel">
+            <h2>Prueba la demo</h2>
+            <p class="subtitle">Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>neutral</strong>.</p>
+
+            <form id="analyze-form">
+                <label for="text">Frase a analizar</label>
+                <textarea id="text" name="text" rows="4" placeholder="Ej: excelente atención, muy rápido y eficiente..." autocomplete="off" required></textarea>
+                <button type="submit" id="submit-btn"><span class="btn-text">Analizar Sentimiento</span></button>
+            </form>
+
+            <div id="result" class="result hidden">
+                <div class="badge" id="emoji">🟡</div>
+                <div class="result-content">
+                    <div class="sentiment" id="sentiment">moderado/neutral</div>
+                    <div class="score" id="score">Score: 0.0</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="features">
+            <div class="feature">
+                <div class="feat__icon">⚡</div>
+                <h3>Respuesta inmediata</h3>
+                <p>Procesamiento en milisegundos con reglas optimizadas para español.</p>
+            </div>
+            <div class="feature">
+                <div class="feat__icon">🧠</div>
+                <h3>Negaciones e intensificadores</h3>
+                <p>Interpreta matices como “no muy bueno” o “extremadamente útil”.</p>
+            </div>
+            <div class="feature">
+                <div class="feat__icon">🎯</div>
+                <h3>Fácil de integrar</h3>
+                <p>API simple con `POST /analyze` para tus apps y automatizaciones.</p>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <small>© Sentimetría — Demo educativa. <a href="/health">Status</a></small>
         </footer>
+    </div>
+
+    <div class="cookies" id="cookiebar">
+        <span>Al utilizar este sitio aceptas nuestra política de cookies.</span>
+        <button class="btn btn--small" id="cookiebtn">Aceptar</button>
     </div>
 
     <script>
@@ -139,6 +188,15 @@
                 resultEl.classList.add('hidden');
             }
         });
+
+        // Cookie bar
+        const cookiebar = document.getElementById('cookiebar');
+        const cookiebtn = document.getElementById('cookiebtn');
+        if (cookiebtn) {
+            cookiebtn.addEventListener('click', () => {
+                cookiebar.style.display = 'none';
+            });
+        }
     </script>
 </body>
 </html>

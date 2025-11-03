@@ -26,6 +26,24 @@ templates = Jinja2Templates(directory="app/templates")
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/health")
+async def health() -> dict:
+    return {"status": "ok"}
+
+@app.get("/robots.txt")
+async def robots() -> JSONResponse:
+    content = "User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n"
+    return JSONResponse(content=content, media_type="text/plain; charset=utf-8")
+
+@app.get("/sitemap.xml")
+async def sitemap() -> JSONResponse:
+    xml = (
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n"
+        "  <url><loc>/</loc></url>\n"
+        "</urlset>\n"
+    )
+    return JSONResponse(content=xml, media_type="application/xml; charset=utf-8")
 
 @app.post("/analyze")
 async def analyze(payload: dict = Body(...)):
