@@ -26,17 +26,38 @@ venv/
 ENV/
 env/
 
+# Archivos de entorno y secretos (NUNCA subir)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+credentials.json
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.code-workspace
+
+# Configuración de analizadores (opcional, puede incluirse)
+# pyrightconfig.json
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
 *.log
+logs/
+
+# Archivos temporales
+*.tmp
+*.temp
+*.bak
+*.cache
 
