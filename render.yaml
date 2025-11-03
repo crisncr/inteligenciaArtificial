@@ -3,17 +3,27 @@ services:
     name: motor-sentimientos
     env: python
     buildCommand: |
-      echo "Instalando Node.js..."
+      echo "=== PWD ==="
+      pwd
+      echo "=== Verificando estructura ==="
+      ls -la
+      echo "=== Instalando Node.js ==="
       npm --version
-      echo "Instalando dependencias Node.js..."
+      node --version
+      echo "=== Instalando dependencias Node.js ==="
       npm install
-      echo "Verificando app/static..."
+      echo "=== Verificando app/static ==="
       mkdir -p app/static || echo "app/static ya existe"
-      echo "Construyendo React..."
-      npm run build
-      echo "Verificando build..."
-      ls -la app/static/dist/ || echo "Build no encontrado"
-      echo "Instalando dependencias Python..."
+      ls -la app/ || echo "app/ no existe"
+      echo "=== Construyendo React ==="
+      npm run build || echo "BUILD FALLÓ"
+      echo "=== Verificando build ==="
+      find . -name "dist" -type d 2>/dev/null || echo "No se encontró dist"
+      ls -la app/static/ || echo "app/static no existe"
+      ls -la app/static/dist/ 2>/dev/null || echo "app/static/dist no existe"
+      echo "=== Verificando archivos generados ==="
+      find app/static/dist -type f 2>/dev/null | head -20 || echo "No hay archivos en dist"
+      echo "=== Instalando dependencias Python ==="
       pip install -r requirements.txt
     startCommand: gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
     envVars:

@@ -19,16 +19,21 @@ app.add_middleware(
 
 # En producción: servir React build
 # Buscar el build en diferentes ubicaciones posibles
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Raíz del proyecto
+app_dir = os.path.dirname(os.path.abspath(__file__))  # Directorio app/
+
 dist_paths = [
-    "app/static/dist",
-    "./app/static/dist",
-    os.path.join(os.path.dirname(__file__), "static", "dist"),
+    os.path.join(app_dir, "static", "dist"),  # app/static/dist (absoluto)
+    os.path.join(base_dir, "app", "static", "dist"),  # Raíz/app/static/dist
+    "app/static/dist",  # Relativo desde cwd
+    "./app/static/dist",  # Relativo con ./
 ]
 
 dist_path = None
 for path in dist_paths:
-    if os.path.exists(path) and os.path.isdir(path):
-        dist_path = path
+    abs_path = os.path.abspath(path)
+    if os.path.exists(abs_path) and os.path.isdir(abs_path):
+        dist_path = abs_path
         break
 
 if dist_path:
@@ -51,12 +56,24 @@ else:
     # Desarrollo: mensaje informativo o fallback
     @app.get("/")
     async def index_dev():
+        # Verificar si existe el directorio app/static
+        static_exists = os.path.exists(os.path.join(app_dir, "static"))
+        static_list = []
+        if static_exists:
+            try:
+                static_list = os.listdir(os.path.join(app_dir, "static"))
+            except:
+                pass
+        
         return JSONResponse({
             "message": "Frontend React no construido",
             "debug": {
-                "checked_paths": dist_paths,
+                "checked_paths": [os.path.abspath(p) for p in dist_paths],
                 "cwd": os.getcwd(),
-                "app_dir": os.path.dirname(__file__),
+                "app_dir": app_dir,
+                "base_dir": base_dir,
+                "static_exists": static_exists,
+                "static_contents": static_list,
             },
             "instructions": "Para desarrollo: ejecuta 'npm run dev' en otra terminal (puerto 5173)",
             "instructions_prod": "Para producción: ejecuta 'npm run build' y luego reinicia el servidor",
