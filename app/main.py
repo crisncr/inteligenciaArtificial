@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Request, Body
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
+import os
 
 from app.sentiment import analyze_sentiment
 
@@ -17,14 +17,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Archivos estáticos y templates
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
-
-
-@app.get("/")
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+# En producción: servir React build
+if os.path.exists("app/static/dist"):
+    app.mount("/assets", StaticFiles(directory="app/static/dist/assets"), name="assets")
+    @app.get("/")
+    async def index():
+        return FileResponse("app/static/dist/index.html")
+    @app.get("/favicon.svg")
+    async def favicon():
+        return FileResponse("public/favicon.svg")
+else:
+    # Desarrollo: mensaje informativo
+    @app.get("/")
+    async def index_dev():
+        return JSONResponse({
+            "message": "Frontend React no construido",
+            "instructions": "Para desarrollo: ejecuta 'npm run dev' en otra terminal (puerto 5173)",
+            "instructions_prod": "Para producción: ejecuta 'npm run build' y luego reinicia el servidor",
+            "api": "La API está disponible en /analyze",
+            "health": "Health check en /health"
+        })
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/health")
 async def health() -> dict:
