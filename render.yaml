@@ -8,6 +8,8 @@ services:
     region: oregon
     plan: free
     buildCommand: |
+      echo "=== Configurando Python 3.11 ==="
+      python3.11 --version || echo "Python 3.11 no disponible, usando python3"
       echo "=== PWD ==="
       pwd
       echo "=== Verificando estructura ==="
@@ -29,10 +31,10 @@ services:
       echo "=== Verificando archivos generados ==="
       find app/static/dist -type f 2>/dev/null | head -20 || echo "No hay archivos en dist"
       echo "=== Instalando dependencias Python ==="
-      pip install -r requirements.txt
+      python3.11 -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt
       echo "=== Ejecutando migraciones de base de datos ==="
-      alembic upgrade head || echo "Migraciones no ejecutadas (puede ser primera vez)"
-    startCommand: gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
+      python3.11 -m alembic upgrade head || python3 -m alembic upgrade head || echo "Migraciones no ejecutadas (puede ser primera vez)"
+    startCommand: python3.11 -m gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT || python3 -m gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
