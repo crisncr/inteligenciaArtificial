@@ -9,8 +9,15 @@ from app.database import engine, Base
 from app.routes import auth as auth_router
 from app.routes import analyses as analyses_router
 
-# Crear tablas en la base de datos
-Base.metadata.create_all(bind=engine)
+# Importar todos los modelos para que SQLAlchemy los registre
+from app.models import User, Analysis, Plan, Payment, PasswordResetToken
+
+# Crear tablas en la base de datos (después de importar los modelos)
+try:
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tablas de base de datos creadas correctamente")
+except Exception as e:
+    print(f"⚠️ Error al crear tablas: {e}")
 
 app = FastAPI(title="Motor de Inferencia de Sentimientos", version="1.0.0")
 
