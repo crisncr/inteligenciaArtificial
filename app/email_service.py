@@ -76,10 +76,160 @@ async def send_password_reset_email(email: str, reset_token: str):
             # En desarrollo, solo imprimir el token
             print(f"Token de reset (solo desarrollo): {reset_token}")
             return False
+
+async def send_welcome_email(email: str, name: str):
+    """
+    Envía email de bienvenida cuando se registra un nuevo usuario
+    """
+    login_url = f"{FRONTEND_URL}"
+    
+    # Template del email
+    html_template = """
+    <html>
+    <body>
+        <h2>¡Bienvenido a Sentimetría, {{ name }}!</h2>
+        <p>Gracias por registrarte en nuestra plataforma de análisis de sentimientos.</p>
+        <p>Tu cuenta ha sido creada exitosamente con el plan gratuito.</p>
+        <p>Con tu cuenta puedes:</p>
+        <ul>
+            <li>Analizar sentimientos en textos</li>
+            <li>Ver historial de tus análisis</li>
+            <li>Acceder a estadísticas detalladas</li>
+            <li>Y mucho más...</li>
+        </ul>
+        <p><a href="{{ login_url }}">Inicia sesión ahora</a> para comenzar a usar la plataforma.</p>
+        <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+        <p>¡Te deseamos mucho éxito!</p>
+        <p>El equipo de Sentimetría</p>
+    </body>
+    </html>
+    """
+    
+    text_template = """
+    ¡Bienvenido a Sentimetría, {{ name }}!
+    
+    Gracias por registrarte en nuestra plataforma de análisis de sentimientos.
+    Tu cuenta ha sido creada exitosamente con el plan gratuito.
+    
+    Con tu cuenta puedes:
+    - Analizar sentimientos en textos
+    - Ver historial de tus análisis
+    - Acceder a estadísticas detalladas
+    - Y mucho más...
+    
+    Visita {{ login_url }} para iniciar sesión y comenzar a usar la plataforma.
+    
+    Si tienes alguna pregunta, no dudes en contactarnos.
+    ¡Te deseamos mucho éxito!
+    
+    El equipo de Sentimetría
+    """
+    
+    # Renderizar templates
+    html_content = html_template.replace("{{ name }}", name).replace("{{ login_url }}", login_url)
+    text_content = text_template.replace("{{ name }}", name).replace("{{ login_url }}", login_url)
+    
+    # Crear mensaje
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "¡Bienvenido a Sentimetría!"
+    msg["From"] = SMTP_USER
+    msg["To"] = email
+    
+    # Agregar contenido
+    part1 = MIMEText(text_content, "plain")
+    part2 = MIMEText(html_content, "html")
+    msg.attach(part1)
+    msg.attach(part2)
+    
+    # Enviar email
+    if SMTP_USER and SMTP_PASSWORD:
+        try:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+            return True
+        except Exception as e:
+            print(f"Error enviando email de bienvenida: {e}")
+            return False
     else:
-        # En desarrollo sin SMTP configurado, solo imprimir
-        print(f"Token de reset (solo desarrollo): {reset_token}")
-        print(f"URL de reset: {reset_url}")
+        print(f"Email de bienvenida (solo desarrollo): {name} - {email}")
+        return False
+
+async def send_password_reset_success_email(email: str, name: str):
+    """
+    Envía email de confirmación cuando se restablece la contraseña exitosamente
+    """
+    login_url = f"{FRONTEND_URL}"
+    
+    # Template del email
+    html_template = """
+    <html>
+    <body>
+        <h2>Contraseña Restablecida Exitosamente</h2>
+        <p>Hola {{ name }},</p>
+        <p>Tu contraseña ha sido restablecida exitosamente.</p>
+        <p>Si no fuiste tú quien realizó este cambio, por favor contacta con nosotros inmediatamente.</p>
+        <p><strong>Recomendaciones de seguridad:</strong></p>
+        <ul>
+            <li>Usa una contraseña fuerte y única</li>
+            <li>No compartas tu contraseña con nadie</li>
+            <li>Si sospechas actividad sospechosa, cambia tu contraseña inmediatamente</li>
+        </ul>
+        <p><a href="{{ login_url }}">Inicia sesión ahora</a> con tu nueva contraseña.</p>
+        <p>El equipo de Sentimetría</p>
+    </body>
+    </html>
+    """
+    
+    text_template = """
+    Contraseña Restablecida Exitosamente
+    
+    Hola {{ name }},
+    
+    Tu contraseña ha sido restablecida exitosamente.
+    
+    Si no fuiste tú quien realizó este cambio, por favor contacta con nosotros inmediatamente.
+    
+    Recomendaciones de seguridad:
+    - Usa una contraseña fuerte y única
+    - No compartas tu contraseña con nadie
+    - Si sospechas actividad sospechosa, cambia tu contraseña inmediatamente
+    
+    Visita {{ login_url }} para iniciar sesión con tu nueva contraseña.
+    
+    El equipo de Sentimetría
+    """
+    
+    # Renderizar templates
+    html_content = html_template.replace("{{ name }}", name).replace("{{ login_url }}", login_url)
+    text_content = text_template.replace("{{ name }}", name).replace("{{ login_url }}", login_url)
+    
+    # Crear mensaje
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Contraseña Restablecida - Sentimetría"
+    msg["From"] = SMTP_USER
+    msg["To"] = email
+    
+    # Agregar contenido
+    part1 = MIMEText(text_content, "plain")
+    part2 = MIMEText(html_content, "html")
+    msg.attach(part1)
+    msg.attach(part2)
+    
+    # Enviar email
+    if SMTP_USER and SMTP_PASSWORD:
+        try:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+            return True
+        except Exception as e:
+            print(f"Error enviando email de confirmación: {e}")
+            return False
+    else:
+        print(f"Email de confirmación de restablecimiento (solo desarrollo): {name} - {email}")
         return False
 
 

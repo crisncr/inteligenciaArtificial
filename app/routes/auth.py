@@ -13,7 +13,11 @@ from app.auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_user, generate_reset_token
 )
-from app.email_service import send_password_reset_email
+from app.email_service import (
+    send_password_reset_email,
+    send_welcome_email,
+    send_password_reset_success_email
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -41,6 +45,13 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
+    # Enviar email de bienvenida
+    try:
+        await send_welcome_email(new_user.email, new_user.name)
+    except Exception as e:
+        # Log error pero no fallar el registro
+        print(f"Error enviando email de bienvenida: {e}")
+    
     return new_user
 
 @router.post("/login", response_model=Token)
@@ -52,10 +63,19 @@ async def login(
     # Buscar usuario por email
     user = db.query(User).filter(User.email == form_data.username).first()
     
-    if not user or not verify_password(form_data.password, user.password_hash):
+    # Verificar si el usuario existe
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El email no está registrado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Verificar contraseña
+    if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email o contraseña incorrectos",
+            detail="Contraseña incorrecta",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -144,6 +164,13 @@ async def reset_password(
     reset_token_obj.used = True
     
     db.commit()
+    
+    # Enviar email de confirmación de restablecimiento exitoso
+    try:
+        await send_password_reset_success_email(user.email, user.name)
+    except Exception as e:
+        # Log error pero no fallar el restablecimiento
+        print(f"Error enviando email de confirmación: {e}")
     
     return {"message": "Contraseña actualizada correctamente"}
 
