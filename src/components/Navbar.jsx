@@ -1,4 +1,12 @@
-function Navbar() {
+function Navbar({ user, onLoginClick, onLogout }) {
+  const scrollToSection = (e, sectionId) => {
+    e.preventDefault()
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   return (
     <nav className="nav">
       <div className="nav__brand">
@@ -6,10 +14,19 @@ function Navbar() {
         <span>Sentimetría</span>
       </div>
       <div className="nav__links">
-        <a href="#features">Características</a>
-        <a href="#precio">Precios</a>
-        <a className="btn--ghost" href="#analizar">Demo</a>
-        <a className="btn" href="#analizar">Probar gratis</a>
+        <a href="#features" onClick={(e) => scrollToSection(e, 'features')}>Características</a>
+        <a href="#precio" onClick={(e) => scrollToSection(e, 'precio')}>Precios</a>
+        {user ? (
+          <>
+            <span className="nav-user">👤 {user.name}</span>
+            <button className="btn--ghost btn--small" onClick={onLogout}>Cerrar sesión</button>
+          </>
+        ) : (
+          <>
+            <button className="btn--ghost" onClick={onLoginClick}>Iniciar sesión</button>
+            <button className="btn" onClick={onLoginClick}>Registrarse</button>
+          </>
+        )}
       </div>
     </nav>
   )

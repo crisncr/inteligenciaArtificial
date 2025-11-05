@@ -1,31 +1,65 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { analysesAPI } from '../utils/api'
 
-function AnalyzePanel() {
+function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimitReached }) {
   const [text, setText] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // Escuchar cambios en reanalyzeText
+  useEffect(() => {
+    if (reanalyzeText) {
+      setText(reanalyzeText)
+      setResult(null)
+    }
+  }, [reanalyzeText])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!text.trim()) return
 
+    // Verificar límite de análisis gratuitos
+    if ((!user || user.plan === 'free') && freeAnalysesLeft <= 0) {
+      if (onLimitReached) {
+        onLimitReached()
+      }
+      return
+    }
+
     setLoading(true)
     setResult(null)
 
     try {
-      const apiUrl = import.meta.env.PROD ? '/analyze' : 'http://127.0.0.1:8000/analyze'
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      })
+      let data
+      
+      if (user) {
+        // Usuario autenticado: usar API real que guarda en BD
+        const analysis = await analysesAPI.create(text)
+        data = {
+          sentiment: analysis.sentiment,
+          score: analysis.score,
+          emoji: analysis.emoji
+        }
+      } else {
+        // Usuario no autenticado: usar endpoint público
+        const apiUrl = import.meta.env.PROD ? '/analyze' : 'http://127.0.0.1:8000/analyze'
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        })
 
-      if (!res.ok) throw new Error(`Error ${res.status}`)
-      const data = await res.json()
+        if (!res.ok) throw new Error(`Error ${res.status}`)
+        data = await res.json()
+      }
       
       setTimeout(() => {
-        setResult(data)
+        setResult({ ...data, timestamp: new Date().toISOString() })
         setLoading(false)
+        if (onAnalyze) {
+          onAnalyze({ ...data, text, timestamp: new Date().toISOString() })
+        }
       }, 300)
     } catch (err) {
       console.error('Error:', err)
@@ -43,6 +77,24 @@ function AnalyzePanel() {
     if (result) setResult(null)
   }
 
+  const handleClear = () => {
+    setText('')
+    setResult(null)
+    setCopied(false)
+  }
+
+  const handleCopyResult = async () => {
+    if (!result) return
+    const resultText = `Sentimiento: ${result.sentiment}\nScore: ${result.score}\nTexto: ${text}`
+    try {
+      await navigator.clipboard.writeText(resultText)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Error al copiar:', err)
+    }
+  }
+
   const getResultClass = (sentiment) => {
     if (sentiment === 'positivo') return 'pos'
     if (sentiment === 'negativo') return 'neg'
@@ -56,6 +108,22 @@ function AnalyzePanel() {
         Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>neutral</strong>.
       </p>
 
+      {(!user || user.plan === 'free') && freeAnalysesLeft <= 0 && (
+        <div className="analysis-limit-warning">
+          {!user ? (
+            <p>⚠️ Has alcanzado el límite de <strong>3 análisis gratuitos</strong>. <strong>Inicia sesión</strong> o <strong>regístrate</strong> para seleccionar un plan.</p>
+          ) : (
+            <p>⚠️ Has alcanzado el límite de <strong>3 análisis gratuitos</strong>. Selecciona un plan para continuar.</p>
+          )}
+        </div>
+      )}
+
+      {(!user || user.plan === 'free') && freeAnalysesLeft > 0 && (
+        <div className="analysis-counter">
+          <p>📊 Análisis gratuitos restantes: <strong>{freeAnalysesLeft}</strong> de 3</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className={loading ? 'loading' : ''}>
         <label htmlFor="text">Frase a analizar</label>
         <textarea
@@ -67,9 +135,19 @@ function AnalyzePanel() {
           onChange={handleInputChange}
           required
         />
-        <button type="submit">
-          <span className="btn-text">{loading ? 'Analizando...' : 'Analizar Sentimiento'}</span>
-        </button>
+        <div className="form-actions">
+          <button 
+            type="submit" 
+            disabled={(!user || user.plan === 'free') && freeAnalysesLeft <= 0}
+          >
+            <span className="btn-text">{loading ? 'Analizando...' : 'Analizar Sentimiento'}</span>
+          </button>
+          {text && (
+            <button type="button" className="btn--ghost btn--small" onClick={handleClear}>
+              Limpiar
+            </button>
+          )}
+        </div>
       </form>
 
       {result && (
@@ -78,6 +156,16 @@ function AnalyzePanel() {
           <div className="result-content">
             <div className="sentiment">{result.sentiment}</div>
             <div className="score">Score: {result.score}</div>
+            <div className="result-actions">
+              <button 
+                type="button" 
+                className="btn--small btn--ghost" 
+                onClick={handleCopyResult}
+                title="Copiar resultado"
+              >
+                {copied ? '✓ Copiado' : '📋 Copiar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,4 +1,12 @@
 function Hero() {
+  const scrollToSection = (e, sectionId) => {
+    e.preventDefault()
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   return (
     <section className="hero">
       <div className="hero__copy">
@@ -7,8 +15,8 @@ function Hero() {
           Clasifica textos en <strong>positivo</strong>, <strong>negativo</strong> o <strong>neutral</strong> con un motor optimizado para español.
         </p>
         <div className="hero__ctas">
-          <a className="btn" href="#analizar">Probar ahora</a>
-          <a className="btn--ghost" href="#features">Ver características</a>
+          <a className="btn" href="#analizar" onClick={(e) => scrollToSection(e, 'analizar')}>Probar ahora</a>
+          <a className="btn--ghost" href="#features" onClick={(e) => scrollToSection(e, 'features')}>Ver características</a>
         </div>
       </div>
       <div className="hero__mock">

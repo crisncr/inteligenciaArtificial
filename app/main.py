@@ -5,6 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 from app.sentiment import analyze_sentiment
+from app.database import engine, Base
+from app.routes import auth as auth_router
+from app.routes import analyses as analyses_router
+
+# Crear tablas en la base de datos
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Motor de Inferencia de Sentimientos", version="1.0.0")
 
@@ -104,8 +110,14 @@ async def sitemap() -> JSONResponse:
     )
     return JSONResponse(content=xml, media_type="application/xml; charset=utf-8")
 
+# Incluir routers
+app.include_router(auth_router.router)
+app.include_router(analyses_router.router)
+
+# Endpoint público para análisis (sin autenticación, límite de 3)
 @app.post("/analyze")
-async def analyze(payload: dict = Body(...)):
+async def analyze_public(payload: dict = Body(...)):
+    """Endpoint público para análisis (máximo 3 análisis gratuitos)"""
     text = (payload.get("text") or "").strip()
     result = analyze_sentiment(text)
     return JSONResponse(result)
