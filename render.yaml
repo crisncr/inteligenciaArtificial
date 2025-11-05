@@ -1,8 +1,5 @@
-databases:
-  - name: sentimetria-db
-    databaseName: sentimetria
-    user: sentimetria
-    plan: free
+# Base de datos PostgreSQL está en Railway, no en Render
+# DATABASE_URL debe configurarse manualmente en Render con la External Database URL de Railway
 
 services:
   - type: web
@@ -42,9 +39,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: DATABASE_URL
-        fromDatabase:
-          name: sentimetria-db
-          property: connectionString
+        sync: false  # Configurar manualmente con la External Database URL de Railway
       - key: SECRET_KEY
         generateValue: true
       - key: SMTP_HOST
