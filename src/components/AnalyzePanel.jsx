@@ -104,9 +104,9 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
 
   // Imágenes para el carrusel (puedes agregar más imágenes aquí)
   const carouselImages = [
-    '/images/sentiment-1.svg',
-    '/images/sentiment-2.svg',
-    '/images/sentiment-3.svg',
+    '/images/1711396661636.png',
+    '/images/diferencia-entre-emocion-y-sentimiento.jpg',
+    '/images/istockphoto-1409988922-612x612.jpg',
   ]
 
   return (
