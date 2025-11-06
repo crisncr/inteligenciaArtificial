@@ -8,9 +8,10 @@ from app.sentiment import analyze_sentiment
 from app.database import engine, Base, SessionLocal
 from app.routes import auth as auth_router
 from app.routes import analyses as analyses_router
+from app.routes import external_api as external_api_router
 
 # Importar todos los modelos para que SQLAlchemy los registre
-from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken
+from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken, ExternalAPI
 
 # Crear tablas en la base de datos (después de importar los modelos)
 try:
@@ -153,6 +154,7 @@ async def sitemap() -> JSONResponse:
 # Incluir routers
 app.include_router(auth_router.router)
 app.include_router(analyses_router.router)
+app.include_router(external_api_router.router)
 
 # Endpoint público para análisis (sin autenticación, límite de 3)
 @app.post("/analyze")

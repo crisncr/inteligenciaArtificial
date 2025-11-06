@@ -1,10 +1,31 @@
 import { useState, useEffect } from 'react'
 
-function History({ history, onReanalyze, onClearHistory }) {
+function History({ history, onReanalyze, onClearHistory, filter, onFilterChange }) {
   const [expanded, setExpanded] = useState(false)
+  const [currentFilter, setCurrentFilter] = useState(filter || 'all')
+
+  useEffect(() => {
+    if (onFilterChange) {
+      onFilterChange(currentFilter)
+    }
+  }, [currentFilter, onFilterChange])
+
+  const filteredHistory = currentFilter === 'all' 
+    ? history 
+    : history.filter(item => {
+        if (currentFilter === 'positivo') return item.sentiment === 'positivo'
+        if (currentFilter === 'negativo') return item.sentiment === 'negativo'
+        if (currentFilter === 'neutral') return item.sentiment === 'neutral' || item.sentiment === 'moderado/neutral'
+        return true
+      })
 
   if (!history || history.length === 0) {
-    return null
+    return (
+      <section className="history-panel">
+        <h3>Historial de Análisis</h3>
+        <p className="subtitle">No hay análisis aún</p>
+      </section>
+    )
   }
 
   const formatDate = (timestamp) => {
@@ -24,19 +45,38 @@ function History({ history, onReanalyze, onClearHistory }) {
     return 'neu'
   }
 
-  const displayHistory = expanded ? history : history.slice(0, 3)
+  const displayHistory = expanded ? filteredHistory : filteredHistory.slice(0, 10)
+
+  const filters = [
+    { id: 'all', label: 'Todos', icon: '📋' },
+    { id: 'positivo', label: 'Positivos', icon: '🟢' },
+    { id: 'negativo', label: 'Negativos', icon: '🔴' },
+    { id: 'neutral', label: 'Neutrales', icon: '🟡' }
+  ]
 
   return (
     <section className="history-panel">
       <div className="history-header">
         <h3>Historial de Análisis</h3>
         <div className="history-actions">
-          {history.length > 3 && (
+          <div className="history-filters">
+            {filters.map((f) => (
+              <button
+                key={f.id}
+                className={`filter-btn ${currentFilter === f.id ? 'active' : ''}`}
+                onClick={() => setCurrentFilter(f.id)}
+              >
+                <span>{f.icon}</span>
+                <span>{f.label}</span>
+              </button>
+            ))}
+          </div>
+          {filteredHistory.length > 10 && (
             <button 
               className="btn--ghost btn--small" 
               onClick={() => setExpanded(!expanded)}
             >
-              {expanded ? 'Ver menos' : `Ver todos (${history.length})`}
+              {expanded ? 'Ver menos' : `Ver todos (${filteredHistory.length})`}
             </button>
           )}
           <button 
@@ -48,8 +88,13 @@ function History({ history, onReanalyze, onClearHistory }) {
           </button>
         </div>
       </div>
-      <div className="history-list">
-        {displayHistory.map((item, index) => (
+      {filteredHistory.length === 0 ? (
+        <div className="history-empty">
+          <p>No hay análisis {currentFilter !== 'all' ? filters.find(f => f.id === currentFilter)?.label.toLowerCase() : ''} aún</p>
+        </div>
+      ) : (
+        <div className="history-list">
+          {displayHistory.map((item, index) => (
           <div key={index} className={`history-item ${getResultClass(item.sentiment)}`}>
             <div className="history-item-header">
               <span className="history-emoji">{item.emoji}</span>
@@ -67,7 +112,8 @@ function History({ history, onReanalyze, onClearHistory }) {
             </button>
           </div>
         ))}
-      </div>
+        </div>
+      )}
     </section>
   )
 }

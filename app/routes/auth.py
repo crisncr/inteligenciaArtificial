@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models import User, PasswordResetToken, EmailVerificationToken
 from app.schemas import (
     UserCreate, UserResponse, UserLogin, Token,
-    PasswordResetRequest, PasswordReset
+    PasswordResetRequest, PasswordReset, UserUpdate, PasswordChange
 )
 from app.auth import (
     get_password_hash, verify_password, create_access_token,
@@ -291,5 +291,68 @@ async def verify_email_post(
     background_tasks.add_task(send_welcome_email, user.email, user.name)
     
     return {"success": True, "message": "Email verificado correctamente. Bienvenido a Sentimetría!"}
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Actualizar perfil del usuario (nombre y/o email)"""
+    # Actualizar nombre si se proporciona
+    if user_data.name is not None:
+        current_user.name = user_data.name
+    
+    # Actualizar email si se proporciona
+    if user_data.email is not None:
+        email_lower = user_data.email.lower().strip()
+        
+        # Verificar si el email ya existe (case-insensitive) y no es el mismo usuario
+        existing_user = db.query(User).filter(
+            func.lower(User.email) == email_lower,
+            User.id != current_user.id
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El email ya está registrado"
+            )
+        
+        current_user.email = email_lower
+        # Si cambia el email, requiere verificación nuevamente
+        current_user.email_verified = False
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return current_user
+
+@router.post("/change-password")
+async def change_password(
+    password_data: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cambiar contraseña del usuario (requiere contraseña actual)"""
+    # Verificar contraseña actual
+    if not verify_password(password_data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La contraseña actual es incorrecta"
+        )
+    
+    # Verificar que la nueva contraseña no sea igual a la actual
+    if verify_password(password_data.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña no puede ser la misma que la contraseña actual"
+        )
+    
+    # Actualizar contraseña
+    current_user.password_hash = get_password_hash(password_data.new_password)
+    db.commit()
+    
+    return {"message": "Contraseña actualizada correctamente"}
 
 

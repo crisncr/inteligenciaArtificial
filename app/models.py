@@ -20,6 +20,7 @@ class User(Base):
     payments = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
     email_verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
+    external_apis = relationship("ExternalAPI", back_populates="user", cascade="all, delete-orphan")
 
 class Analysis(Base):
     __tablename__ = "analyses"
@@ -30,10 +31,13 @@ class Analysis(Base):
     sentiment = Column(String, nullable=False)
     score = Column(Float, nullable=False)
     emoji = Column(String, nullable=False)
+    source = Column(String, default="manual", nullable=False)  # "manual", "api_external"
+    external_api_id = Column(Integer, ForeignKey("external_apis.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relaciones
     user = relationship("User", back_populates="analyses")
+    external_api = relationship("ExternalAPI", back_populates="analyses")
 
 class Plan(Base):
     __tablename__ = "plans"
@@ -88,5 +92,25 @@ class EmailVerificationToken(Base):
     
     # Relaciones
     user = relationship("User", back_populates="email_verification_tokens")
+
+class ExternalAPI(Base):
+    __tablename__ = "external_apis"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    api_url = Column(String, nullable=False)
+    endpoint = Column(String, nullable=False)
+    method = Column(String, default="GET", nullable=False)  # GET, POST
+    headers = Column(JSON, nullable=True)  # Headers adicionales
+    auth_type = Column(String, nullable=True)  # "api_key", "bearer", "basic", None
+    auth_token = Column(String, nullable=True)  # Token o API key
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relaciones
+    user = relationship("User", back_populates="external_apis")
+    analyses = relationship("Analysis", back_populates="external_api", cascade="all, delete-orphan")
 
 

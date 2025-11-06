@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react'
 import Navbar from './components/Navbar'
-import Hero from './components/Hero'
 import AnalyzePanel from './components/AnalyzePanel'
 import Features from './components/Features'
-import History from './components/History'
-import Stats from './components/Stats'
 import Pricing from './components/Pricing'
 import Footer from './components/Footer'
 import CookieBar from './components/CookieBar'
@@ -14,6 +11,7 @@ import ForgotPassword from './components/ForgotPassword'
 import VerifyEmail from './components/VerifyEmail'
 import ResetPassword from './components/ResetPassword'
 import LimitModal from './components/LimitModal'
+import Dashboard from './components/Dashboard'
 import { authAPI, analysesAPI, getToken, removeToken } from './utils/api'
 
 function App() {
@@ -68,6 +66,8 @@ function App() {
               sentiment: a.sentiment,
               score: a.score,
               emoji: a.emoji,
+              source: a.source || 'manual',
+              external_api_id: a.external_api_id || null,
               timestamp: a.created_at
             })))
           } catch (err) {
@@ -155,6 +155,8 @@ function App() {
           sentiment: a.sentiment,
           score: a.score,
           emoji: a.emoji,
+          source: a.source || 'manual',
+          external_api_id: a.external_api_id || null,
           timestamp: a.created_at
         })))
       } catch (err) {
@@ -243,6 +245,10 @@ function App() {
     setShowRegister(false)
   }
 
+  const handleUserUpdate = (updatedUser) => {
+    setUser(updatedUser)
+  }
+
   return (
     <>
       <Navbar 
@@ -251,33 +257,39 @@ function App() {
         onRegisterClick={handleRegisterClick}
         onLogout={handleLogout}
       />
-      <div className="container">
-        <Hero />
-        <AnalyzePanel 
-          onAnalyze={handleAnalyze} 
-          reanalyzeText={reanalyzeText}
+      {user ? (
+        // Dashboard para usuarios autenticados
+        <Dashboard
           user={user}
+          history={history}
+          onReanalyze={handleReanalyze}
+          onClearHistory={handleClearHistory}
+          onSelectPlan={handleSelectPlan}
+          onUserUpdate={handleUserUpdate}
+          onAnalyze={handleAnalyze}
+          reanalyzeText={reanalyzeText}
           freeAnalysesLeft={freeAnalysesLeft}
           onLimitReached={handleLimitReached}
         />
-        {history.length > 0 && (
-          <>
-            <History 
-              history={history} 
-              onReanalyze={handleReanalyze}
-              onClearHistory={handleClearHistory}
-            />
-            <Stats history={history} />
-          </>
-        )}
-        <Features />
-        <Pricing 
-          user={user}
-          onSelectPlan={handleSelectPlan}
-          onLoginRequired={handleLoginClick}
-        />
-        <Footer />
-      </div>
+      ) : (
+        // Página pública para usuarios no autenticados
+        <div className="container">
+          <AnalyzePanel 
+            onAnalyze={handleAnalyze} 
+            reanalyzeText={reanalyzeText}
+            user={user}
+            freeAnalysesLeft={freeAnalysesLeft}
+            onLimitReached={handleLimitReached}
+          />
+          <Features />
+          <Pricing 
+            user={user}
+            onSelectPlan={handleSelectPlan}
+            onLoginRequired={handleLoginClick}
+          />
+          <Footer />
+        </div>
+      )}
       {!cookieAccepted && <CookieBar onAccept={() => setCookieAccepted(true)} />}
       
       {showLogin && (

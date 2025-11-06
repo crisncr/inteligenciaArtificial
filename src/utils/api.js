@@ -38,8 +38,15 @@ export const apiRequest = async (endpoint, options = {}) => {
     if (response.status === 401) {
       removeToken()
     }
-    const error = await response.json().catch(() => ({ detail: 'Error desconocido' }))
-    throw new Error(error.detail || error.message || `Error ${response.status}`)
+    let errorData
+    try {
+      errorData = await response.json()
+    } catch {
+      errorData = { detail: `Error ${response.status}` }
+    }
+    const error = new Error(errorData.detail || errorData.message || `Error ${response.status}`)
+    error.response = { data: errorData, status: response.status }
+    throw error
   }
 
   return response.json()
@@ -125,6 +132,20 @@ export const authAPI = {
       body: JSON.stringify({ token }),
     })
   },
+
+  updateProfile: async (userData) => {
+    return apiRequest('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    })
+  },
+
+  changePassword: async (passwordData) => {
+    return apiRequest('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(passwordData),
+    })
+  },
 }
 
 // Endpoints de análisis
@@ -157,6 +178,43 @@ export const analysesAPI = {
       method: 'POST',
       body: JSON.stringify({ texts }),
     })
+  },
+}
+
+// Endpoints de API Externa
+export const externalAPI = {
+  create: async (apiData) => {
+    return apiRequest('/api/external-apis', {
+      method: 'POST',
+      body: JSON.stringify(apiData),
+    })
+  },
+
+  getAll: async () => {
+    return apiRequest('/api/external-apis')
+  },
+
+  getById: async (id) => {
+    return apiRequest(`/api/external-apis/${id}`)
+  },
+
+  update: async (id, apiData) => {
+    return apiRequest(`/api/external-apis/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(apiData),
+    })
+  },
+
+  delete: async (id) => {
+    return apiRequest(`/api/external-apis/${id}`, { method: 'DELETE' })
+  },
+
+  test: async (id) => {
+    return apiRequest(`/api/external-apis/${id}/test`, { method: 'POST' })
+  },
+
+  analyze: async (id) => {
+    return apiRequest(`/api/external-apis/${id}/analyze`, { method: 'POST' })
   },
 }
 
