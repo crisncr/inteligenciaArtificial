@@ -7,6 +7,7 @@ from typing import Optional
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from urllib.parse import quote
 import httpx
 # Template simple sin jinja2
 
@@ -147,7 +148,9 @@ async def send_verification_email(email: str, name: str, verification_token: str
     """
     Envía email de verificación cuando se registra un nuevo usuario
     """
-    verification_url = f"{FRONTEND_URL}?token={verification_token}"
+    # Codificar el token para URL seguro
+    encoded_token = quote(verification_token, safe='')
+    verification_url = f"{FRONTEND_URL}?token={encoded_token}"
     login_url = f"{FRONTEND_URL}"
     
     # Template del email mejorado con diseño profesional
@@ -191,11 +194,7 @@ async def send_verification_email(email: str, name: str, verification_token: str
                     Para completar tu registro y activar tu cuenta, por favor verifica tu dirección de correo electrónico haciendo clic en el botón de abajo:
                 </div>
                 <div class="button-container">
-                    <a href="{{ verification_url }}" class="button">Verificar mi Email</a>
-                </div>
-                <div class="message" style="font-size: 14px; color: #777;">
-                    O copia y pega este enlace en tu navegador:<br>
-                    <a href="{{ verification_url }}" class="link">{{ verification_url }}</a>
+                    <a href="{{ verification_url }}" class="button" style="text-decoration: none;">Verificar mi Email</a>
                 </div>
                 <div class="features">
                     <h3>✨ Con tu cuenta verificada podrás:</h3>
