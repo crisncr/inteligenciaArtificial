@@ -12,6 +12,7 @@ import Login from './components/Login'
 import Register from './components/Register'
 import ForgotPassword from './components/ForgotPassword'
 import VerifyEmail from './components/VerifyEmail'
+import ResetPassword from './components/ResetPassword'
 import LimitModal from './components/LimitModal'
 import { authAPI, analysesAPI, getToken, removeToken } from './utils/api'
 
@@ -25,17 +26,26 @@ function App() {
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [showVerifyEmail, setShowVerifyEmail] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
   const [verificationToken, setVerificationToken] = useState(null)
+  const [resetToken, setResetToken] = useState(null)
   const [freeAnalysesUsed, setFreeAnalysesUsed] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  // Verificar si hay token de verificación en la URL
+  // Verificar si hay token de verificación o reset en la URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const token = urlParams.get('token')
+    const resetTokenParam = urlParams.get('reset-token')
+    
     if (token) {
       setVerificationToken(token)
       setShowVerifyEmail(true)
+      // Limpiar URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (resetTokenParam) {
+      setResetToken(resetTokenParam)
+      setShowResetPassword(true)
       // Limpiar URL
       window.history.replaceState({}, document.title, window.location.pathname)
     }
@@ -310,6 +320,21 @@ function App() {
             setShowVerifyEmail(false)
             setVerificationToken(null)
             // Limpiar también la URL para evitar que vuelva a aparecer
+            window.history.replaceState({}, document.title, window.location.pathname)
+          }}
+        />
+      )}
+
+      {showResetPassword && (
+        <ResetPassword 
+          token={resetToken}
+          onSuccess={() => {
+            setShowResetPassword(false)
+            setResetToken(null)
+          }}
+          onClose={() => {
+            setShowResetPassword(false)
+            setResetToken(null)
             window.history.replaceState({}, document.title, window.location.pathname)
           }}
         />

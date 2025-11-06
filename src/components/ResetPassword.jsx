@@ -63,9 +63,15 @@ function ResetPassword({ token: tokenProp, onSuccess, onClose }) {
     try {
       await authAPI.resetPassword(token, newPassword)
       setSuccess(true)
+      // Cerrar el componente antes de redirigir
+      if (onClose) {
+        setTimeout(() => {
+          onClose()
+        }, 100)
+      }
+      // Redirigir automáticamente después de 2 segundos
       setTimeout(() => {
-        if (onSuccess) onSuccess()
-        if (onClose) onClose()
+        window.location.replace('/')
       }, 2000)
     } catch (err) {
       setError(err.message || 'Error al restablecer contraseña')
@@ -97,8 +103,25 @@ function ResetPassword({ token: tokenProp, onSuccess, onClose }) {
 
         {error && <div className="auth-error">{error}</div>}
         {success && (
-          <div className="auth-success">
-            <p>✅ Contraseña actualizada correctamente. Redirigiendo...</p>
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+            border: '2px solid #667eea',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '20px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>✅</div>
+            <h3 style={{ color: '#667eea', marginBottom: '10px', marginTop: '0' }}>¡Contraseña Actualizada!</h3>
+            <p style={{ marginBottom: '10px', color: '#555', fontSize: '1.1rem', fontWeight: '500' }}>
+              Tu contraseña ha sido restablecida exitosamente.
+            </p>
+            <p style={{ marginBottom: '0', color: '#667eea', fontSize: '0.95rem', fontWeight: '600' }}>
+              Ya puedes iniciar sesión con tu nueva contraseña
+            </p>
+            <p style={{ fontSize: '0.9rem', color: '#888', marginTop: '15px', marginBottom: '0' }}>
+              Redirigiendo a la página principal...
+            </p>
           </div>
         )}
 

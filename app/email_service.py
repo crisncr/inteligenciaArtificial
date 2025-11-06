@@ -71,19 +71,57 @@ async def send_password_reset_email(email: str, reset_token: str):
     """
     Envía email para recuperación de contraseña
     """
-    reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
+    # Codificar el token para URL seguro
+    from urllib.parse import quote
+    encoded_token = quote(reset_token, safe='')
+    reset_url = f"{FRONTEND_URL}?reset-token={encoded_token}"
     
-    # Template del email
+    # Template del email mejorado con diseño profesional
     html_template = """
+    <!DOCTYPE html>
     <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+            .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; }
+            .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; }
+            .content { padding: 40px 30px; }
+            .message { color: #555; margin-bottom: 30px; font-size: 16px; }
+            .button-container { text-align: center; margin: 30px 0; }
+            .button { display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+            .button:hover { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+            .footer { padding: 30px; text-align: center; background-color: #f8f9fa; color: #777; font-size: 14px; }
+            .warning { background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px 0; color: #856404; font-size: 14px; }
+        </style>
+    </head>
     <body>
-        <h2>Recuperación de Contraseña</h2>
-        <p>Has solicitado recuperar tu contraseña. Haz clic en el siguiente enlace:</p>
-        <p><a href="{{ reset_url }}">Recuperar Contraseña</a></p>
-        <p>O copia y pega este enlace en tu navegador:</p>
-        <p>{{ reset_url }}</p>
-        <p>Este enlace expirará en 1 hora.</p>
-        <p>Si no solicitaste este cambio, ignora este email.</p>
+        <div class="container">
+            <div class="header">
+                <h1>🔐 Recuperación de Contraseña</h1>
+            </div>
+            <div class="content">
+                <div class="message">
+                    Has solicitado recuperar tu contraseña. Haz clic en el botón de abajo para restablecer tu contraseña:
+                </div>
+                <div class="button-container">
+                    <a href="{{ reset_url }}" class="button" style="text-decoration: none;">Restablecer Contraseña</a>
+                </div>
+                <div class="warning">
+                    <strong>⚠️ Importante:</strong> Este enlace expirará en 1 hora. Si no solicitaste este cambio, ignora este email.
+                </div>
+                <div class="message" style="font-size: 14px; color: #999; margin-top: 30px;">
+                    Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+                    <a href="{{ reset_url }}" style="color: #667eea; word-break: break-all;">{{ reset_url }}</a>
+                </div>
+            </div>
+            <div class="footer">
+                <p><strong>Sentimetría</strong> - Análisis de Sentimientos Inteligente</p>
+                <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+            </div>
+        </div>
     </body>
     </html>
     """
