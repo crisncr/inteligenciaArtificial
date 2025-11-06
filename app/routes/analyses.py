@@ -47,13 +47,14 @@ async def create_analysis(
     # Analizar sentimiento
     result = analyze_sentiment(analysis_data.text)
     
-    # Guardar en BD
+    # Guardar en BD con source='manual' por defecto
     new_analysis = Analysis(
         user_id=current_user.id,
         text=analysis_data.text,
         sentiment=result["sentiment"],
         score=result["score"],
-        emoji=result["emoji"]
+        emoji=result["emoji"],
+        source="manual"  # Análisis manual por defecto
     )
     
     db.add(new_analysis)

@@ -1,6 +1,6 @@
 import { getPlanFeatures } from '../utils/planFeatures'
 
-function DashboardHome({ user, onSelectPlan }) {
+function DashboardHome({ user, onSelectPlan, onSectionChange }) {
   const plan = user?.plan || 'free'
   const planName = plan === 'free' ? 'Básico' : plan === 'pro' ? 'Pro' : 'Enterprise'
   const features = getPlanFeatures(plan)
@@ -45,15 +45,21 @@ function DashboardHome({ user, onSelectPlan }) {
         <div className="overview-section">
           <h2>Servicios</h2>
           <div className="services-grid">
-            {/* Análisis de Sentimientos - Disponible para todos */}
-            <div className="service-card">
-              <div className="service-icon">📊</div>
-              <div className="service-info">
-                <h3>Análisis de Sentimientos</h3>
-                <p>Análisis de sentimientos desde APIs externas</p>
-                <span className="service-status active">✓ Activo</span>
+            {/* Análisis de Sentimientos - Disponible para plan gratuito */}
+            {plan === 'free' && (
+              <div 
+                className="service-card" 
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSectionChange && onSectionChange('analisis-sentimientos')}
+              >
+                <div className="service-icon">📊</div>
+                <div className="service-info">
+                  <h3>Análisis de Sentimientos</h3>
+                  <p>Analiza texto directamente sin necesidad de API externa</p>
+                  <span className="service-status active">✓ Disponible</span>
+                </div>
               </div>
-            </div>
+            )}
             
             {/* API Externa - Solo Pro y Enterprise */}
             {(plan === 'pro' || plan === 'enterprise') && (

@@ -2,6 +2,7 @@
 export const getSidebarItems = (plan) => {
   const baseItems = [
     { id: 'inicio', label: 'Inicio', icon: '🏠', plan: 'free' },
+    { id: 'analisis-sentimientos', label: 'Análisis de Sentimientos', icon: '📊', plan: 'free' },
     { id: 'pagos', label: 'Pagos', icon: '💳', plan: 'free' },
     { id: 'planes', label: 'Planes', icon: '📦', plan: 'free' },
     { id: 'soporte', label: 'Ayuda', icon: '💬', plan: 'free' },
@@ -40,6 +41,7 @@ export const getPlanFeatures = (plan) => {
   const features = {
     free: [
       'Inicio - Overview de tu cuenta',
+      'Análisis de Sentimientos - Analizar texto directamente',
       'Pagos - Historial de pagos',
       'Planes - Cambiar de plan',
       'Ayuda - Soporte y documentación',

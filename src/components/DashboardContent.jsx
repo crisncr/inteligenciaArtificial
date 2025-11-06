@@ -12,6 +12,7 @@ import AdvancedAnalysis from './AdvancedAnalysis'
 import ExportData from './ExportData'
 import Integrations from './Integrations'
 import Reports from './Reports'
+import ManualAnalysis from './ManualAnalysis'
 
 function DashboardContent({ 
   activeSection, 
@@ -41,7 +42,16 @@ function DashboardContent({
   const renderContent = () => {
     switch (activeSection) {
       case 'inicio':
-        return <DashboardHome user={user} onSelectPlan={onSelectPlan} />
+        return <DashboardHome user={user} onSelectPlan={onSelectPlan} onSectionChange={onSectionChange} />
+      case 'analisis-sentimientos':
+        return (
+          <ManualAnalysis 
+            user={user}
+            onAnalyze={onAnalyze}
+            freeAnalysesLeft={freeAnalysesLeft}
+            onLimitReached={onLimitReached}
+          />
+        )
       case 'pagos':
         return <PaymentsHistory user={user} />
       case 'planes':
