@@ -821,7 +821,24 @@ footer small {
 .feature { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 16px; text-align:left; }
 .feat__icon { font-size: 22px; margin-bottom: 8px; }
 
-.cookies { position: fixed; left: 12px; right: 12px; bottom: 12px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px 14px; display:flex; gap: 12px; align-items:center; box-shadow: 0 10px 40px var(--shadow); z-index: 1000; }
+.cookies { 
+  position: fixed; 
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 20px;
+  max-width: 600px;
+  width: calc(100% - 40px);
+  background: rgba(255,255,255,.06); 
+  border:1px solid rgba(255,255,255,.1); 
+  border-radius: 12px; 
+  padding: 12px 20px; 
+  display:flex; 
+  gap: 12px; 
+  align-items:center; 
+  justify-content: space-between;
+  box-shadow: 0 10px 40px var(--shadow); 
+  z-index: 1000; 
+}
 
 /* Form Actions */
 .form-actions {
@@ -1072,6 +1089,10 @@ footer small {
 /* Pricing Panel */
 .pricing-panel {
   margin-top: 48px;
+  margin-left: 20px;
+  margin-right: 20px;
+  width: calc(100% - 40px);
+  max-width: 100%;
   animation: slideUp 0.6s ease-out 0.5s both;
 }
 
@@ -2321,8 +2342,11 @@ footer small {
 
 /* Plans Panel */
 .plans-panel {
-  max-width: 1200px;
+  max-width: 100%;
   margin: 0 auto;
+  margin-left: 20px;
+  margin-right: 20px;
+  width: calc(100% - 40px);
 }
 
 /* Payments History Panel */
