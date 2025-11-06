@@ -44,6 +44,9 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Crea un JWT token"""
     to_encode = data.copy()
+    # Asegurar que 'sub' sea una cadena (JWT requiere que el subject sea string)
+    if "sub" in to_encode:
+        to_encode["sub"] = str(to_encode["sub"])
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -61,9 +64,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
             print(f"⚠️ Token sin user_id: {payload}")
+            raise credentials_exception
+        # Convertir el subject a int (JWT devuelve strings)
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            print(f"⚠️ user_id no es un número válido: {user_id_str}")
             raise credentials_exception
     except JWTError as e:
         print(f"⚠️ Error decodificando JWT: {e}")
