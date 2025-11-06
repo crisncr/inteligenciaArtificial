@@ -42,6 +42,7 @@ function Dashboard({
           reanalyzeText={reanalyzeText}
           freeAnalysesLeft={freeAnalysesLeft}
           onLimitReached={onLimitReached}
+          onSectionChange={setActiveSection}
         />
       </div>
     </div>

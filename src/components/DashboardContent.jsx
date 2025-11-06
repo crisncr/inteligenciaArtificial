@@ -24,7 +24,8 @@ function DashboardContent({
   onAnalyze,
   reanalyzeText,
   freeAnalysesLeft,
-  onLimitReached
+  onLimitReached,
+  onSectionChange
 }) {
   const [historyFilter, setHistoryFilter] = useState('all')
 
@@ -81,7 +82,7 @@ function DashboardContent({
       case 'exportar-datos':
         return <ExportData user={user} history={history} />
       case 'integraciones':
-        return <Integrations user={user} />
+        return <Integrations user={user} onSectionChange={onSectionChange} />
       case 'reportes':
         return <Reports user={user} />
       default:
