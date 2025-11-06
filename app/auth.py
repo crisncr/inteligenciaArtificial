@@ -16,19 +16,30 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
 # Contexto para hash de contraseñas
-# Configurar bcrypt explícitamente para evitar problemas de compatibilidad
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Inicializar de forma lazy para evitar problemas de compatibilidad con bcrypt
+_pwd_context = None
+
+def get_pwd_context():
+    """Obtiene el contexto de contraseñas, inicializándolo si es necesario"""
+    global _pwd_context
+    if _pwd_context is None:
+        try:
+            _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        except Exception as e:
+            print(f"Error inicializando bcrypt: {e}, usando sha256_crypt como respaldo")
+            _pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
+    return _pwd_context
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifica si la contraseña coincide con el hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    return get_pwd_context().verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
     """Genera hash de la contraseña"""
-    return pwd_context.hash(password)
+    return get_pwd_context().hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Crea un JWT token"""

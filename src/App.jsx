@@ -218,6 +218,7 @@ function App() {
       <Navbar 
         user={user} 
         onLoginClick={handleLoginClick}
+        onRegisterClick={handleRegisterClick}
         onLogout={handleLogout}
       />
       <div className="container">

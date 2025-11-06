@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -22,7 +22,11 @@ from app.email_service import (
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(
+    user_data: UserCreate, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """Registrar un nuevo usuario"""
     # Verificar si el email ya existe
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -45,12 +49,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    # Enviar email de bienvenida
-    try:
-        await send_welcome_email(new_user.email, new_user.name)
-    except Exception as e:
-        # Log error pero no fallar el registro
-        print(f"Error enviando email de bienvenida: {e}")
+    # Enviar email de bienvenida en background (no bloquea el registro)
+    background_tasks.add_task(send_welcome_email, new_user.email, new_user.name)
     
     return new_user
 
@@ -97,6 +97,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 @router.post("/forgot-password")
 async def forgot_password(
     request: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """Solicitar recuperación de contraseña"""
@@ -118,12 +119,8 @@ async def forgot_password(
         db.add(reset_token_obj)
         db.commit()
         
-        # Enviar email (implementar email_service)
-        try:
-            await send_password_reset_email(user.email, reset_token)
-        except Exception as e:
-            # Log error pero no revelar al usuario
-            print(f"Error enviando email: {e}")
+        # Enviar email en background (no bloquea la respuesta)
+        background_tasks.add_task(send_password_reset_email, user.email, reset_token)
     
     # Siempre devolver éxito (por seguridad)
     return {
@@ -133,6 +130,7 @@ async def forgot_password(
 @router.post("/reset-password")
 async def reset_password(
     reset_data: PasswordReset,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """Restablecer contraseña con token"""
@@ -165,12 +163,8 @@ async def reset_password(
     
     db.commit()
     
-    # Enviar email de confirmación de restablecimiento exitoso
-    try:
-        await send_password_reset_success_email(user.email, user.name)
-    except Exception as e:
-        # Log error pero no fallar el restablecimiento
-        print(f"Error enviando email de confirmación: {e}")
+    # Enviar email de confirmación en background (no bloquea el restablecimiento)
+    background_tasks.add_task(send_password_reset_success_email, user.email, user.name)
     
     return {"message": "Contraseña actualizada correctamente"}
 

@@ -66,16 +66,19 @@ async def send_password_reset_email(email: str, reset_token: str):
     # Enviar email
     if SMTP_USER and SMTP_PASSWORD:
         try:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
+            print(f"✅ Email de recuperación enviado a {email}")
             return True
         except Exception as e:
-            print(f"Error enviando email: {e}")
-            # En desarrollo, solo imprimir el token
+            print(f"❌ Error enviando email de recuperación: {e}")
             print(f"Token de reset (solo desarrollo): {reset_token}")
             return False
+    else:
+        print(f"⚠️ Email de recuperación (SMTP no configurado): Token de reset: {reset_token}")
+        return False
 
 async def send_welcome_email(email: str, name: str):
     """
@@ -144,16 +147,17 @@ async def send_welcome_email(email: str, name: str):
     # Enviar email
     if SMTP_USER and SMTP_PASSWORD:
         try:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
+            print(f"✅ Email de bienvenida enviado a {email}")
             return True
         except Exception as e:
-            print(f"Error enviando email de bienvenida: {e}")
+            print(f"❌ Error enviando email de bienvenida: {e}")
             return False
     else:
-        print(f"Email de bienvenida (solo desarrollo): {name} - {email}")
+        print(f"⚠️ Email de bienvenida (SMTP no configurado): {name} - {email}")
         return False
 
 async def send_password_reset_success_email(email: str, name: str):
@@ -220,16 +224,17 @@ async def send_password_reset_success_email(email: str, name: str):
     # Enviar email
     if SMTP_USER and SMTP_PASSWORD:
         try:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASSWORD)
                 server.send_message(msg)
+            print(f"✅ Email de confirmación de restablecimiento enviado a {email}")
             return True
         except Exception as e:
-            print(f"Error enviando email de confirmación: {e}")
+            print(f"❌ Error enviando email de confirmación: {e}")
             return False
     else:
-        print(f"Email de confirmación de restablecimiento (solo desarrollo): {name} - {email}")
+        print(f"⚠️ Email de confirmación (SMTP no configurado): {name} - {email}")
         return False
 
 

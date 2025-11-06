@@ -1,4 +1,4 @@
-function Navbar({ user, onLoginClick, onLogout }) {
+function Navbar({ user, onLoginClick, onRegisterClick, onLogout }) {
   const scrollToSection = (e, sectionId) => {
     e.preventDefault()
     const element = document.getElementById(sectionId)
@@ -24,7 +24,7 @@ function Navbar({ user, onLoginClick, onLogout }) {
         ) : (
           <>
             <button className="btn--ghost" onClick={onLoginClick}>Iniciar sesión</button>
-            <button className="btn" onClick={onLoginClick}>Registrarse</button>
+            <button className="btn" onClick={onRegisterClick}>Registrarse</button>
           </>
         )}
       </div>
