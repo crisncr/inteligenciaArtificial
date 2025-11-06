@@ -19,6 +19,7 @@ class User(Base):
     analyses = relationship("Analysis", back_populates="user", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    email_verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
 
 class Analysis(Base):
     __tablename__ = "analyses"
@@ -74,5 +75,18 @@ class PasswordResetToken(Base):
     
     # Relaciones
     user = relationship("User", back_populates="password_reset_tokens")
+
+class EmailVerificationToken(Base):
+    __tablename__ = "email_verification_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relaciones
+    user = relationship("User", back_populates="email_verification_tokens")
 
 

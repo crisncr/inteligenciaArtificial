@@ -10,7 +10,7 @@ from app.routes import auth as auth_router
 from app.routes import analyses as analyses_router
 
 # Importar todos los modelos para que SQLAlchemy los registre
-from app.models import User, Analysis, Plan, Payment, PasswordResetToken
+from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken
 
 # Crear tablas en la base de datos (después de importar los modelos)
 try:

@@ -118,6 +118,13 @@ export const authAPI = {
       body: JSON.stringify({ token, new_password: newPassword }),
     })
   },
+
+  verifyEmail: async (token) => {
+    return apiRequest('/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    })
+  },
 }
 
 // Endpoints de análisis

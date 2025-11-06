@@ -11,6 +11,7 @@ import CookieBar from './components/CookieBar'
 import Login from './components/Login'
 import Register from './components/Register'
 import ForgotPassword from './components/ForgotPassword'
+import VerifyEmail from './components/VerifyEmail'
 import LimitModal from './components/LimitModal'
 import { authAPI, analysesAPI, getToken, removeToken } from './utils/api'
 
@@ -23,8 +24,22 @@ function App() {
   const [showRegister, setShowRegister] = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [showVerifyEmail, setShowVerifyEmail] = useState(false)
+  const [verificationToken, setVerificationToken] = useState(null)
   const [freeAnalysesUsed, setFreeAnalysesUsed] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Verificar si hay token de verificación en la URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const token = urlParams.get('token')
+    if (token) {
+      setVerificationToken(token)
+      setShowVerifyEmail(true)
+      // Limpiar URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
 
   // Cargar usuario desde API si hay token JWT
   useEffect(() => {
@@ -285,6 +300,16 @@ function App() {
             }
           }}
           isAuthenticated={!!user}
+        />
+      )}
+
+      {showVerifyEmail && (
+        <VerifyEmail 
+          token={verificationToken}
+          onClose={() => {
+            setShowVerifyEmail(false)
+            setVerificationToken(null)
+          }}
         />
       )}
     </>
