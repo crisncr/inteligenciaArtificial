@@ -37,9 +37,10 @@ body {
 }
 
 .container {
-  max-width: 800px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
-  padding: 48px 24px;
+  padding: 10px 24px 48px 24px;
   animation: fadeIn 0.6s ease-out;
 }
 
@@ -190,14 +191,17 @@ body {
 .pill--neu { background: var(--neu-light); outline:1px solid rgba(248,194,43,.35); }
 
 .panel { 
-  margin-top: 42px; 
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-top: 0;
+  max-width: 100%;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
 }
 
 .panel-enhanced {
   padding: 0;
+  width: 100%;
 }
 
 .panel h2 { 
@@ -207,7 +211,9 @@ body {
 .panel-header-enhanced {
   text-align: center;
   margin-bottom: 40px;
+  margin-top: 0;
   padding: 0 20px;
+  width: 100%;
 }
 
 .panel-icon {
@@ -219,11 +225,18 @@ body {
 
 .panel-image-carousel {
   width: 100%;
-  max-width: 400px;
+  max-width: 100%;
   margin: 0 auto 30px;
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 0 20px;
+}
+
+.panel-content-wrapper {
+  padding: 0 20px;
+  max-width: 100%;
+  width: 100%;
 }
 
 @keyframes float {
@@ -238,7 +251,7 @@ body {
 /* Image Carousel Styles */
 .image-carousel {
   width: 100%;
-  max-width: 400px;
+  max-width: 100%;
   margin: 0 auto;
   position: relative;
 }
@@ -246,7 +259,7 @@ body {
 .carousel-container {
   position: relative;
   width: 100%;
-  height: 300px;
+  height: 450px;
   border-radius: 20px;
   overflow: hidden;
   background: linear-gradient(135deg, rgba(110, 139, 255, 0.1) 0%, rgba(138, 43, 226, 0.1) 100%);
@@ -471,6 +484,9 @@ form {
   transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
   position: relative;
   overflow: hidden;
+  max-width: 100%;
+  width: 100%;
+  margin: 0 20px;
 }
 
 form::before {

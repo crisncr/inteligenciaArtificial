@@ -127,6 +127,8 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
         </div>
       </div>
 
+      <div className="panel-content-wrapper">
+
       {(!user || user.plan === 'free') && freeAnalysesLeft <= 0 && (
         <div className="analysis-limit-warning">
           {!user ? (
@@ -192,6 +194,7 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
           </div>
         </div>
       )}
+      </div>
     </section>
   )
 }

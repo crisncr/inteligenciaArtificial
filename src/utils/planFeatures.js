@@ -35,40 +35,29 @@ export const getSidebarItems = (plan) => {
   return items
 }
 
-// Features por plan
+// Features por plan - deben coincidir con los items disponibles en el sidebar
 export const getPlanFeatures = (plan) => {
   const features = {
     free: [
-      'Hasta 10 análisis por día',
-      'Análisis básico de sentimientos',
-      'Soporte por email',
-      'API básica',
-      'Historial limitado (últimos 30 días)',
+      'Inicio - Overview de tu cuenta',
+      'Pagos - Historial de pagos',
+      'Planes - Cambiar de plan',
+      'Ayuda - Soporte y documentación',
+      'Ajustes - Configuración de cuenta',
     ],
     pro: [
-      'Análisis ilimitados',
-      'Análisis avanzado de sentimientos',
-      'Historial completo',
-      'API completa',
-      'Soporte prioritario',
-      'Exportar resultados',
-      'Estadísticas detalladas',
-      'API Externa',
-      'Diagnósticos',
+      'Todo lo de Básico',
+      'Historial - Análisis de API externa',
+      'Estadísticas - Métricas detalladas',
+      'API Externa - Integración con APIs',
+      'Diagnósticos - Análisis de comentarios',
     ],
     enterprise: [
       'Todo lo de Pro',
-      'Análisis en tiempo real',
-      'Integración personalizada',
-      'Soporte 24/7',
-      'Analytics avanzados',
-      'SLA garantizado',
-      'Análisis Avanzado',
-      'Exportar Datos',
-      'Integraciones',
-      'Reportes personalizados',
-      'API dedicada',
-      'Webhooks',
+      'Análisis Avanzado - ML y multi-idioma',
+      'Exportar Datos - CSV y JSON',
+      'Integraciones - Slack, Zapier, Webhooks',
+      'Reportes - Personalizados y programados',
     ],
   }
 
