@@ -10,6 +10,10 @@ function VerifyEmail({ token, onClose }) {
       if (!token) {
         setStatus('error')
         setMessage('No se proporcionó token de verificación')
+        // Redirigir después de 2 segundos si hay error
+        setTimeout(() => {
+          window.location.href = '/'
+        }, 2000)
         return
       }
 
@@ -22,13 +26,25 @@ function VerifyEmail({ token, onClose }) {
         if (result.success) {
           setStatus('success')
           setMessage(result.message || 'Email verificado correctamente')
+          // Redirigir automáticamente después de 2 segundos
+          setTimeout(() => {
+            window.location.href = '/'
+          }, 2000)
         } else {
           setStatus('error')
           setMessage(result.message || 'Error al verificar el email')
+          // Redirigir después de 3 segundos si hay error
+          setTimeout(() => {
+            window.location.href = '/'
+          }, 3000)
         }
       } catch (err) {
         setStatus('error')
         setMessage(err.message || 'Error al verificar el email')
+        // Redirigir después de 3 segundos si hay error
+        setTimeout(() => {
+          window.location.href = '/'
+        }, 3000)
       }
     }
 
@@ -36,7 +52,7 @@ function VerifyEmail({ token, onClose }) {
   }, [token])
 
   return (
-    <div style={{ 
+    <div className="verify-email-container" style={{ 
       minHeight: '100vh', 
       display: 'flex', 
       alignItems: 'center', 
@@ -44,7 +60,7 @@ function VerifyEmail({ token, onClose }) {
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       padding: '20px'
     }}>
-      <div style={{
+      <div className="verify-email-content" style={{
         background: 'white',
         borderRadius: '12px',
         padding: '40px',
@@ -65,17 +81,10 @@ function VerifyEmail({ token, onClose }) {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
             <h2 style={{ color: '#667eea', marginBottom: '20px' }}>¡Email Verificado!</h2>
-            <p style={{ marginBottom: '30px', color: '#555' }}>{message}</p>
-            <button 
-              className="btn" 
-              onClick={() => {
-                if (onClose) onClose()
-                window.location.href = '/'
-              }}
-              style={{ padding: '12px 30px', fontSize: '16px' }}
-            >
-              Ir a Iniciar Sesión
-            </button>
+            <p style={{ marginBottom: '20px', color: '#555' }}>{message}</p>
+            <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '0' }}>
+              Redirigiendo a la página principal...
+            </p>
           </>
         )}
         
@@ -83,17 +92,10 @@ function VerifyEmail({ token, onClose }) {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>❌</div>
             <h2 style={{ color: '#e74c3c', marginBottom: '20px' }}>Error de Verificación</h2>
-            <p style={{ marginBottom: '30px', color: '#555' }}>{message}</p>
-            <button 
-              className="btn" 
-              onClick={() => {
-                if (onClose) onClose()
-                window.location.href = '/'
-              }}
-              style={{ padding: '12px 30px', fontSize: '16px' }}
-            >
-              Volver al Inicio
-            </button>
+            <p style={{ marginBottom: '20px', color: '#555' }}>{message}</p>
+            <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '0' }}>
+              Redirigiendo a la página principal...
+            </p>
           </>
         )}
       </div>

@@ -801,6 +801,73 @@ footer small {
   .features {
     grid-template-columns: 1fr;
   }
+
+  /* Auth Modal - Mobile Responsive */
+  .auth-modal {
+    padding: 10px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .auth-content {
+    padding: 24px 20px;
+    max-width: 100%;
+    width: 100%;
+    margin: auto;
+    max-height: 95vh;
+    overflow-y: auto;
+    border-radius: 16px;
+  }
+
+  .auth-content h2 {
+    font-size: 1.5rem;
+    margin-bottom: 6px;
+  }
+
+  .auth-subtitle {
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+
+  .auth-close {
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+  }
+
+  .auth-field {
+    margin-bottom: 16px;
+  }
+
+  .auth-field label {
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+  }
+
+  .auth-field input {
+    padding: 14px 16px;
+    font-size: 16px; /* Evita zoom en iOS */
+  }
+
+  .auth-content button.btn {
+    padding: 14px 20px;
+    font-size: 1rem;
+  }
+
+  .auth-switch {
+    margin-top: 16px;
+    font-size: 0.85rem;
+  }
+
+  .auth-switch p {
+    margin: 8px 0;
+  }
+
+  .auth-link {
+    font-size: 0.9rem;
+  }
 }
 
 /* Auth Modal */
@@ -1143,5 +1210,67 @@ footer small {
   margin: 0;
   color: var(--text);
   font-size: 0.95rem;
+}
+
+/* Verify Email Component */
+.verify-email-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.verify-email-content {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.verify-email-content h2 {
+  margin: 0 0 20px 0;
+  font-size: 1.8rem;
+}
+
+.verify-email-content p {
+  margin: 0 0 20px 0;
+  color: #555;
+  font-size: 1rem;
+}
+
+/* Verify Email - Mobile Responsive */
+@media (max-width: 768px) {
+  .verify-email-container {
+    padding: 10px;
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+
+  .verify-email-content {
+    padding: 24px 20px;
+    max-width: 100%;
+    border-radius: 16px;
+    margin: auto;
+  }
+
+  .verify-email-content h2 {
+    font-size: 1.4rem;
+    margin-bottom: 16px;
+  }
+
+  .verify-email-content p {
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+
+  .verify-email-content > div {
+    font-size: 36px !important;
+    margin-bottom: 16px !important;
+  }
 }
 
