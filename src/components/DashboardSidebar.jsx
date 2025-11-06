@@ -4,10 +4,12 @@ function DashboardSidebar({ activeSection, onSectionChange }) {
   const menuItems = [
     { id: 'inicio', label: 'Inicio', icon: '🏠' },
     { id: 'pagos', label: 'Pagos', icon: '💳' },
+    { id: 'planes', label: 'Planes', icon: '📦' },
     { id: 'historial', label: 'Historial', icon: '📋' },
     { id: 'estadisticas', label: 'Estadísticas', icon: '📊' },
     { id: 'api-externa', label: 'API Externa', icon: '🔌' },
     { id: 'diagnosticos', label: 'Diagnósticos', icon: '🔍' },
+    { id: 'soporte', label: 'Ayuda', icon: '💬' },
     { id: 'ajustes', label: 'Ajustes', icon: '⚙️' }
   ]
 

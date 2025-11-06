@@ -41,8 +41,6 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout }) {
 
       {/* Menú de escritorio */}
       <div className="nav__links">
-        <a href="#features" onClick={(e) => scrollToSection(e, 'features')}>Características</a>
-        <a href="#precio" onClick={(e) => scrollToSection(e, 'precio')}>Precios</a>
         {user ? (
           <>
             <span className="nav-user">👤 {user.name}</span>
@@ -67,8 +65,6 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout }) {
         }}
       >
         <div className="nav__mobile-content">
-          <a href="#features" onClick={(e) => scrollToSection(e, 'features')}>Características</a>
-          <a href="#precio" onClick={(e) => scrollToSection(e, 'precio')}>Precios</a>
           {user ? (
             <>
               <span className="nav-user">👤 {user.name}</span>

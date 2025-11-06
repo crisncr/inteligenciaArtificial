@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import AnalyzePanel from './AnalyzePanel'
-import Pricing from './Pricing'
-import Features from './Features'
 import History from './History'
 import Stats from './Stats'
-import Payments from './Payments'
+import PaymentsHistory from './PaymentsHistory'
+import Plans from './Plans'
 import Settings from './Settings'
 import ExternalAPI from './ExternalAPI'
 import Diagnostics from './Diagnostics'
+import Support from './Support'
 
 function DashboardContent({ 
   activeSection, 
@@ -45,15 +45,13 @@ function DashboardContent({
               freeAnalysesLeft={freeAnalysesLeft}
               onLimitReached={onLimitReached}
             />
-            <Features />
-            <Pricing 
-              user={user}
-              onSelectPlan={onSelectPlan}
-            />
+            <Stats history={history} />
           </>
         )
       case 'pagos':
-        return <Payments user={user} />
+        return <PaymentsHistory user={user} />
+      case 'planes':
+        return <Plans user={user} onSelectPlan={onSelectPlan} />
       case 'historial':
         return (
           <History 
@@ -77,14 +75,19 @@ function DashboardContent({
         return <Diagnostics user={user} history={history} onReanalyze={onReanalyze} />
       case 'ajustes':
         return <Settings user={user} onUserUpdate={onUserUpdate} />
+      case 'soporte':
+        return <Support user={user} />
       default:
         return (
           <>
-            <Features />
-            <Pricing 
+            <AnalyzePanel 
+              onAnalyze={onAnalyze} 
+              reanalyzeText={reanalyzeText}
               user={user}
-              onSelectPlan={onSelectPlan}
+              freeAnalysesLeft={freeAnalysesLeft}
+              onLimitReached={onLimitReached}
             />
+            <Stats history={history} />
           </>
         )
     }

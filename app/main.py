@@ -9,6 +9,7 @@ from app.database import engine, Base, SessionLocal
 from app.routes import auth as auth_router
 from app.routes import analyses as analyses_router
 from app.routes import external_api as external_api_router
+from app.routes import payments as payments_router
 
 # Importar todos los modelos para que SQLAlchemy los registre
 from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken, ExternalAPI
@@ -155,6 +156,7 @@ async def sitemap() -> JSONResponse:
 app.include_router(auth_router.router)
 app.include_router(analyses_router.router)
 app.include_router(external_api_router.router)
+app.include_router(payments_router.router)
 
 # Endpoint público para análisis (sin autenticación, límite de 3)
 @app.post("/analyze")

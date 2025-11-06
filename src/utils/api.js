@@ -218,3 +218,14 @@ export const externalAPI = {
   },
 }
 
+// Endpoints de Pagos
+export const paymentsAPI = {
+  getAll: async () => {
+    return apiRequest('/api/payments')
+  },
+
+  getById: async (id) => {
+    return apiRequest(`/api/payments/${id}`)
+  },
+}
+

@@ -9,6 +9,7 @@ function Settings({ user, onUserUpdate }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
@@ -50,10 +51,11 @@ function Settings({ user, onUserUpdate }) {
     try {
       await authAPI.changePassword({ current_password: currentPassword, new_password: newPassword })
       setMessage({ type: 'success', text: 'Contraseña actualizada correctamente' })
-      // Limpiar campos
+      // Limpiar campos y cerrar formulario
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
+      setShowPasswordForm(false)
     } catch (err) {
       setMessage({ 
         type: 'error', 
@@ -62,6 +64,14 @@ function Settings({ user, onUserUpdate }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCancelPassword = () => {
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setShowPasswordForm(false)
+    setMessage({ type: '', text: '' })
   }
 
   return (
@@ -112,45 +122,68 @@ function Settings({ user, onUserUpdate }) {
 
         {/* Sección de Contraseña */}
         <div className="settings-section">
-          <h3>Cambiar Contraseña</h3>
-          <form onSubmit={handleChangePassword} className="settings-form">
-            <div className="form-field">
-              <label htmlFor="currentPassword">Contraseña Actual</label>
-              <input
-                type="password"
-                id="currentPassword"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                placeholder="Ingresa tu contraseña actual"
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="newPassword">Nueva Contraseña</label>
-              <input
-                type="password"
-                id="newPassword"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                placeholder="Ingresa tu nueva contraseña"
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="confirmPassword">Confirmar Nueva Contraseña</label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="Confirma tu nueva contraseña"
-              />
-            </div>
-            <button type="submit" className="btn" disabled={loading}>
-              {loading ? 'Cambiando...' : 'Cambiar Contraseña'}
-            </button>
-          </form>
+          <div className="settings-section-header">
+            <h3>Cambiar Contraseña</h3>
+            {!showPasswordForm && (
+              <button 
+                type="button" 
+                className="btn--ghost btn--small"
+                onClick={() => setShowPasswordForm(true)}
+              >
+                Cambiar Contraseña
+              </button>
+            )}
+          </div>
+          {showPasswordForm && (
+            <form onSubmit={handleChangePassword} className="settings-form">
+              <div className="form-field">
+                <label htmlFor="currentPassword">Contraseña Actual</label>
+                <input
+                  type="password"
+                  id="currentPassword"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                  placeholder="Ingresa tu contraseña actual"
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="newPassword">Nueva Contraseña</label>
+                <input
+                  type="password"
+                  id="newPassword"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  placeholder="Ingresa tu nueva contraseña"
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="confirmPassword">Confirmar Nueva Contraseña</label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="Confirma tu nueva contraseña"
+                />
+              </div>
+              <div className="form-actions">
+                <button type="submit" className="btn" disabled={loading}>
+                  {loading ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn--ghost" 
+                  onClick={handleCancelPassword}
+                  disabled={loading}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </section>
