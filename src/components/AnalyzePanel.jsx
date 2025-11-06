@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { analysesAPI } from '../utils/api'
-import ImageCarousel from './ImageCarousel'
 
 function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimitReached }) {
   const [text, setText] = useState('')
@@ -102,23 +101,9 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
     return 'neu'
   }
 
-  // Imágenes para el carrusel (puedes agregar más imágenes aquí)
-  const carouselImages = [
-    '/images/1711396661636.png',
-    '/images/diferencia-entre-emocion-y-sentimiento.jpg',
-    '/images/istockphoto-1409988922-612x612.jpg',
-  ]
-
   return (
     <section id="analizar" className="panel panel-enhanced">
       <div className="panel-header-enhanced">
-        <div className="panel-image-carousel">
-          <ImageCarousel 
-            images={carouselImages} 
-            autoPlay={true} 
-            interval={4000}
-          />
-        </div>
         <div className="panel-title-group">
           <h2>Prueba la demo</h2>
           <p className="subtitle">

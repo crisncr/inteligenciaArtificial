@@ -12,6 +12,7 @@ import VerifyEmail from './components/VerifyEmail'
 import ResetPassword from './components/ResetPassword'
 import LimitModal from './components/LimitModal'
 import Dashboard from './components/Dashboard'
+import ImageCarousel from './components/ImageCarousel'
 import { authAPI, analysesAPI, getToken, removeToken } from './utils/api'
 
 function App() {
@@ -314,22 +315,40 @@ function App() {
         />
       ) : (
         // Página pública para usuarios no autenticados
-        <div className="container">
-          <AnalyzePanel 
-            onAnalyze={handleAnalyze} 
-            reanalyzeText={reanalyzeText}
-            user={user}
-            freeAnalysesLeft={freeAnalysesLeft}
-            onLimitReached={handleLimitReached}
-          />
-          <Features />
-          <Pricing 
-            user={user}
-            onSelectPlan={handleSelectPlan}
-            onLoginRequired={handleLoginClick}
-          />
-          <Footer />
-        </div>
+        <>
+          {/* Hero Section con Carrusel */}
+          <section className="hero-section">
+            <div className="hero-carousel">
+              <ImageCarousel 
+                images={[
+                  '/images/1711396661636.png',
+                  '/images/diferencia-entre-emocion-y-sentimiento.jpg',
+                  '/images/istockphoto-1409988922-612x612.jpg',
+                ]}
+                autoPlay={true}
+                interval={4000}
+              />
+              <div className="hero-overlay"></div>
+            </div>
+          </section>
+          
+          <div className="container">
+            <AnalyzePanel 
+              onAnalyze={handleAnalyze} 
+              reanalyzeText={reanalyzeText}
+              user={user}
+              freeAnalysesLeft={freeAnalysesLeft}
+              onLimitReached={handleLimitReached}
+            />
+            <Features />
+            <Pricing 
+              user={user}
+              onSelectPlan={handleSelectPlan}
+              onLoginRequired={handleLoginClick}
+            />
+            <Footer />
+          </div>
+        </>
       )}
       {!cookieAccepted && <CookieBar onAccept={() => setCookieAccepted(true)} />}
       
