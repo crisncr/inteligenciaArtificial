@@ -34,6 +34,10 @@ export const apiRequest = async (endpoint, options = {}) => {
   })
 
   if (!response.ok) {
+    // Si es 401, limpiar el token ya que está inválido
+    if (response.status === 401) {
+      removeToken()
+    }
     const error = await response.json().catch(() => ({ detail: 'Error desconocido' }))
     throw new Error(error.detail || error.message || `Error ${response.status}`)
   }

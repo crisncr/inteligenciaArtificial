@@ -85,8 +85,15 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Crear token de acceso
+    # Crear token de acceso con el ID del usuario
     access_token = create_access_token(data={"sub": user.id})
+    
+    # Verificar que el token se creó correctamente
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al generar token de acceso"
+        )
     
     return {"access_token": access_token, "token_type": "bearer"}
 

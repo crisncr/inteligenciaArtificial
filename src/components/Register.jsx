@@ -47,23 +47,40 @@ function Register({ onRegister, onSwitchToLogin, onClose }) {
       
       // Registro con API real
       const newUser = await authAPI.register({ name, email: emailNormalized, password })
+      console.log('Usuario registrado:', newUser)
       
       // Login automático después del registro (usar email normalizado)
       const loginResponse = await authAPI.login(emailNormalized, password)
+      console.log('Login response:', loginResponse)
       
       // Verificar que el token se guardó
       if (!loginResponse?.access_token) {
         throw new Error('No se recibió el token de acceso')
       }
       
+      // Verificar que el token se guardó en localStorage
+      const savedToken = localStorage.getItem('access_token')
+      console.log('Token guardado en localStorage:', savedToken ? 'Sí' : 'No')
+      
+      if (!savedToken) {
+        throw new Error('El token no se guardó correctamente')
+      }
+      
       // Esperar un momento para asegurar que el token se guardó
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise(resolve => setTimeout(resolve, 200))
       
       // Obtener información completa del usuario
-      const user = await authAPI.getCurrentUser()
-
-      onRegister(user)
-      if (onClose) onClose()
+      try {
+        const user = await authAPI.getCurrentUser()
+        console.log('Usuario obtenido:', user)
+        onRegister(user)
+        if (onClose) onClose()
+      } catch (userError) {
+        console.error('Error obteniendo usuario:', userError)
+        // Si falla obtener el usuario pero el login fue exitoso, usar los datos del registro
+        onRegister(newUser)
+        if (onClose) onClose()
+      }
     } catch (err) {
       setError(err.message || 'Error al registrar usuario')
       console.error('Error en registro:', err)
