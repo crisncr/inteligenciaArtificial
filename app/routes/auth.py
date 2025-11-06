@@ -196,6 +196,13 @@ async def reset_password(
             detail="Usuario no encontrado"
         )
     
+    # Verificar que la nueva contraseña no sea la misma que la actual
+    if verify_password(reset_data.new_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña no puede ser la misma que la contraseña actual"
+        )
+    
     # Actualizar contraseña
     user.password_hash = get_password_hash(reset_data.new_password)
     
