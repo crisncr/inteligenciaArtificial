@@ -42,11 +42,22 @@ function Register({ onRegister, onSwitchToLogin, onClose }) {
     setLoading(true)
 
     try {
-      // Registro con API real
-      const newUser = await authAPI.register({ name, email, password })
+      // Normalizar email a minúsculas
+      const emailNormalized = email.toLowerCase().trim()
       
-      // Login automático después del registro
-      await authAPI.login(email, password)
+      // Registro con API real
+      const newUser = await authAPI.register({ name, email: emailNormalized, password })
+      
+      // Login automático después del registro (usar email normalizado)
+      const loginResponse = await authAPI.login(emailNormalized, password)
+      
+      // Verificar que el token se guardó
+      if (!loginResponse?.access_token) {
+        throw new Error('No se recibió el token de acceso')
+      }
+      
+      // Esperar un momento para asegurar que el token se guardó
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       // Obtener información completa del usuario
       const user = await authAPI.getCurrentUser()
@@ -55,7 +66,7 @@ function Register({ onRegister, onSwitchToLogin, onClose }) {
       if (onClose) onClose()
     } catch (err) {
       setError(err.message || 'Error al registrar usuario')
-      console.error(err)
+      console.error('Error en registro:', err)
     } finally {
       setLoading(false)
     }

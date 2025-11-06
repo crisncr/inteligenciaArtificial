@@ -13,8 +13,19 @@ function Login({ onLogin, onSwitchToRegister, onForgotPassword, onClose }) {
     setLoading(true)
 
     try {
+      // Normalizar email a minúsculas
+      const emailNormalized = email.toLowerCase().trim()
+      
       // Login con API real
-      await authAPI.login(email, password)
+      const loginResponse = await authAPI.login(emailNormalized, password)
+      
+      // Verificar que el token se guardó
+      if (!loginResponse?.access_token) {
+        throw new Error('No se recibió el token de acceso')
+      }
+      
+      // Esperar un momento para asegurar que el token se guardó
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       // Obtener información del usuario
       const user = await authAPI.getCurrentUser()
@@ -23,7 +34,7 @@ function Login({ onLogin, onSwitchToRegister, onForgotPassword, onClose }) {
       if (onClose) onClose()
     } catch (err) {
       setError(err.message || 'Email o contraseña incorrectos')
-      console.error(err)
+      console.error('Error en login:', err)
     } finally {
       setLoading(false)
     }

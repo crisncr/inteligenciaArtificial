@@ -51,9 +51,8 @@ export const authAPI = {
   },
 
   login: async (email, password) => {
-    const formData = new FormData()
-    formData.append('username', email)
-    formData.append('password', password)
+    // Normalizar email a minúsculas
+    const emailNormalized = email.toLowerCase().trim()
 
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
@@ -61,7 +60,7 @@ export const authAPI = {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        username: email,
+        username: emailNormalized,
         password: password,
       }),
     })
@@ -72,6 +71,12 @@ export const authAPI = {
     }
 
     const data = await response.json()
+    
+    // Verificar que se recibió el token
+    if (!data.access_token) {
+      throw new Error('No se recibió el token de acceso')
+    }
+    
     setToken(data.access_token)
     return data
   },
@@ -87,13 +92,19 @@ export const authAPI = {
   },
 
   getCurrentUser: async () => {
+    const token = getToken()
+    if (!token) {
+      throw new Error('No hay token de acceso')
+    }
     return apiRequest('/api/auth/me')
   },
 
   forgotPassword: async (email) => {
+    // Normalizar email a minúsculas
+    const emailNormalized = email.toLowerCase().trim()
     return apiRequest('/api/auth/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: emailNormalized }),
     })
   },
 

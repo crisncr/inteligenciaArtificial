@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from datetime import datetime, timedelta
 from app.database import get_db
 from app.models import User, PasswordResetToken
@@ -28,18 +28,21 @@ async def register(
     db: Session = Depends(get_db)
 ):
     """Registrar un nuevo usuario"""
-    # Verificar si el email ya existe
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    # Normalizar email a minúsculas
+    email_lower = user_data.email.lower().strip()
+    
+    # Verificar si el email ya existe (case-insensitive)
+    existing_user = db.query(User).filter(func.lower(User.email) == email_lower).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El email ya está registrado"
         )
     
-    # Crear nuevo usuario
+    # Crear nuevo usuario (guardar email en minúsculas)
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
-        email=user_data.email,
+        email=email_lower,
         password_hash=hashed_password,
         name=user_data.name,
         plan="free"
@@ -60,8 +63,11 @@ async def login(
     db: Session = Depends(get_db)
 ):
     """Iniciar sesión y obtener token JWT"""
-    # Buscar usuario por email
-    user = db.query(User).filter(User.email == form_data.username).first()
+    # Normalizar email a minúsculas para búsqueda case-insensitive
+    email_lower = form_data.username.lower().strip()
+    
+    # Buscar usuario por email (case-insensitive)
+    user = db.query(User).filter(func.lower(User.email) == email_lower).first()
     
     # Verificar si el usuario existe
     if not user:
@@ -101,7 +107,11 @@ async def forgot_password(
     db: Session = Depends(get_db)
 ):
     """Solicitar recuperación de contraseña"""
-    user = db.query(User).filter(User.email == request.email).first()
+    # Normalizar email a minúsculas para búsqueda case-insensitive
+    email_lower = request.email.lower().strip()
+    
+    # Buscar usuario por email (case-insensitive)
+    user = db.query(User).filter(func.lower(User.email) == email_lower).first()
     
     # Por seguridad, no revelar si el email existe o no
     if user:
