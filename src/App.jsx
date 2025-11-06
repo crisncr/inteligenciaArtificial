@@ -309,6 +309,8 @@ function App() {
           onClose={() => {
             setShowVerifyEmail(false)
             setVerificationToken(null)
+            // Limpiar también la URL para evitar que vuelva a aparecer
+            window.history.replaceState({}, document.title, window.location.pathname)
           }}
         />
       )}

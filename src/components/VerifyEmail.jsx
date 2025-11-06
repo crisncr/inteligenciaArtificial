@@ -7,14 +7,20 @@ function VerifyEmail({ token, onClose }) {
 
   const handleVerify = async () => {
     if (!token) {
-      setStatus('error')
-      setMessage('No se proporcionó token de verificación')
-      // Redirigir después de 2 segundos si hay error
-      setTimeout(() => {
-        window.location.href = '/'
-      }, 2000)
-      return
-    }
+        setStatus('error')
+        setMessage('No se proporcionó token de verificación')
+        // Cerrar el componente antes de redirigir
+        if (onClose) {
+          setTimeout(() => {
+            onClose()
+          }, 100)
+        }
+        // Redirigir después de 2 segundos si hay error
+        setTimeout(() => {
+          window.location.replace('/')
+        }, 2000)
+        return
+      }
 
     setStatus('loading')
 
@@ -26,37 +32,61 @@ function VerifyEmail({ token, onClose }) {
       
       if (result.success) {
         setStatus('success')
-        setMessage(result.message || 'Email verificado correctamente')
+        setMessage(result.message || 'Email verificado correctamente. ¡Bienvenido a Sentimetría!')
+        // Cerrar el componente antes de redirigir
+        if (onClose) {
+          setTimeout(() => {
+            onClose()
+          }, 100)
+        }
         // Redirigir automáticamente después de 2 segundos
         setTimeout(() => {
-          window.location.href = '/'
+          window.location.replace('/')
         }, 2000)
       } else {
         setStatus('error')
         setMessage(result.message || 'Error al verificar el email')
+        // Cerrar el componente antes de redirigir
+        if (onClose) {
+          setTimeout(() => {
+            onClose()
+          }, 100)
+        }
         // Redirigir después de 3 segundos si hay error
         setTimeout(() => {
-          window.location.href = '/'
+          window.location.replace('/')
         }, 3000)
       }
     } catch (err) {
-      setStatus('error')
-      setMessage(err.message || 'Error al verificar el email')
-      // Redirigir después de 3 segundos si hay error
-      setTimeout(() => {
-        window.location.href = '/'
-      }, 3000)
-    }
+        setStatus('error')
+        setMessage(err.message || 'Error al verificar el email')
+        // Cerrar el componente antes de redirigir
+        if (onClose) {
+          setTimeout(() => {
+            onClose()
+          }, 100)
+        }
+        // Redirigir después de 3 segundos si hay error
+        setTimeout(() => {
+          window.location.replace('/')
+        }, 3000)
+      }
   }
 
   return (
     <div className="verify-email-container" style={{ 
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       minHeight: '100vh', 
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'center',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '20px'
+      padding: '20px',
+      zIndex: 3000
     }}>
       <div className="verify-email-content" style={{
         background: 'white',
@@ -96,7 +126,20 @@ function VerifyEmail({ token, onClose }) {
           <>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
             <h2 style={{ color: '#667eea', marginBottom: '20px' }}>¡Email Verificado!</h2>
-            <p style={{ marginBottom: '20px', color: '#555' }}>{message}</p>
+            <div style={{ 
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+              border: '2px solid #667eea',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px'
+            }}>
+              <p style={{ marginBottom: '10px', color: '#555', fontSize: '1.1rem', fontWeight: '500' }}>
+                {message}
+              </p>
+              <p style={{ marginBottom: '0', color: '#667eea', fontSize: '0.95rem', fontWeight: '600' }}>
+                Ya puedes iniciar sesión y comenzar a usar Sentimetría
+              </p>
+            </div>
             <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '0' }}>
               Redirigiendo a la página principal...
             </p>
