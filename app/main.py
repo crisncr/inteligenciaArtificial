@@ -14,6 +14,69 @@ from app.routes import payments as payments_router
 # Importar todos los modelos para que SQLAlchemy los registre
 from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken, ExternalAPI
 
+# Ejecutar migraciones de Alembic al iniciar
+def run_migrations():
+    """Ejecutar migraciones de Alembic al iniciar la aplicación"""
+    try:
+        from alembic.config import Config
+        from alembic import command
+        import os
+        
+        # Obtener DATABASE_URL de variables de entorno
+        database_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/sentimetria")
+        
+        # Convertir formato de Render si es necesario (postgres:// -> postgresql://)
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        
+        # Configurar Alembic
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+        
+        # Ejecutar migraciones
+        print("🔄 Ejecutando migraciones de Alembic...")
+        command.upgrade(alembic_cfg, "head")
+        print("✅ Migraciones de Alembic ejecutadas correctamente")
+    except Exception as e:
+        print(f"⚠️ Error al ejecutar migraciones de Alembic: {e}")
+        # Si falla, intentar crear las columnas manualmente
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                # Verificar si la columna source existe
+                result = conn.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='analyses' AND column_name='source'
+                """))
+                if result.fetchone() is None:
+                    print("🔄 Agregando columnas source y external_api_id manualmente...")
+                    # Agregar columna source
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN IF NOT EXISTS source VARCHAR DEFAULT 'manual' NOT NULL"))
+                    # Agregar columna external_api_id
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN IF NOT EXISTS external_api_id INTEGER"))
+                    # Agregar foreign key si existe la tabla external_apis
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE analyses 
+                            ADD CONSTRAINT IF NOT EXISTS fk_analyses_external_api_id 
+                            FOREIGN KEY (external_api_id) REFERENCES external_apis(id) ON DELETE SET NULL
+                        """))
+                    except Exception as fk_error:
+                        print(f"⚠️ No se pudo agregar foreign key (puede que la tabla external_apis no exista aún): {fk_error}")
+                    conn.commit()
+                    print("✅ Columnas agregadas manualmente")
+                else:
+                    print("✅ Las columnas ya existen")
+        except Exception as manual_error:
+            print(f"⚠️ Error al agregar columnas manualmente: {manual_error}")
+
+# Ejecutar migraciones al iniciar
+try:
+    run_migrations()
+except Exception as e:
+    print(f"⚠️ Error al ejecutar migraciones al iniciar: {e}")
+
 # Crear tablas en la base de datos (después de importar los modelos)
 try:
     Base.metadata.create_all(bind=engine)
