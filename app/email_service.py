@@ -1,12 +1,13 @@
 """
 Servicio de envío de emails
-Para producción, integrar con servicios como SendGrid, AWS SES, o SMTP
+Soporta SMTP (Gmail) y SendGrid como alternativa
 """
 import os
 from typing import Optional
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import httpx
 # Template simple sin jinja2
 
 # Configuración SMTP (para desarrollo)
@@ -15,6 +16,55 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# Configuración SendGrid (alternativa que funciona en Render)
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
+SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", SMTP_USER or "noreply@sentimetria.com")
+
+async def send_email_via_sendgrid(to_email: str, subject: str, html_content: str, text_content: str) -> bool:
+    """
+    Envía email usando SendGrid API (funciona en Render)
+    """
+    if not SENDGRID_API_KEY:
+        raise ValueError("SENDGRID_API_KEY no configurado")
+    
+    url = "https://api.sendgrid.com/v3/mail/send"
+    headers = {
+        "Authorization": f"Bearer {SENDGRID_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "personalizations": [{
+            "to": [{"email": to_email}]
+        }],
+        "from": {"email": SENDGRID_FROM_EMAIL},
+        "subject": subject,
+        "content": [
+            {
+                "type": "text/plain",
+                "value": text_content
+            },
+            {
+                "type": "text/html",
+                "value": html_content
+            }
+        ]
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            if response.status_code == 202:
+                print(f"✅ Email enviado con SendGrid a {to_email}")
+                return True
+            else:
+                error_text = response.text
+                print(f"❌ Error SendGrid ({response.status_code}): {error_text}")
+                raise Exception(f"SendGrid error: {response.status_code} - {error_text}")
+    except Exception as e:
+        print(f"❌ Error enviando email con SendGrid: {e}")
+        raise
 
 async def send_password_reset_email(email: str, reset_token: str):
     """
@@ -63,7 +113,19 @@ async def send_password_reset_email(email: str, reset_token: str):
     msg.attach(part1)
     msg.attach(part2)
     
-    # Enviar email
+    # Intentar enviar con SendGrid primero (funciona en Render)
+    if SENDGRID_API_KEY:
+        try:
+            return await send_email_via_sendgrid(
+                to_email=email,
+                subject="Recuperación de Contraseña - Sentimetría",
+                html_content=html_content,
+                text_content=text_content
+            )
+        except Exception as e:
+            print(f"⚠️ Error con SendGrid: {e}, intentando SMTP...")
+    
+    # Enviar email con SMTP (fallback)
     if SMTP_USER and SMTP_PASSWORD:
         try:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
@@ -73,7 +135,8 @@ async def send_password_reset_email(email: str, reset_token: str):
             print(f"✅ Email de recuperación enviado a {email}")
             return True
         except Exception as e:
-            print(f"❌ Error enviando email de recuperación: {e}")
+            print(f"❌ Error enviando email de recuperación (SMTP): {e}")
+            print(f"💡 Tip: Render bloquea SMTP en plan gratuito. Usa SendGrid (gratis 100 emails/día)")
             print(f"Token de reset (solo desarrollo): {reset_token}")
             return False
     else:
@@ -144,7 +207,19 @@ async def send_welcome_email(email: str, name: str):
     msg.attach(part1)
     msg.attach(part2)
     
-    # Enviar email
+    # Intentar enviar con SendGrid primero (funciona en Render)
+    if SENDGRID_API_KEY:
+        try:
+            return await send_email_via_sendgrid(
+                to_email=email,
+                subject="¡Bienvenido a Sentimetría!",
+                html_content=html_content,
+                text_content=text_content
+            )
+        except Exception as e:
+            print(f"⚠️ Error con SendGrid: {e}, intentando SMTP...")
+    
+    # Enviar email con SMTP (fallback)
     if SMTP_USER and SMTP_PASSWORD:
         try:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
@@ -154,7 +229,8 @@ async def send_welcome_email(email: str, name: str):
             print(f"✅ Email de bienvenida enviado a {email}")
             return True
         except Exception as e:
-            print(f"❌ Error enviando email de bienvenida: {e}")
+            print(f"❌ Error enviando email de bienvenida (SMTP): {e}")
+            print(f"💡 Tip: Render bloquea SMTP en plan gratuito. Usa SendGrid (gratis 100 emails/día)")
             return False
     else:
         print(f"⚠️ Email de bienvenida (SMTP no configurado): {name} - {email}")
@@ -221,7 +297,19 @@ async def send_password_reset_success_email(email: str, name: str):
     msg.attach(part1)
     msg.attach(part2)
     
-    # Enviar email
+    # Intentar enviar con SendGrid primero (funciona en Render)
+    if SENDGRID_API_KEY:
+        try:
+            return await send_email_via_sendgrid(
+                to_email=email,
+                subject="Contraseña Restablecida - Sentimetría",
+                html_content=html_content,
+                text_content=text_content
+            )
+        except Exception as e:
+            print(f"⚠️ Error con SendGrid: {e}, intentando SMTP...")
+    
+    # Enviar email con SMTP (fallback)
     if SMTP_USER and SMTP_PASSWORD:
         try:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
@@ -231,7 +319,8 @@ async def send_password_reset_success_email(email: str, name: str):
             print(f"✅ Email de confirmación de restablecimiento enviado a {email}")
             return True
         except Exception as e:
-            print(f"❌ Error enviando email de confirmación: {e}")
+            print(f"❌ Error enviando email de confirmación (SMTP): {e}")
+            print(f"💡 Tip: Render bloquea SMTP en plan gratuito. Usa SendGrid (gratis 100 emails/día)")
             return False
     else:
         print(f"⚠️ Email de confirmación (SMTP no configurado): {name} - {email}")
