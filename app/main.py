@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 from app.sentiment import analyze_sentiment
-from app.database import engine, Base
+from app.database import engine, Base, SessionLocal
 from app.routes import auth as auth_router
 from app.routes import analyses as analyses_router
 
@@ -18,6 +18,39 @@ try:
     print("✅ Tablas de base de datos creadas correctamente")
 except Exception as e:
     print(f"⚠️ Error al crear tablas: {e}")
+
+# Normalizar emails existentes a minúsculas (una sola vez al iniciar)
+def normalize_existing_emails():
+    """Normaliza todos los emails existentes en la base de datos a minúsculas"""
+    db = SessionLocal()
+    try:
+        # Obtener todos los usuarios
+        users = db.query(User).all()
+        updated_count = 0
+        for user in users:
+            if user.email and user.email != user.email.lower():
+                # Email tiene mayúsculas, normalizar a minúsculas
+                old_email = user.email
+                user.email = user.email.lower().strip()
+                updated_count += 1
+                print(f"📧 Normalizando email: {old_email} -> {user.email}")
+        
+        if updated_count > 0:
+            db.commit()
+            print(f"✅ {updated_count} email(s) normalizado(s) a minúsculas")
+        else:
+            print("✅ Todos los emails ya están normalizados")
+    except Exception as e:
+        print(f"⚠️ Error al normalizar emails: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Normalizar emails existentes al iniciar
+try:
+    normalize_existing_emails()
+except Exception as e:
+    print(f"⚠️ Error al normalizar emails al iniciar: {e}")
 
 app = FastAPI(title="Motor de Inferencia de Sentimientos", version="1.0.0")
 

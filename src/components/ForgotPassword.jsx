@@ -14,7 +14,9 @@ function ForgotPassword({ onBack, onClose }) {
     setLoading(true)
 
     try {
-      await authAPI.forgotPassword(email)
+      // Normalizar email a minúsculas
+      const emailNormalized = email.toLowerCase().trim()
+      await authAPI.forgotPassword(emailNormalized)
       setSuccess(true)
     } catch (err) {
       setError(err.message || 'Error al solicitar recuperación de contraseña')
