@@ -2,11 +2,14 @@
 export const getSidebarItems = (plan) => {
   const baseItems = [
     { id: 'inicio', label: 'Inicio', icon: '🏠', plan: 'free' },
-    { id: 'analisis-sentimientos', label: 'Análisis de Sentimientos', icon: '📊', plan: 'free' },
     { id: 'pagos', label: 'Pagos', icon: '💳', plan: 'free' },
     { id: 'planes', label: 'Planes', icon: '📦', plan: 'free' },
     { id: 'soporte', label: 'Ayuda', icon: '💬', plan: 'free' },
-    { id: 'ajustes', label: 'Ajustes', icon: '⚙️', plan: 'free' },
+  ]
+
+  // Análisis de Sentimientos solo para plan gratuito
+  const freeOnlyItems = [
+    { id: 'analisis-sentimientos', label: 'Análisis de Sentimientos', icon: '📊', plan: 'free' },
   ]
 
   const proItems = [
@@ -23,7 +26,17 @@ export const getSidebarItems = (plan) => {
     { id: 'reportes', label: 'Reportes', icon: '📈', plan: 'enterprise' },
   ]
 
+  // Ajustes siempre al final
+  const settingsItem = [
+    { id: 'ajustes', label: 'Ajustes', icon: '⚙️', plan: 'all' },
+  ]
+
   let items = [...baseItems]
+
+  // Agregar Análisis de Sentimientos solo para plan gratuito
+  if (plan === 'free') {
+    items = [...items, ...freeOnlyItems]
+  }
 
   if (plan === 'pro' || plan === 'enterprise') {
     items = [...items, ...proItems]
@@ -32,6 +45,9 @@ export const getSidebarItems = (plan) => {
   if (plan === 'enterprise') {
     items = [...items, ...enterpriseItems]
   }
+
+  // Ajustes siempre al final
+  items = [...items, ...settingsItem]
 
   return items
 }
