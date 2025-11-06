@@ -1,43 +1,33 @@
+import { getPlanFeatures } from '../utils/planFeatures'
+
 function Plans({ user, onSelectPlan }) {
   const plans = [
     {
       name: 'Básico',
+      planId: 'free',
       price: 'Gratis',
-      features: [
-        'Hasta 10 análisis por día',
-        'Análisis básico de sentimientos',
-        'Soporte por email',
-        'API básica'
-      ],
-      current: user?.plan === 'free'
+      features: getPlanFeatures('free'),
+      current: user?.plan === 'free',
+      purchasable: false
     },
     {
       name: 'Pro',
+      planId: 'pro',
       price: '$9.99',
       period: '/mes',
-      features: [
-        'Análisis ilimitados',
-        'Análisis avanzado de sentimientos',
-        'Historial completo',
-        'API completa',
-        'Soporte prioritario',
-        'Exportar resultados'
-      ],
+      features: getPlanFeatures('pro'),
       current: user?.plan === 'pro',
-      popular: true
+      popular: true,
+      purchasable: true
     },
     {
       name: 'Enterprise',
-      price: 'Personalizado',
-      features: [
-        'Todo lo de Pro',
-        'Análisis en tiempo real',
-        'Integración personalizada',
-        'Soporte 24/7',
-        'Analytics avanzados',
-        'SLA garantizado'
-      ],
-      current: user?.plan === 'enterprise'
+      planId: 'enterprise',
+      price: '$29.99',
+      period: '/mes',
+      features: getPlanFeatures('enterprise'),
+      current: user?.plan === 'enterprise',
+      purchasable: true
     }
   ]
 
@@ -73,12 +63,12 @@ function Plans({ user, onSelectPlan }) {
             </ul>
             <button 
               className={`btn ${plan.current ? 'btn--ghost' : plan.popular ? '' : 'btn--ghost'}`}
-              onClick={() => onSelectPlan && onSelectPlan(plan.name.toLowerCase())}
+              onClick={() => onSelectPlan && onSelectPlan(plan.planId)}
               disabled={plan.current}
             >
               {plan.current ? 'Plan Actual' : 
-               plan.price === 'Personalizado' ? 'Contactar' : 
-               'Cambiar Plan'}
+               plan.purchasable ? 'Comprar Plan' : 
+               'Seleccionar Plan'}
             </button>
           </div>
         ))}

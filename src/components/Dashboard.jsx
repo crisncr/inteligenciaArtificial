@@ -21,6 +21,7 @@ function Dashboard({
       <DashboardSidebar 
         activeSection={activeSection}
         onSectionChange={setActiveSection}
+        user={user}
       />
       <div className="dashboard-main">
         <DashboardContent
@@ -29,7 +30,13 @@ function Dashboard({
           history={history}
           onReanalyze={onReanalyze}
           onClearHistory={onClearHistory}
-          onSelectPlan={onSelectPlan}
+          onSelectPlan={(planId) => {
+            if (planId === 'planes') {
+              setActiveSection('planes')
+            } else {
+              onSelectPlan(planId)
+            }
+          }}
           onUserUpdate={onUserUpdate}
           onAnalyze={onAnalyze}
           reanalyzeText={reanalyzeText}

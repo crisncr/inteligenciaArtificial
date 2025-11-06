@@ -8,6 +8,10 @@ import Settings from './Settings'
 import ExternalAPI from './ExternalAPI'
 import Diagnostics from './Diagnostics'
 import Support from './Support'
+import AdvancedAnalysis from './AdvancedAnalysis'
+import ExportData from './ExportData'
+import Integrations from './Integrations'
+import Reports from './Reports'
 
 function DashboardContent({ 
   activeSection, 
@@ -36,7 +40,7 @@ function DashboardContent({
   const renderContent = () => {
     switch (activeSection) {
       case 'inicio':
-        return <DashboardHome user={user} />
+        return <DashboardHome user={user} onSelectPlan={onSelectPlan} />
       case 'pagos':
         return <PaymentsHistory user={user} />
       case 'planes':
@@ -72,6 +76,14 @@ function DashboardContent({
         return <Settings user={user} onUserUpdate={onUserUpdate} />
       case 'soporte':
         return <Support user={user} />
+      case 'analisis-avanzado':
+        return <AdvancedAnalysis user={user} />
+      case 'exportar-datos':
+        return <ExportData user={user} history={history} />
+      case 'integraciones':
+        return <Integrations user={user} />
+      case 'reportes':
+        return <Reports user={user} />
       default:
         return <DashboardHome user={user} />
     }

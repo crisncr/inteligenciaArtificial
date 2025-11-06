@@ -236,27 +236,36 @@ function App() {
     setShowLimitModal(true)
   }
 
-  const handleSelectPlan = (planName) => {
+  const handleSelectPlan = async (planId) => {
     if (!user) {
       setShowLogin(true)
       return
     }
 
-    // Actualizar plan del usuario
-    const updatedUser = { ...user, plan: planName }
-    setUser(updatedUser)
-    
-    // Actualizar en localStorage
-    const users = JSON.parse(localStorage.getItem('users') || '[]')
-    const userIndex = users.findIndex(u => u.id === user.id)
-    if (userIndex !== -1) {
-      users[userIndex] = updatedUser
-      localStorage.setItem('users', JSON.stringify(users))
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser))
-    }
+    try {
+      // Aquí deberías llamar a la API para actualizar el plan del usuario
+      // Por ahora, actualizamos localmente
+      const updatedUser = { ...user, plan: planId }
+      setUser(updatedUser)
+      
+      // Actualizar en localStorage
+      const users = JSON.parse(localStorage.getItem('users') || '[]')
+      const userIndex = users.findIndex(u => u.id === user.id)
+      if (userIndex !== -1) {
+        users[userIndex] = updatedUser
+        localStorage.setItem('users', JSON.stringify(users))
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser))
+      }
+      
+      // El estado del usuario ya se actualizó con setUser
 
-    setShowLimitModal(false)
-    alert(`Plan ${planName} seleccionado correctamente`)
+      setShowLimitModal(false)
+      const planNames = { free: 'Básico', pro: 'Pro', enterprise: 'Enterprise' }
+      alert(`Plan ${planNames[planId] || planId} seleccionado correctamente`)
+    } catch (err) {
+      console.error('Error al actualizar plan:', err)
+      alert('Error al actualizar el plan. Por favor, intenta de nuevo.')
+    }
   }
 
   const handleLoginClick = () => {
