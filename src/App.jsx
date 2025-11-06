@@ -79,8 +79,13 @@ function App() {
           removeToken()
         }
       } else {
-        // Sin token, cargar desde localStorage (usuarios no autenticados)
-        const savedAnalyses = localStorage.getItem('freeAnalysesUsed')
+        // Sin token, cargar desde sessionStorage (usuarios no autenticados)
+        // Limpiar contador antiguo de localStorage si existe (migración)
+        if (localStorage.getItem('freeAnalysesUsed')) {
+          localStorage.removeItem('freeAnalysesUsed')
+        }
+        
+        const savedAnalyses = sessionStorage.getItem('freeAnalysesUsed')
         if (savedAnalyses) {
           setFreeAnalysesUsed(parseInt(savedAnalyses, 10))
         }
@@ -132,7 +137,7 @@ function App() {
       setUser(null)
       removeToken()
       setFreeAnalysesUsed(0)
-      localStorage.removeItem('freeAnalysesUsed')
+      sessionStorage.removeItem('freeAnalysesUsed')
       setHistory([])
       localStorage.removeItem('sentimentHistory')
     }
@@ -164,7 +169,7 @@ function App() {
       // Incrementar contador de análisis gratuitos
       const newCount = freeAnalysesUsed + 1
       setFreeAnalysesUsed(newCount)
-      localStorage.setItem('freeAnalysesUsed', newCount.toString())
+      sessionStorage.setItem('freeAnalysesUsed', newCount.toString())
       
       // Si alcanzó el límite, mostrar modal
       if (newCount >= 3) {
