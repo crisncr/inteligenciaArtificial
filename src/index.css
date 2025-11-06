@@ -817,9 +817,27 @@ footer small {
   }
 }
 
-.features { margin-top: 40px; display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.feature { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 16px; text-align:left; }
-.feat__icon { font-size: 22px; margin-bottom: 8px; }
+.features { 
+  margin-top: 40px; 
+  margin-left: 20px;
+  margin-right: 20px;
+  width: calc(100% - 40px);
+  max-width: 100%;
+  display: grid; 
+  grid-template-columns: repeat(3, 1fr); 
+  gap: 16px; 
+}
+.feature { 
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); 
+  border: 1px solid rgba(255,255,255,.08); 
+  border-radius: 16px; 
+  padding: 20px; 
+  text-align: left; 
+}
+.feat__icon { 
+  font-size: 22px; 
+  margin-bottom: 8px; 
+}
 
 .cookies { 
   position: fixed; 
@@ -1241,6 +1259,9 @@ footer small {
 
   .features {
     grid-template-columns: 1fr;
+    margin-left: 20px;
+    margin-right: 20px;
+    width: calc(100% - 40px);
   }
 
   /* Auth Modal - Mobile Responsive */
