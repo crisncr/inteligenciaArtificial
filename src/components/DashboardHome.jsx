@@ -45,6 +45,7 @@ function DashboardHome({ user, onSelectPlan }) {
         <div className="overview-section">
           <h2>Servicios</h2>
           <div className="services-grid">
+            {/* Análisis de Sentimientos - Disponible para todos */}
             <div className="service-card">
               <div className="service-icon">📊</div>
               <div className="service-info">
@@ -53,22 +54,42 @@ function DashboardHome({ user, onSelectPlan }) {
                 <span className="service-status active">✓ Activo</span>
               </div>
             </div>
-            <div className="service-card">
-              <div className="service-icon">🔌</div>
-              <div className="service-info">
-                <h3>API Externa</h3>
-                <p>Integración con APIs externas para análisis automático</p>
-                <span className="service-status active">✓ Disponible</span>
+            
+            {/* API Externa - Solo Pro y Enterprise */}
+            {(plan === 'pro' || plan === 'enterprise') && (
+              <div className="service-card">
+                <div className="service-icon">🔌</div>
+                <div className="service-info">
+                  <h3>API Externa</h3>
+                  <p>Integración con APIs externas para análisis automático</p>
+                  <span className="service-status active">✓ Disponible</span>
+                </div>
               </div>
-            </div>
-            <div className="service-card">
-              <div className="service-icon">📈</div>
-              <div className="service-info">
-                <h3>Estadísticas</h3>
-                <p>Visualización de métricas y estadísticas detalladas</p>
-                <span className="service-status active">✓ Disponible</span>
+            )}
+            
+            {/* Estadísticas - Solo Pro y Enterprise */}
+            {(plan === 'pro' || plan === 'enterprise') && (
+              <div className="service-card">
+                <div className="service-icon">📈</div>
+                <div className="service-info">
+                  <h3>Estadísticas</h3>
+                  <p>Visualización de métricas y estadísticas detalladas</p>
+                  <span className="service-status active">✓ Disponible</span>
+                </div>
               </div>
-            </div>
+            )}
+            
+            {/* Análisis Avanzado - Solo Enterprise */}
+            {plan === 'enterprise' && (
+              <div className="service-card">
+                <div className="service-icon">🎯</div>
+                <div className="service-info">
+                  <h3>Análisis Avanzado</h3>
+                  <p>ML avanzado, multi-idioma y análisis de emociones</p>
+                  <span className="service-status active">✓ Disponible</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

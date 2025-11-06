@@ -100,6 +100,14 @@ if dist_path:
         if os.path.exists(favicon_path):
             return FileResponse(favicon_path)
         return JSONResponse({"error": "favicon no encontrado"})
+    
+    # Servir imágenes del carrusel
+    @app.get("/images/{filename}")
+    async def serve_image(filename: str):
+        image_path = os.path.join("public", "images", filename)
+        if os.path.exists(image_path):
+            return FileResponse(image_path)
+        return JSONResponse({"error": f"Imagen {filename} no encontrada"}, status_code=404)
 else:
     # Desarrollo: mensaje informativo o fallback
     @app.get("/")

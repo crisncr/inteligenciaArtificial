@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Importar modelos y base
 from app.database import Base
-from app.models import User, Analysis, Plan, Payment, PasswordResetToken
+from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken, ExternalAPI
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
