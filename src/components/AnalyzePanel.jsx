@@ -102,11 +102,16 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
   }
 
   return (
-    <section id="analizar" className="panel">
-      <h2>Prueba la demo</h2>
-      <p className="subtitle">
-        Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>neutral</strong>.
-      </p>
+    <section id="analizar" className="panel panel-enhanced">
+      <div className="panel-header-enhanced">
+        <div className="panel-icon">✨</div>
+        <div className="panel-title-group">
+          <h2>Prueba la demo</h2>
+          <p className="subtitle">
+            Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>neutral</strong>.
+          </p>
+        </div>
+      </div>
 
       {(!user || user.plan === 'free') && freeAnalysesLeft <= 0 && (
         <div className="analysis-limit-warning">
@@ -119,8 +124,12 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
       )}
 
       {(!user || user.plan === 'free') && freeAnalysesLeft > 0 && (
-        <div className="analysis-counter">
-          <p>📊 Análisis gratuitos restantes: <strong>{freeAnalysesLeft}</strong> de 3</p>
+        <div className="analysis-counter-enhanced">
+          <div className="counter-icon">📊</div>
+          <div className="counter-content">
+            <span className="counter-label">Análisis gratuitos restantes</span>
+            <span className="counter-value"><strong>{freeAnalysesLeft}</strong> de 3</span>
+          </div>
         </div>
       )}
 

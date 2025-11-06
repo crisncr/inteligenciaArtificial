@@ -58,20 +58,24 @@ function App() {
           const userData = await authAPI.getCurrentUser()
           setUser(userData)
           
-          // Cargar análisis del usuario desde API
+          // Cargar solo análisis de API externa del usuario
           try {
             const analyses = await analysesAPI.getAll()
-            setHistory(analyses.map(a => ({
-              text: a.text,
-              sentiment: a.sentiment,
-              score: a.score,
-              emoji: a.emoji,
-              source: a.source || 'manual',
-              external_api_id: a.external_api_id || null,
-              timestamp: a.created_at
-            })))
+            // Filtrar solo análisis de API externa
+            const apiAnalyses = analyses
+              .filter(a => a.source === 'api_external')
+              .map(a => ({
+                text: a.text,
+                sentiment: a.sentiment,
+                score: a.score,
+                emoji: a.emoji,
+                source: a.source || 'api_external',
+                external_api_id: a.external_api_id || null,
+                timestamp: a.created_at
+              }))
+            setHistory(apiAnalyses)
           } catch (err) {
-            console.error('Error al cargar análisis:', err)
+            console.error('Error al cargar análisis de API:', err)
           }
         } catch (err) {
           console.error('Error al cargar usuario:', err)
@@ -116,10 +120,37 @@ function App() {
   // Si no hay usuario o tiene plan free, aplicar límite de 3
   const freeAnalysesLeft = !user || user.plan === 'free' ? Math.max(0, 3 - freeAnalysesUsed) : Infinity
 
-  const handleLogin = (loggedUser) => {
+  const handleLogin = async (loggedUser) => {
     setUser(loggedUser)
     setShowLogin(false)
     setShowRegister(false)
+    
+    // Limpiar historial local cuando el usuario inicia sesión
+    // Solo cargar análisis de API externa desde la base de datos
+    setHistory([])
+    localStorage.removeItem('sentimentHistory')
+    sessionStorage.removeItem('freeAnalysesUsed')
+    setFreeAnalysesUsed(0)
+    
+    // Cargar solo análisis de API externa del usuario
+    try {
+      const analyses = await analysesAPI.getAll()
+      // Filtrar solo análisis de API externa
+      const apiAnalyses = analyses
+        .filter(a => a.source === 'api_external')
+        .map(a => ({
+          text: a.text,
+          sentiment: a.sentiment,
+          score: a.score,
+          emoji: a.emoji,
+          source: a.source || 'api_external',
+          external_api_id: a.external_api_id || null,
+          timestamp: a.created_at
+        }))
+      setHistory(apiAnalyses)
+    } catch (err) {
+      console.error('Error al cargar análisis de API:', err)
+    }
   }
 
   const handleRegister = (newUser) => {
@@ -144,28 +175,29 @@ function App() {
   }
 
   const handleAnalyze = async (result) => {
-    // Si el usuario está autenticado, el análisis ya se guardó en BD por AnalyzePanel
-    // Solo actualizar el historial local para mostrar
+    // Si el usuario está autenticado, solo recargar análisis de API externa
     if (user) {
-      // Recargar análisis desde API
+      // Recargar solo análisis de API externa desde API
       try {
         const analyses = await analysesAPI.getAll()
-        setHistory(analyses.map(a => ({
-          text: a.text,
-          sentiment: a.sentiment,
-          score: a.score,
-          emoji: a.emoji,
-          source: a.source || 'manual',
-          external_api_id: a.external_api_id || null,
-          timestamp: a.created_at
-        })))
+        // Filtrar solo análisis de API externa
+        const apiAnalyses = analyses
+          .filter(a => a.source === 'api_external')
+          .map(a => ({
+            text: a.text,
+            sentiment: a.sentiment,
+            score: a.score,
+            emoji: a.emoji,
+            source: a.source || 'api_external',
+            external_api_id: a.external_api_id || null,
+            timestamp: a.created_at
+          }))
+        setHistory(apiAnalyses)
       } catch (err) {
-        console.error('Error al cargar análisis:', err)
-        // Si falla, agregar al historial local
-        setHistory(prev => [{ ...result, timestamp: new Date().toISOString() }, ...prev].slice(0, 50))
+        console.error('Error al cargar análisis de API:', err)
       }
     } else {
-      // Usuario no autenticado: guardar en localStorage
+      // Usuario no autenticado: guardar en localStorage (solo para demo)
       setHistory(prev => [{ ...result, timestamp: new Date().toISOString() }, ...prev].slice(0, 50))
       
       // Incrementar contador de análisis gratuitos

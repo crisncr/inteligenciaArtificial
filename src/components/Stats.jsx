@@ -2,11 +2,11 @@ function Stats({ history }) {
   if (!history || history.length === 0) {
     return (
       <section id="stats" className="stats-panel">
-        <h2>Estadísticas</h2>
-        <p className="subtitle">Realiza algunos análisis para ver estadísticas</p>
+        <h2>Estadísticas de API Externa</h2>
+        <p className="subtitle">No hay análisis de API externa aún. Configura una API externa en la sección "API Externa" para comenzar a analizar comentarios automáticamente.</p>
         <div className="stats-empty">
           <div className="stats-icon">📊</div>
-          <p>No hay análisis aún</p>
+          <p>No hay análisis de API externa aún</p>
         </div>
       </section>
     )
@@ -25,8 +25,8 @@ function Stats({ history }) {
 
   return (
     <section id="stats" className="stats-panel">
-      <h2>Estadísticas</h2>
-      <p className="subtitle">Resumen de tus análisis realizados</p>
+      <h2>Estadísticas de API Externa</h2>
+      <p className="subtitle">Resumen de tus análisis de API externa</p>
       
       <div className="stats-grid">
         <div className="stat-card">
