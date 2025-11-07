@@ -30,10 +30,14 @@ body {
   color: var(--text);
   min-height: 100vh;
   line-height: 1.6;
+  margin: 0;
+  padding: 0;
 }
 
 #root {
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 .container {
@@ -51,7 +55,12 @@ body {
   height: 600px;
   margin: 0;
   padding: 0;
+  margin-top: 0;
+  margin-bottom: 0;
   overflow: hidden;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 
 .hero-carousel {
@@ -95,9 +104,10 @@ body {
   bottom: 0;
   background: linear-gradient(
     180deg,
-    rgba(10, 14, 26, 0.6) 0%,
-    rgba(10, 14, 26, 0.4) 50%,
-    rgba(10, 14, 26, 0.7) 100%
+    rgba(10, 14, 26, 0.3) 0%,
+    rgba(10, 14, 26, 0.2) 30%,
+    rgba(10, 14, 26, 0.1) 50%,
+    rgba(10, 14, 26, 0.4) 100%
   );
   z-index: 1;
   pointer-events: none;
@@ -121,9 +131,22 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Navbar transparente sobre el carrusel (sin fondo oscuro) */
+.nav--transparent {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border-bottom: none !important;
+}
+
 /* Navbar en dashboard (relativo) - el dashboard tiene su propio navbar */
 .dashboard {
   margin-top: 0;
+}
+.dashboard .nav {
+  position: relative;
+  background: rgba(10, 14, 26, 0.7);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .nav__brand { 
   display: flex; 
@@ -131,11 +154,23 @@ body {
   align-items: center; 
   font-weight: 800; 
   z-index: 1001;
+  color: var(--text);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.nav--transparent .nav__brand {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
 }
 .nav__links { 
   display: flex; 
   gap: 12px; 
   align-items: center; 
+  z-index: 1001;
+}
+
+.nav--transparent .nav__links button {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 .nav__links a { 
   color: var(--text); 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-function Navbar({ user, onLoginClick, onRegisterClick, onLogout }) {
+function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = false }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const scrollToSection = (e, sectionId) => {
@@ -22,7 +22,7 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout }) {
   }
 
   return (
-    <nav className="nav">
+    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`}>
       <div className="nav__brand">
         <img src="/favicon.svg" alt="logo" width="24" height="24" />
         <span>Sentimetría</span>

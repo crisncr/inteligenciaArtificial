@@ -298,6 +298,7 @@ function App() {
         onLoginClick={handleLoginClick}
         onRegisterClick={handleRegisterClick}
         onLogout={handleLogout}
+        transparent={!user}
       />
       {user ? (
         // Dashboard para usuarios autenticados
