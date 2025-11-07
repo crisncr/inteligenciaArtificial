@@ -1455,7 +1455,8 @@ footer small {
   }
 
   .auth-content {
-    padding: 24px 20px;
+    padding: 44px 20px 24px 20px;
+    padding-top: 48px;
     max-width: 100%;
     width: 100%;
     margin: auto;
@@ -1467,6 +1468,7 @@ footer small {
   .auth-content h2 {
     font-size: 1.5rem;
     margin-bottom: 6px;
+    padding-right: 40px;
   }
 
   .auth-subtitle {
@@ -1529,46 +1531,55 @@ footer small {
   justify-content: center;
   z-index: 2000;
   animation: fadeIn 0.3s ease-out;
+  padding: 20px;
+  overflow-y: auto;
 }
 
 .auth-content {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 24px;
-  padding: 32px;
+  padding: 40px 32px 32px 32px;
+  padding-top: 48px;
   max-width: 420px;
   width: 90%;
   position: relative;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   animation: slideUp 0.4s ease-out;
+  margin: auto;
 }
 
 .auth-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  background: transparent;
-  border: none;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--text);
-  font-size: 28px;
+  font-size: 24px;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   transition: all 0.2s ease;
-  opacity: 0.7;
+  opacity: 0.9;
+  z-index: 10;
+  line-height: 1;
 }
 
 .auth-close:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
 .auth-content h2 {
   margin: 0 0 8px 0;
+  padding-right: 40px;
   font-size: 1.8rem;
   font-weight: 700;
 }
