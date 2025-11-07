@@ -128,6 +128,7 @@ body {
   z-index: 1001;
   background: rgba(10, 14, 26, 0.7);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -135,8 +136,25 @@ body {
 .nav--transparent {
   background: transparent !important;
   backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border-bottom: none !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
 }
+
+.nav--transparent::before,
+.nav--transparent::after {
+  display: none !important;
+  content: none !important;
+  background: none !important;
+}
+
+/* Los botones mantienen sus propios estilos, solo el navbar es transparente */
 
 /* Navbar en dashboard (relativo) - el dashboard tiene su propio navbar */
 .dashboard {
