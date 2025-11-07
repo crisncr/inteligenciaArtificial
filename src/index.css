@@ -132,6 +132,11 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Cuando no hay logo (usuario autenticado), alinear botones a la derecha */
+.nav:not(:has(.nav__brand)) .nav__links {
+  margin-left: auto;
+}
+
 /* Navbar transparente sobre el carrusel (sin fondo oscuro) */
 nav.nav--transparent,
 .nav.nav--transparent {

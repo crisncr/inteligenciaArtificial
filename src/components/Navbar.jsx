@@ -23,10 +23,12 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
 
   return (
     <nav className={`nav ${transparent ? 'nav--transparent' : ''}`}>
-      <div className="nav__brand">
-        <img src="/favicon.svg" alt="logo" width="24" height="24" />
-        <span>Sentimetría</span>
-      </div>
+      {!user && (
+        <div className="nav__brand">
+          <img src="/favicon.svg" alt="logo" width="24" height="24" />
+          <span>Sentimetría</span>
+        </div>
+      )}
       
       {/* Menú hamburguesa para móviles */}
       <button 
