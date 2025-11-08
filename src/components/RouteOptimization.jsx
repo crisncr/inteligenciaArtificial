@@ -377,21 +377,21 @@ function RouteOptimization({ user }) {
     }
   }
 
-  // Iconos personalizados para marcadores usando divIcon con emojis
+  // Iconos personalizados para marcadores usando divIcon
   const startIcon = L.divIcon({
     className: 'custom-marker-icon',
-    html: '<div style="background-color: #ff4444; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">🚩</div>',
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
-    popupAnchor: [0, -30]
+    html: '<div style="background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%); width: 40px; height: 40px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;"><span style="transform: rotate(45deg); color: white; font-size: 20px;">🚩</span></div>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
   })
 
   const endIcon = L.divIcon({
     className: 'custom-marker-icon',
-    html: '<div style="background-color: #44ff44; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">🏁</div>',
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
-    popupAnchor: [0, -30]
+    html: '<div style="background: linear-gradient(135deg, #44ff44 0%, #00cc00 100%); width: 40px; height: 40px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;"><span style="transform: rotate(45deg); color: white; font-size: 20px;">🏁</span></div>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40]
   })
 
   return (

@@ -3638,3 +3638,42 @@ footer small {
   }
 }
 
+/* Leaflet Map Styles */
+.leaflet-container {
+  font-family: inherit;
+  background-color: var(--panel);
+  color: var(--text);
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.leaflet-popup-tip {
+  background: var(--panel);
+}
+
+.leaflet-control-zoom a {
+  background-color: var(--panel);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: var(--primary);
+  color: white;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(19, 24, 41, 0.8);
+  color: var(--text);
+}
+
+.custom-marker-icon {
+  background: transparent;
+  border: none;
+}
+
