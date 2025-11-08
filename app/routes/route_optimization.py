@@ -72,12 +72,21 @@ async def geocode_address(address: str) -> Dict:
             )
             
             print(f"Geocodificación - Status: {response.status_code}")
+            print(f"Geocodificación - URL: {response.url}")
             
             if response.status_code == 200:
                 data = response.json()
                 print(f"Geocodificación - Response type: {type(data)}")
                 print(f"Geocodificación - Has features: {data.get('features') is not None}")
                 print(f"Geocodificación - Features count: {len(data.get('features', []))}")
+                
+                # Si hay un error en la respuesta
+                if isinstance(data, dict) and data.get('error'):
+                    print(f"Geocodificación - API Error: {data.get('error')}")
+                
+                # Log de los primeros caracteres de la respuesta para debugging
+                response_text = response.text[:500] if hasattr(response, 'text') else str(data)[:500]
+                print(f"Geocodificación - Response preview: {response_text}")
                 
                 if data.get("features") and len(data["features"]) > 0:
                     # Usar el primer resultado (más relevante)
@@ -142,11 +151,21 @@ async def autocomplete_address(query: str) -> List[Dict]:
             )
             
             print(f"Autocompletado - Status: {response.status_code}, Query: {query}")
+            print(f"Autocompletado - URL: {response.url}")
             
             if response.status_code == 200:
                 data = response.json()
+                print(f"Autocompletado - Response type: {type(data)}")
                 print(f"Autocompletado - Response keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
                 print(f"Autocompletado - Features count: {len(data.get('features', [])) if isinstance(data, dict) else 0}")
+                
+                # Si hay un error en la respuesta
+                if isinstance(data, dict) and data.get('error'):
+                    print(f"Autocompletado - API Error: {data.get('error')}")
+                
+                # Log de los primeros caracteres de la respuesta para debugging
+                response_text = response.text[:500] if hasattr(response, 'text') else str(data)[:500]
+                print(f"Autocompletado - Response preview: {response_text}")
                 
                 if data.get("features"):
                     results = []
@@ -231,72 +250,72 @@ async def optimize_route(
     if len(request.points) < 2:
         raise HTTPException(status_code=400, detail="Se necesitan al menos 2 puntos")
     
-        try:
-            # Geocodificar direcciones si es necesario
-            points_with_coords = []
-            for idx, point in enumerate(request.points):
-                print(f"Procesando punto {idx + 1}: {point.name} - {point.address}")
-                
-                if point.address:
-                    try:
-                        # Geocodificar dirección
-                        coords = await geocode_address(point.address)
-                        points_with_coords.append({
-                            "name": point.name,
-                            "lat": coords["lat"],
-                            "lng": coords["lng"],
-                            "address": point.address,
-                            "display_name": coords.get("display_name", point.address)
-                        })
-                        print(f"Punto {idx + 1} geocodificado exitosamente: {coords.get('display_name')}")
-                    except ValueError as geocode_err:
-                        # Si falla la geocodificación, intentar con diferentes variaciones
-                        print(f"Error al geocodificar '{point.address}': {str(geocode_err)}")
-                        print(f"Intentando variaciones...")
-                        
-                        # Intentar agregar "Chile" si no está presente
-                        address_variations = [point.address]
-                        if 'chile' not in point.address.lower():
-                            address_variations.append(f"{point.address}, Chile")
-                        
-                        # Intentar con diferentes formatos
-                        geocoded = False
-                        for variation in address_variations:
-                            try:
-                                coords = await geocode_address(variation)
-                                points_with_coords.append({
-                                    "name": point.name,
-                                    "lat": coords["lat"],
-                                    "lng": coords["lng"],
-                                    "address": point.address,
-                                    "display_name": coords.get("display_name", point.address)
-                                })
-                                print(f"Punto {idx + 1} geocodificado con variación '{variation}'")
-                                geocoded = True
-                                break
-                            except ValueError:
-                                continue
-                        
-                        if not geocoded:
-                            raise HTTPException(
-                                status_code=400,
-                                detail=f"No se pudo geocodificar la dirección '{point.address}'. Verifica que la dirección sea correcta e intenta con un formato más completo (ej: 'Calle, Ciudad, País')."
-                            )
-                            
-                elif point.lat is not None and point.lng is not None:
-                    # Usar coordenadas proporcionadas
+    try:
+        # Geocodificar direcciones si es necesario
+        points_with_coords = []
+        for idx, point in enumerate(request.points):
+            print(f"Procesando punto {idx + 1}: {point.name} - {point.address}")
+            
+            if point.address:
+                try:
+                    # Geocodificar dirección
+                    coords = await geocode_address(point.address)
                     points_with_coords.append({
                         "name": point.name,
-                        "lat": point.lat,
-                        "lng": point.lng,
-                        "address": None,
-                        "display_name": f"{point.name} ({point.lat}, {point.lng})"
+                        "lat": coords["lat"],
+                        "lng": coords["lng"],
+                        "address": point.address,
+                        "display_name": coords.get("display_name", point.address)
                     })
-                else:
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"Punto '{point.name}' debe tener dirección o coordenadas (lat, lng)"
-                    )
+                    print(f"Punto {idx + 1} geocodificado exitosamente: {coords.get('display_name')}")
+                except ValueError as geocode_err:
+                    # Si falla la geocodificación, intentar con diferentes variaciones
+                    print(f"Error al geocodificar '{point.address}': {str(geocode_err)}")
+                    print(f"Intentando variaciones...")
+                    
+                    # Intentar agregar "Chile" si no está presente
+                    address_variations = [point.address]
+                    if 'chile' not in point.address.lower():
+                        address_variations.append(f"{point.address}, Chile")
+                    
+                    # Intentar con diferentes formatos
+                    geocoded = False
+                    for variation in address_variations:
+                        try:
+                            coords = await geocode_address(variation)
+                            points_with_coords.append({
+                                "name": point.name,
+                                "lat": coords["lat"],
+                                "lng": coords["lng"],
+                                "address": point.address,
+                                "display_name": coords.get("display_name", point.address)
+                            })
+                            print(f"Punto {idx + 1} geocodificado con variación '{variation}'")
+                            geocoded = True
+                            break
+                        except ValueError:
+                            continue
+                    
+                    if not geocoded:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No se pudo geocodificar la dirección '{point.address}'. Verifica que la dirección sea correcta e intenta con un formato más completo (ej: 'Calle, Ciudad, País')."
+                        )
+                        
+            elif point.lat is not None and point.lng is not None:
+                # Usar coordenadas proporcionadas
+                points_with_coords.append({
+                    "name": point.name,
+                    "lat": point.lat,
+                    "lng": point.lng,
+                    "address": None,
+                    "display_name": f"{point.name} ({point.lat}, {point.lng})"
+                })
+            else:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Punto '{point.name}' debe tener dirección o coordenadas (lat, lng)"
+                )
         
         # Crear optimizador con puntos geocodificados
         points_for_optimizer = [{"name": p["name"], "lat": p["lat"], "lng": p["lng"]} for p in points_with_coords]
