@@ -73,7 +73,7 @@ function RouteOptimization({ user }) {
               placeholder="Ej: Av. Arequipa 123, Lima, Perú"
             />
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Ingresa la dirección completa (calle, ciudad, país) para mejor precisión
+              Ingresa la dirección completa (calle, ciudad, país) para mejor precisión. Ej: "Av. Arequipa 123, Lima, Perú"
             </small>
           </div>
         </div>
@@ -85,10 +85,25 @@ function RouteOptimization({ user }) {
       {points.length > 0 && (
         <div className="apis-list" style={{ marginBottom: '20px' }}>
           <h3>Puntos Agregados ({points.length})</h3>
+          {points.length === 2 && (
+            <div className="message" style={{ marginBottom: '15px', background: 'rgba(110, 139, 255, 0.1)', padding: '10px', borderRadius: '8px', fontSize: '0.9em' }}>
+              <p><strong>Nota:</strong> Con 2 puntos se calculará la ruta directa desde el punto de inicio hasta el punto de destino.</p>
+            </div>
+          )}
+          {points.length > 2 && (
+            <div className="message" style={{ marginBottom: '15px', background: 'rgba(110, 139, 255, 0.1)', padding: '10px', borderRadius: '8px', fontSize: '0.9em' }}>
+              <p><strong>Nota:</strong> Con {points.length} puntos se optimizará el orden de visita para minimizar la distancia total (incluyendo retorno al inicio).</p>
+            </div>
+          )}
           {points.map((point, index) => (
             <div key={index} className="api-card">
               <div className="api-header">
-                <h3>{point.name}</h3>
+                <h3>
+                  {index === 0 ? '🚩 ' : index === points.length - 1 && points.length === 2 ? '🏁 ' : ''}
+                  {point.name}
+                  {index === 0 && points.length === 2 && <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)', marginLeft: '10px' }}>(Inicio)</span>}
+                  {index === 1 && points.length === 2 && <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)', marginLeft: '10px' }}>(Destino)</span>}
+                </h3>
                 <button
                   type="button"
                   className="btn btn--ghost btn--small"
@@ -124,7 +139,7 @@ function RouteOptimization({ user }) {
         onClick={handleCalculateRoute} 
         disabled={points.length < 2 || loading}
       >
-        {loading ? 'Calculando...' : 'Calcular Ruta Óptima'}
+        {loading ? 'Calculando ruta...' : points.length === 2 ? 'Calcular Ruta Directa' : 'Calcular Ruta Óptima'}
       </button>
 
       {routeResult && (
@@ -140,19 +155,39 @@ function RouteOptimization({ user }) {
               <div className="stat-label">Distancia Total (unidades)</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{routeResult.route.length - 1}</div>
-              <div className="stat-label">Puntos Visitados</div>
+              <div className="stat-value">
+                {routeResult.is_direct_route 
+                  ? routeResult.route.length 
+                  : routeResult.route.length - 1}
+              </div>
+              <div className="stat-label">
+                {routeResult.is_direct_route ? 'Puntos en la Ruta' : 'Puntos Visitados'}
+              </div>
             </div>
           </div>
           
           <div className="history-list" style={{ marginTop: '20px' }}>
-            <h3>Ruta Completa</h3>
+            <h3>{routeResult.is_direct_route ? 'Ruta Directa' : 'Ruta Optimizada'}</h3>
+            {routeResult.is_direct_route && (
+              <div className="message" style={{ marginBottom: '15px', background: 'rgba(76, 175, 80, 0.1)', padding: '10px', borderRadius: '8px', fontSize: '0.9em' }}>
+                <p>Ruta directa calculada desde el punto de inicio hasta el destino.</p>
+              </div>
+            )}
             {routeResult.route.map((pointName, index) => {
               const pointInfo = routeResult.points_info?.find(p => p.name === pointName)
+              const isLast = index === routeResult.route.length - 1
+              const isReturn = routeResult.is_direct_route ? false : isLast && routeResult.route[0] === pointName
+              
               return (
                 <div key={index} className="history-item">
                   <div className="history-item-header">
-                    <span><strong>{index + 1}.</strong> {pointName}</span>
+                    <span>
+                      {index === 0 && routeResult.is_direct_route && '🚩 '}
+                      {isLast && routeResult.is_direct_route && index > 0 && '🏁 '}
+                      {isReturn && '🔄 '}
+                      <strong>{index + 1}.</strong> {pointName}
+                      {isReturn && <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)', marginLeft: '10px' }}>(Retorno al inicio)</span>}
+                    </span>
                   </div>
                   {pointInfo && (
                     <div className="history-text" style={{ marginTop: '5px', fontSize: '0.9em', color: 'var(--text-secondary)' }}>

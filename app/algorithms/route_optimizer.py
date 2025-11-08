@@ -33,9 +33,30 @@ class RouteOptimizer:
             return {
                 "route": [self.points[0].name],
                 "distance": 0,
-                "steps": []
+                "steps": [],
+                "is_direct_route": False
             }
         
+        # Caso especial: Solo 2 puntos (inicio y fin)
+        if len(self.points) == 2:
+            distance = self.distances[(0, 1)]
+            return {
+                "route": [self.points[0].name, self.points[1].name],
+                "distance": round(distance, 2),
+                "steps": [{
+                    "step": 1,
+                    "current": self.points[0].name,
+                    "evaluated": [self.points[1].name],
+                    "selected": self.points[1].name,
+                    "distance": distance,
+                    "heuristic_value": distance,
+                    "reason": f"Ruta directa desde {self.points[0].name} hasta {self.points[1].name}"
+                }],
+                "algorithm": "A*",
+                "is_direct_route": True
+            }
+        
+        # Caso general: Múltiples puntos (optimización TSP)
         visited = [False] * len(self.points)
         route = [start_idx]
         visited[start_idx] = True
@@ -83,7 +104,7 @@ class RouteOptimizer:
                 current = next_point
                 step_num += 1
         
-        # Volver al punto de inicio
+        # Volver al punto de inicio (solo para rutas con múltiples puntos)
         if len(route) > 1:
             total_distance += self.distances[(route[-1], route[0])]
             route.append(route[0])
@@ -92,7 +113,8 @@ class RouteOptimizer:
             "route": [self.points[i].name for i in route],
             "distance": round(total_distance, 2),
             "steps": steps,
-            "algorithm": "A*"
+            "algorithm": "A*",
+            "is_direct_route": False
         }
     
     def dijkstra(self, start_idx: int = 0) -> Dict:
