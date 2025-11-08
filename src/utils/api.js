@@ -302,6 +302,10 @@ export const routeOptimizationAPI = {
     }
     return apiRequest(`/api/route-optimization/autocomplete/search?query=${encodeURIComponent(query)}`)
   },
+
+  getGoogleMapsConfig: async () => {
+    return apiRequest('/api/config/google-maps')
+  },
 }
 
 // Endpoints de Predicción de Ventas (Parte 3)

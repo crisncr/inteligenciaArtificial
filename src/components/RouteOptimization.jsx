@@ -15,12 +15,17 @@ function RouteOptimization({ user }) {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState(null)
   const [mapsLoaded, setMapsLoaded] = useState(false)
+  const [map, setMap] = useState(null)
+  const [startMarker, setStartMarker] = useState(null)
+  const [endMarker, setEndMarker] = useState(null)
   const startAutocompleteRef = useRef(null)
   const endAutocompleteRef = useRef(null)
   const startInputRef = useRef(null)
   const endInputRef = useRef(null)
+  const mapRef = useRef(null)
   const startAutocompleteInstanceRef = useRef(null)
   const endAutocompleteInstanceRef = useRef(null)
+  const [selectingPoint, setSelectingPoint] = useState(null) // 'start' o 'end' o null
 
   // Cargar API key de Google Maps y rutas guardadas
   useEffect(() => {
@@ -40,7 +45,30 @@ function RouteOptimization({ user }) {
     if (mapsLoaded && window.google && startInputRef.current && endInputRef.current) {
       initializeAutocomplete()
     }
-  }, [mapsLoaded])
+  }, [mapsLoaded, startInputRef.current, endInputRef.current])
+
+  // Inicializar mapa cuando Google Maps esté cargado y el ref esté disponible
+  useEffect(() => {
+    if (mapsLoaded && window.google && mapRef.current && !map) {
+      // Pequeño delay para asegurar que el DOM esté listo
+      setTimeout(() => {
+        initializeMap()
+      }, 100)
+    }
+  }, [mapsLoaded, mapRef.current])
+
+  // Actualizar marcadores cuando cambian los lugares
+  useEffect(() => {
+    if (map && startPlace && mapsLoaded) {
+      updateStartMarker()
+    }
+  }, [map, startPlace, mapsLoaded])
+
+  useEffect(() => {
+    if (map && endPlace && mapsLoaded) {
+      updateEndMarker()
+    }
+  }, [map, endPlace, mapsLoaded])
 
   const loadGoogleMapsConfig = async () => {
     try {
@@ -112,6 +140,20 @@ function RouteOptimization({ user }) {
         }
       })
 
+      startAutocomplete.addListener('place_changed', () => {
+        const place = startAutocomplete.getPlace()
+        if (place.geometry) {
+          const location = {
+            address: place.formatted_address,
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            place_id: place.place_id
+          }
+          setStartPlace(location)
+          setStartAddress(place.formatted_address)
+        }
+      })
+
       startAutocompleteInstanceRef.current = startAutocomplete
     }
 
@@ -129,17 +171,135 @@ function RouteOptimization({ user }) {
       endAutocomplete.addListener('place_changed', () => {
         const place = endAutocomplete.getPlace()
         if (place.geometry) {
-          setEndPlace({
+          const location = {
             address: place.formatted_address,
             lat: place.geometry.location.lat(),
             lng: place.geometry.location.lng(),
             place_id: place.place_id
-          })
+          }
+          setEndPlace(location)
           setEndAddress(place.formatted_address)
         }
       })
 
       endAutocompleteInstanceRef.current = endAutocomplete
+    }
+  }
+
+  const initializeMap = () => {
+    if (!window.google || !window.google.maps || !mapRef.current) {
+      return
+    }
+
+    // Crear mapa centrado en Chile
+    const googleMap = new window.google.maps.Map(mapRef.current, {
+      center: { lat: -33.4489, lng: -70.6693 }, // Santiago, Chile
+      zoom: 10,
+      mapTypeControl: true,
+      streetViewControl: true,
+      fullscreenControl: true
+    })
+
+    setMap(googleMap)
+
+    // Agregar listener para clicks en el mapa
+    googleMap.addListener('click', (event) => {
+      if (selectingPoint) {
+        const lat = event.latLng.lat()
+        const lng = event.latLng.lng()
+        
+        // Geocodificar reversa para obtener la dirección
+        const geocoder = new window.google.maps.Geocoder()
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          if (status === 'OK' && results[0]) {
+            const address = results[0].formatted_address
+            
+            if (selectingPoint === 'start') {
+              setStartPlace({ address, lat, lng })
+              setStartAddress(address)
+            } else if (selectingPoint === 'end') {
+              setEndPlace({ address, lat, lng })
+              setEndAddress(address)
+            }
+            
+            setSelectingPoint(null)
+          }
+        })
+      }
+    })
+  }
+
+  const updateStartMarker = () => {
+    if (!map || !startPlace || !window.google) return
+
+    // Eliminar marcador anterior si existe
+    if (startMarker) {
+      startMarker.setMap(null)
+    }
+
+    // Crear nuevo marcador
+    const marker = new window.google.maps.Marker({
+      position: { lat: startPlace.lat, lng: startPlace.lng },
+      map: map,
+      title: 'Punto de Inicio',
+      label: {
+        text: '🚩',
+        fontSize: '20px',
+        fontWeight: 'bold'
+      },
+      animation: window.google.maps.Animation.DROP
+    })
+
+    setStartMarker(marker)
+    
+    // Ajustar vista del mapa
+    if (endMarker && endPlace) {
+      const bounds = new window.google.maps.LatLngBounds()
+      bounds.extend(new window.google.maps.LatLng(startPlace.lat, startPlace.lng))
+      bounds.extend(new window.google.maps.LatLng(endPlace.lat, endPlace.lng))
+      map.fitBounds(bounds)
+    } else {
+      map.setCenter({ lat: startPlace.lat, lng: startPlace.lng })
+      if (map.getZoom() < 15) {
+        map.setZoom(15)
+      }
+    }
+  }
+
+  const updateEndMarker = () => {
+    if (!map || !endPlace || !window.google) return
+
+    // Eliminar marcador anterior si existe
+    if (endMarker) {
+      endMarker.setMap(null)
+    }
+
+    // Crear nuevo marcador
+    const marker = new window.google.maps.Marker({
+      position: { lat: endPlace.lat, lng: endPlace.lng },
+      map: map,
+      title: 'Punto de Destino',
+      label: {
+        text: '🏁',
+        fontSize: '20px',
+        fontWeight: 'bold'
+      },
+      animation: window.google.maps.Animation.DROP
+    })
+
+    setEndMarker(marker)
+    
+    // Ajustar vista del mapa
+    if (startMarker && startPlace) {
+      const bounds = new window.google.maps.LatLngBounds()
+      bounds.extend(new window.google.maps.LatLng(startPlace.lat, startPlace.lng))
+      bounds.extend(new window.google.maps.LatLng(endPlace.lat, endPlace.lng))
+      map.fitBounds(bounds)
+    } else {
+      map.setCenter({ lat: endPlace.lat, lng: endPlace.lng })
+      if (map.getZoom() < 15) {
+        map.setZoom(15)
+      }
     }
   }
 
@@ -363,16 +523,35 @@ function RouteOptimization({ user }) {
             <span style={{ fontSize: '1.2em', marginRight: '10px' }}>🚩</span>
             Punto de Inicio
           </label>
-          <input
-            ref={startInputRef}
-            type="text"
-            id="start-address"
-            value={startAddress}
-            onChange={(e) => setStartAddress(e.target.value)}
-            placeholder="Escribe una dirección o selecciona del mapa"
-            className="form-input"
-            style={{ width: '100%', padding: '12px' }}
-          />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              ref={startInputRef}
+              type="text"
+              id="start-address"
+              value={startAddress}
+              onChange={(e) => setStartAddress(e.target.value)}
+              placeholder="Escribe una dirección o selecciona del mapa"
+              className="form-input"
+              style={{ flex: 1, padding: '12px' }}
+            />
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setSelectingPoint(selectingPoint === 'start' ? null : 'start')}
+              style={{ 
+                whiteSpace: 'nowrap',
+                backgroundColor: selectingPoint === 'start' ? 'var(--primary)' : 'transparent',
+                color: selectingPoint === 'start' ? 'white' : 'var(--primary)'
+              }}
+            >
+              {selectingPoint === 'start' ? '✓ Seleccionando...' : '📍 Seleccionar en mapa'}
+            </button>
+          </div>
+          {selectingPoint === 'start' && (
+            <small style={{ color: 'var(--primary)', display: 'block', marginTop: '5px', fontWeight: 'bold' }}>
+              👆 Haz click en el mapa para seleccionar el punto de inicio
+            </small>
+          )}
           {!mapsLoaded && googleMapsApiKey && (
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
               Cargando Google Maps...
@@ -380,7 +559,7 @@ function RouteOptimization({ user }) {
           )}
           {!googleMapsApiKey && (
             <small style={{ color: 'var(--warning)', display: 'block', marginTop: '5px' }}>
-              ⚠️ Google Maps API key no configurada. El autocompletado no está disponible, pero puedes escribir direcciones manualmente.
+              ⚠️ Google Maps API key no configurada. Configura GOOGLE_MAPS_API_KEY en Render.
             </small>
           )}
         </div>
@@ -390,17 +569,56 @@ function RouteOptimization({ user }) {
             <span style={{ fontSize: '1.2em', marginRight: '10px' }}>🏁</span>
             Punto de Destino
           </label>
-          <input
-            ref={endInputRef}
-            type="text"
-            id="end-address"
-            value={endAddress}
-            onChange={(e) => setEndAddress(e.target.value)}
-            placeholder="Escribe una dirección o selecciona del mapa"
-            className="form-input"
-            style={{ width: '100%', padding: '12px' }}
-          />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              ref={endInputRef}
+              type="text"
+              id="end-address"
+              value={endAddress}
+              onChange={(e) => setEndAddress(e.target.value)}
+              placeholder="Escribe una dirección o selecciona del mapa"
+              className="form-input"
+              style={{ flex: 1, padding: '12px' }}
+            />
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setSelectingPoint(selectingPoint === 'end' ? null : 'end')}
+              style={{ 
+                whiteSpace: 'nowrap',
+                backgroundColor: selectingPoint === 'end' ? 'var(--primary)' : 'transparent',
+                color: selectingPoint === 'end' ? 'white' : 'var(--primary)'
+              }}
+            >
+              {selectingPoint === 'end' ? '✓ Seleccionando...' : '📍 Seleccionar en mapa'}
+            </button>
+          </div>
+          {selectingPoint === 'end' && (
+            <small style={{ color: 'var(--primary)', display: 'block', marginTop: '5px', fontWeight: 'bold' }}>
+              👆 Haz click en el mapa para seleccionar el punto de destino
+            </small>
+          )}
         </div>
+
+        {/* Mapa de Google Maps */}
+        {googleMapsApiKey && (
+          <div className="form-field" style={{ marginBottom: '20px' }}>
+            <label>Mapa de Google Maps</label>
+            <div
+              ref={mapRef}
+              style={{
+                width: '100%',
+                height: '400px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                marginTop: '10px'
+              }}
+            />
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+              Escribe una dirección en los campos de arriba o haz click en el mapa para seleccionar puntos.
+            </small>
+          </div>
+        )}
 
         <div className="form-field" style={{ marginBottom: '20px' }}>
           <label htmlFor="algorithm">Algoritmo</label>
