@@ -131,61 +131,74 @@ async def geocode_address(address: str) -> Dict:
         raise ValueError(error_msg)
 
 async def autocomplete_address(query: str) -> List[Dict]:
-    """Autocompletar dirección usando Nominatim Search (OpenStreetMap) - Gratuito y sin API key"""
+    """Autocompletar dirección usando Nominatim Search (OpenStreetMap) - Actualizado 2025"""
     try:
-        if not query or len(query) < 3:
+        if not query or len(query) < 2:  # Reducir a 2 caracteres para más respuestas
             return []
         
-        print(f"Autocompletado Nominatim - Query: {query}")
+        print(f"Autocompletado Nominatim 2025 - Query: {query}")
         
         async with httpx.AsyncClient() as client:
-            # Headers requeridos por Nominatim
+            # Headers requeridos por Nominatim - Actualizado 2025
             headers = {
-                "User-Agent": "RouteOptimizationApp/1.0 (contact@example.com)"
+                "User-Agent": "RouteOptimizationApp/2.0 (contact@example.com)"
             }
             
-            # Llamar a Nominatim Search API
+            # Llamar a Nominatim Search API con más opciones
             response = await client.get(
                 NOMINATIM_SEARCH_URL,
                 params={
                     "q": query,
                     "format": "json",
-                    "limit": 5,  # Limitar a 5 resultados
+                    "limit": 8,  # Aumentar a 8 resultados
                     "addressdetails": 1,
                     "countrycodes": "cl",  # Priorizar Chile
                     "accept-language": "es",
-                    "dedupe": 1  # Eliminar duplicados
+                    "dedupe": 1,  # Eliminar duplicados
+                    "extratags": 1,  # Información adicional
+                    "namedetails": 1  # Nombres alternativos
                 },
                 headers=headers,
-                timeout=10.0
+                timeout=8.0  # Reducir timeout para respuesta más rápida
             )
             
-            print(f"Autocompletado Nominatim - Status: {response.status_code}")
+            print(f"Autocompletado Nominatim 2025 - Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
                 
                 if isinstance(data, list) and len(data) > 0:
                     results = []
-                    for item in data[:5]:  # Limitar a 5 resultados
+                    for item in data[:8]:  # Limitar a 8 resultados
                         lat = float(item.get("lat", 0))
                         lng = float(item.get("lon", 0))
                         display_name = item.get("display_name", query)
                         
                         # Extraer componentes de la dirección
                         address_details = item.get("address", {})
-                        city = address_details.get("city") or address_details.get("town") or address_details.get("village") or ""
+                        city = address_details.get("city") or address_details.get("town") or address_details.get("village") or address_details.get("municipality") or ""
                         country = address_details.get("country", "")
-                        address_line1 = address_details.get("road", "") or address_details.get("house_number", "")
-                        address_line2 = address_details.get("suburb", "") or ""
                         
-                        # Extraer partes principales de la dirección para address_line1
+                        # Mejorar address_line1 con más información
                         main_parts = []
                         if address_details.get("house_number"):
                             main_parts.append(address_details.get("house_number"))
                         if address_details.get("road"):
                             main_parts.append(address_details.get("road"))
+                        if address_details.get("neighbourhood"):
+                            main_parts.append(address_details.get("neighbourhood"))
                         address_line1 = " ".join(main_parts) if main_parts else display_name.split(",")[0]
+                        
+                        # Mejorar address_line2
+                        address_line2_parts = []
+                        if address_details.get("suburb"):
+                            address_line2_parts.append(address_details.get("suburb"))
+                        if address_details.get("postcode"):
+                            address_line2_parts.append(address_details.get("postcode"))
+                        address_line2 = ", ".join(address_line2_parts)
+                        
+                        # Priorizar resultados más relevantes
+                        relevance_score = item.get("importance", 0)
                         
                         results.append({
                             "text": display_name,
@@ -195,20 +208,24 @@ async def autocomplete_address(query: str) -> List[Dict]:
                             "city": city,
                             "country": country,
                             "lat": lat,
-                            "lng": lng
+                            "lng": lng,
+                            "importance": relevance_score
                         })
                     
-                    print(f"Autocompletado Nominatim - Results: {len(results)}")
+                    # Ordenar por importancia (relevancia)
+                    results.sort(key=lambda x: x.get("importance", 0), reverse=True)
+                    
+                    print(f"Autocompletado Nominatim 2025 - Results: {len(results)}")
                     return results
                 else:
-                    print("Autocompletado Nominatim - No se encontraron resultados")
+                    print("Autocompletado Nominatim 2025 - No se encontraron resultados")
                     return []
             else:
-                print(f"Autocompletado Nominatim - Error HTTP: {response.status_code}")
+                print(f"Autocompletado Nominatim 2025 - Error HTTP: {response.status_code}")
                 return []
         
     except Exception as e:
-        print(f"Error en autocompletado Nominatim: {str(e)}")
+        print(f"Error en autocompletado Nominatim 2025: {str(e)}")
         import traceback
         traceback.print_exc()
         return []
@@ -445,13 +462,13 @@ async def autocomplete_search(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Autocompletar direcciones mientras el usuario escribe"""
-    if not query or len(query) < 3:
+    """Autocompletar direcciones mientras el usuario escribe - Actualizado 2025"""
+    if not query or len(query) < 2:  # Reducir a 2 caracteres
         return []
     
     try:
         results = await autocomplete_address(query)
-        print(f"Autocompletado para '{query}': {len(results)} resultados")
+        print(f"Autocompletado 2025 para '{query}': {len(results)} resultados")
         return results
     except Exception as e:
         print(f"Error en autocompletado: {str(e)}")

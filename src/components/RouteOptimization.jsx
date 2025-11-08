@@ -109,8 +109,13 @@ function RouteOptimization({ user }) {
     }
   }
 
-  // Autocompletado para dirección de inicio
+  // Autocompletado para dirección de inicio - Actualizado 2025
   const handleStartAddressChange = (value) => {
+    // Limpiar resultado si cambia la dirección
+    if (routeResult) {
+      setRouteResult(null)
+    }
+    
     setStartAddress(value)
     setStartPlace(null)
     
@@ -118,20 +123,22 @@ function RouteOptimization({ user }) {
       clearTimeout(startDebounceRef.current)
     }
     
-    if (value.length < 3) {
+    // Mostrar sugerencias desde 2 caracteres (en lugar de 3)
+    if (value.length < 2) {
       setStartSuggestions([])
       setShowStartSuggestions(false)
       return
     }
     
+    // Mostrar loading inmediatamente
+    setLoadingSuggestions(true)
+    
+    // Reducir debounce para respuesta más rápida (200ms en lugar de 300ms)
     startDebounceRef.current = setTimeout(async () => {
-      setLoadingSuggestions(true)
       try {
         const suggestions = await routeOptimizationAPI.autocomplete(value)
         setStartSuggestions(suggestions)
-        if (suggestions.length > 0) {
-          setShowStartSuggestions(true)
-        }
+        setShowStartSuggestions(suggestions.length > 0)
       } catch (err) {
         console.error('Error en autocompletado:', err)
         setStartSuggestions([])
@@ -139,11 +146,16 @@ function RouteOptimization({ user }) {
       } finally {
         setLoadingSuggestions(false)
       }
-    }, 300)
+    }, 200)
   }
 
-  // Autocompletado para dirección de destino
+  // Autocompletado para dirección de destino - Actualizado 2025
   const handleEndAddressChange = (value) => {
+    // Limpiar resultado si cambia la dirección
+    if (routeResult) {
+      setRouteResult(null)
+    }
+    
     setEndAddress(value)
     setEndPlace(null)
     
@@ -151,20 +163,22 @@ function RouteOptimization({ user }) {
       clearTimeout(endDebounceRef.current)
     }
     
-    if (value.length < 3) {
+    // Mostrar sugerencias desde 2 caracteres (en lugar de 3)
+    if (value.length < 2) {
       setEndSuggestions([])
       setShowEndSuggestions(false)
       return
     }
     
+    // Mostrar loading inmediatamente
+    setLoadingSuggestions(true)
+    
+    // Reducir debounce para respuesta más rápida (200ms en lugar de 300ms)
     endDebounceRef.current = setTimeout(async () => {
-      setLoadingSuggestions(true)
       try {
         const suggestions = await routeOptimizationAPI.autocomplete(value)
         setEndSuggestions(suggestions)
-        if (suggestions.length > 0) {
-          setShowEndSuggestions(true)
-        }
+        setShowEndSuggestions(suggestions.length > 0)
       } catch (err) {
         console.error('Error en autocompletado:', err)
         setEndSuggestions([])
@@ -172,10 +186,15 @@ function RouteOptimization({ user }) {
       } finally {
         setLoadingSuggestions(false)
       }
-    }, 300)
+    }, 200)
   }
 
   const handleSelectStart = (suggestion) => {
+    // Limpiar resultado si cambia la selección
+    if (routeResult) {
+      setRouteResult(null)
+    }
+    
     setStartAddress(suggestion.display_name || suggestion.text)
     setStartPlace({
       address: suggestion.display_name || suggestion.text,
@@ -186,6 +205,11 @@ function RouteOptimization({ user }) {
   }
 
   const handleSelectEnd = (suggestion) => {
+    // Limpiar resultado si cambia la selección
+    if (routeResult) {
+      setRouteResult(null)
+    }
+    
     setEndAddress(suggestion.display_name || suggestion.text)
     setEndPlace({
       address: suggestion.display_name || suggestion.text,
@@ -197,6 +221,11 @@ function RouteOptimization({ user }) {
 
   // Geocodificar reversa cuando se hace click en el mapa
   const handleMapClick = async (lat, lng) => {
+    // Limpiar resultado si cambia la selección
+    if (routeResult) {
+      setRouteResult(null)
+    }
+    
     try {
       setLoading(true)
       // Usar Nominatim para geocodificación reversa
@@ -455,7 +484,7 @@ function RouteOptimization({ user }) {
                 value={startAddress}
                 onChange={(e) => handleStartAddressChange(e.target.value)}
                 onFocus={() => {
-                  if (startAddress.length >= 3 && startSuggestions.length > 0) {
+                  if (startAddress.length >= 2 && startSuggestions.length > 0) {
                     setShowStartSuggestions(true)
                   }
                 }}
@@ -469,38 +498,51 @@ function RouteOptimization({ user }) {
                   top: '100%',
                   left: 0,
                   right: 0,
-                  background: '#fff',
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  background: 'var(--panel)',
+                  border: '2px solid var(--primary)',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
                   zIndex: 1000,
                   maxHeight: '300px',
                   overflowY: 'auto',
-                  marginTop: '5px'
+                  marginTop: '8px',
+                  padding: '8px 0'
                 }}>
                   {startSuggestions.map((suggestion, index) => (
                     <div
                       key={index}
                       onClick={() => handleSelectStart(suggestion)}
                       style={{
-                        padding: '12px',
+                        padding: '12px 16px',
                         cursor: 'pointer',
-                        borderBottom: index < startSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                        borderBottom: index < startSuggestions.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none',
                         backgroundColor: 'transparent',
-                        transition: 'background-color 0.2s'
+                        transition: 'all 0.2s',
+                        color: 'var(--text)'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f5f5f5'
+                        e.currentTarget.style.backgroundColor = 'rgba(110, 139, 255, 0.15)'
+                        e.currentTarget.style.transform = 'translateX(4px)'
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.transform = 'translateX(0)'
                       }}
                     >
-                      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
-                        {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
+                      <div style={{ 
+                        fontWeight: '600', 
+                        marginBottom: '4px',
+                        fontSize: '0.95em',
+                        color: 'var(--text)'
+                      }}>
+                        📍 {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
                       </div>
                       {(suggestion.address_line2 || suggestion.city) && (
-                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                        <div style={{ 
+                          fontSize: '0.85em', 
+                          color: 'var(--text-secondary)',
+                          marginLeft: '20px'
+                        }}>
                           {suggestion.address_line2 || suggestion.city}
                         </div>
                       )}
@@ -542,7 +584,7 @@ function RouteOptimization({ user }) {
                 value={endAddress}
                 onChange={(e) => handleEndAddressChange(e.target.value)}
                 onFocus={() => {
-                  if (endAddress.length >= 3 && endSuggestions.length > 0) {
+                  if (endAddress.length >= 2 && endSuggestions.length > 0) {
                     setShowEndSuggestions(true)
                   }
                 }}
@@ -556,38 +598,51 @@ function RouteOptimization({ user }) {
                   top: '100%',
                   left: 0,
                   right: 0,
-                  background: '#fff',
-                  border: '1px solid #ddd',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  background: 'var(--panel)',
+                  border: '2px solid var(--primary)',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
                   zIndex: 1000,
                   maxHeight: '300px',
                   overflowY: 'auto',
-                  marginTop: '5px'
+                  marginTop: '8px',
+                  padding: '8px 0'
                 }}>
                   {endSuggestions.map((suggestion, index) => (
                     <div
                       key={index}
                       onClick={() => handleSelectEnd(suggestion)}
                       style={{
-                        padding: '12px',
+                        padding: '12px 16px',
                         cursor: 'pointer',
-                        borderBottom: index < endSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                        borderBottom: index < endSuggestions.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none',
                         backgroundColor: 'transparent',
-                        transition: 'background-color 0.2s'
+                        transition: 'all 0.2s',
+                        color: 'var(--text)'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f5f5f5'
+                        e.currentTarget.style.backgroundColor = 'rgba(110, 139, 255, 0.15)'
+                        e.currentTarget.style.transform = 'translateX(4px)'
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.transform = 'translateX(0)'
                       }}
                     >
-                      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
-                        {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
+                      <div style={{ 
+                        fontWeight: '600', 
+                        marginBottom: '4px',
+                        fontSize: '0.95em',
+                        color: 'var(--text)'
+                      }}>
+                        📍 {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
                       </div>
                       {(suggestion.address_line2 || suggestion.city) && (
-                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                        <div style={{ 
+                          fontSize: '0.85em', 
+                          color: 'var(--text-secondary)',
+                          marginLeft: '20px'
+                        }}>
                           {suggestion.address_line2 || suggestion.city}
                         </div>
                       )}
@@ -618,7 +673,7 @@ function RouteOptimization({ user }) {
 
         {/* Mapa de Leaflet */}
         <div className="form-field" style={{ marginBottom: '20px' }}>
-          <label>Mapa Interactivo (OpenStreetMap)</label>
+          <label>Mapa Interactivo 2025 (CartoDB Voyager)</label>
           <div style={{
             width: '100%',
             height: '400px',
@@ -634,8 +689,13 @@ function RouteOptimization({ user }) {
               scrollWheelZoom={true}
             >
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                maxZoom={19}
+                minZoom={3}
+                updateWhenZooming={false}
+                updateWhenIdle={true}
+                keepBuffer={2}
               />
               <MapUpdater center={mapCenter} zoom={mapZoom} />
               <MapClickHandler onMapClick={handleMapClick} selectingPoint={selectingPoint} />
@@ -652,7 +712,7 @@ function RouteOptimization({ user }) {
             </MapContainer>
           </div>
           <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-            Escribe una dirección en los campos de arriba o haz click en el mapa para seleccionar puntos. Usando OpenStreetMap (gratuito).
+            Escribe una dirección en los campos de arriba o haz click en el mapa para seleccionar puntos. Mapas actualizados 2025 - CartoDB Voyager.
           </small>
         </div>
 
@@ -709,7 +769,7 @@ function RouteOptimization({ user }) {
         </div>
       )}
 
-      {routeResult && (
+      {routeResult && routeResult.route && routeResult.route.length > 0 && (
         <div className="stats-panel" style={{ marginTop: '30px' }}>
           <h3>Ruta Óptima</h3>
           <div className="stats-grid">
