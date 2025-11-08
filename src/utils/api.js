@@ -269,14 +269,30 @@ export const datasetsAPI = {
 
 // Endpoints de Optimización de Rutas (Parte 2)
 export const routeOptimizationAPI = {
-  optimize: async (points, algorithm = 'astar', startPoint = 0) => {
+  optimize: async (points, algorithm = 'astar', startPoint = 0, saveRoute = false, routeName = null) => {
     return apiRequest('/api/route-optimization/optimize', {
       method: 'POST',
       body: JSON.stringify({
         points,
         algorithm,
         start_point: startPoint,
+        save_route: saveRoute,
+        route_name: routeName,
       }),
+    })
+  },
+
+  getRoutes: async () => {
+    return apiRequest('/api/route-optimization')
+  },
+
+  getRoute: async (routeId) => {
+    return apiRequest(`/api/route-optimization/${routeId}`)
+  },
+
+  deleteRoute: async (routeId) => {
+    return apiRequest(`/api/route-optimization/${routeId}`, {
+      method: 'DELETE',
     })
   },
 }

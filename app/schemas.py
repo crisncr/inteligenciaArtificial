@@ -177,4 +177,40 @@ class ExternalAPIAnalyze(BaseModel):
     analyses_created: int
     errors: Optional[List[str]] = None
 
+# Schemas para Rutas
+class RoutePointBase(BaseModel):
+    name: str
+    address: str
+    lat: float
+    lng: float
+    display_name: Optional[str] = None
+    order: int
+
+class RoutePointResponse(RoutePointBase):
+    id: int
+    route_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class RouteBase(BaseModel):
+    name: str
+    algorithm: str = "astar"
+
+class RouteCreate(RouteBase):
+    points: List[RoutePointBase]
+    distance: Optional[float] = None
+
+class RouteResponse(RouteBase):
+    id: int
+    user_id: int
+    distance: Optional[float] = None
+    points: List[RoutePointResponse]
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
 

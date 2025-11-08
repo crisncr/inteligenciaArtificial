@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { routeOptimizationAPI } from '../utils/api'
 
 function RouteOptimization({ user }) {
@@ -7,6 +7,10 @@ function RouteOptimization({ user }) {
   const [algorithm, setAlgorithm] = useState('astar')
   const [routeResult, setRouteResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [savedRoutes, setSavedRoutes] = useState([])
+  const [loadingRoutes, setLoadingRoutes] = useState(false)
+  const [saveRouteName, setSaveRouteName] = useState('')
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
 
   const handleAddPoint = () => {
     if (!newPoint.name || !newPoint.address) {
@@ -22,6 +26,23 @@ function RouteOptimization({ user }) {
     setPoints(points.filter((_, i) => i !== index))
   }
 
+  // Cargar rutas guardadas al montar el componente
+  useEffect(() => {
+    loadSavedRoutes()
+  }, [])
+
+  const loadSavedRoutes = async () => {
+    setLoadingRoutes(true)
+    try {
+      const routes = await routeOptimizationAPI.getRoutes()
+      setSavedRoutes(routes)
+    } catch (err) {
+      console.error('Error al cargar rutas:', err)
+    } finally {
+      setLoadingRoutes(false)
+    }
+  }
+
   const handleCalculateRoute = async () => {
     if (points.length < 2) {
       alert('Necesitas al menos 2 puntos para calcular una ruta')
@@ -32,13 +53,93 @@ function RouteOptimization({ user }) {
     setRouteResult(null)
 
     try {
-      const result = await routeOptimizationAPI.optimize(points, algorithm, 0)
+      const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
       setRouteResult(result)
+      setShowSaveDialog(true)
     } catch (err) {
       console.error('Error al calcular ruta:', err)
       alert(`Error: ${err.message}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveRoute = async () => {
+    if (!saveRouteName.trim()) {
+      alert('Por favor ingresa un nombre para la ruta')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const result = await routeOptimizationAPI.optimize(points, algorithm, 0, true, saveRouteName)
+      setRouteResult(result)
+      setShowSaveDialog(false)
+      setSaveRouteName('')
+      await loadSavedRoutes()
+      alert('Ruta guardada correctamente')
+    } catch (err) {
+      console.error('Error al guardar ruta:', err)
+      alert(`Error al guardar ruta: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLoadRoute = async (route) => {
+    try {
+      setLoading(true)
+      const loadedRoute = await routeOptimizationAPI.getRoute(route.id)
+      
+      // Ordenar puntos por el campo 'order'
+      const sortedPoints = [...loadedRoute.points].sort((a, b) => a.order - b.order)
+      
+      // Cargar puntos desde la ruta guardada
+      const routePoints = sortedPoints.map(p => ({
+        name: p.name,
+        address: p.address
+      }))
+      setPoints(routePoints)
+      setAlgorithm(loadedRoute.algorithm)
+      
+      // Construir resultado desde la ruta guardada (sin recalcular)
+      const routeResultData = {
+        route: sortedPoints.map(p => p.name),
+        distance: loadedRoute.distance,
+        algorithm: loadedRoute.algorithm,
+        is_direct_route: sortedPoints.length === 2,
+        points_info: sortedPoints.map(p => ({
+          name: p.name,
+          address: p.address,
+          display_name: p.display_name || p.address,
+          lat: p.lat,
+          lng: p.lng
+        })),
+        steps: []  // Los pasos no se guardan, pero se pueden recalcular si es necesario
+      }
+      
+      setRouteResult(routeResultData)
+      setShowSaveDialog(false)
+    } catch (err) {
+      console.error('Error al cargar ruta:', err)
+      alert(`Error al cargar ruta: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteRoute = async (routeId) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta ruta?')) {
+      return
+    }
+
+    try {
+      await routeOptimizationAPI.deleteRoute(routeId)
+      await loadSavedRoutes()
+      alert('Ruta eliminada correctamente')
+    } catch (err) {
+      console.error('Error al eliminar ruta:', err)
+      alert(`Error al eliminar ruta: ${err.message}`)
     }
   }
 
@@ -70,10 +171,10 @@ function RouteOptimization({ user }) {
               id="point-address"
               value={newPoint.address}
               onChange={(e) => setNewPoint({ ...newPoint, address: e.target.value })}
-              placeholder="Ej: Av. Arequipa 123, Lima, Perú"
+              placeholder="Ej: Pintor Gustavo Cabello Olguin 944, Rancagua, Chile"
             />
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Ingresa la dirección completa (calle, ciudad, país) para mejor precisión. Ej: "Av. Arequipa 123, Lima, Perú"
+              Ingresa la dirección completa (calle, ciudad, país). Puedes usar comas con o sin espacios. Ej: "Calle, Ciudad, País" o "Calle,Ciudad,País"
             </small>
           </div>
         </div>
@@ -141,6 +242,72 @@ function RouteOptimization({ user }) {
       >
         {loading ? 'Calculando ruta...' : points.length === 2 ? 'Calcular Ruta Directa' : 'Calcular Ruta Óptima'}
       </button>
+
+      {/* Rutas Guardadas */}
+      {savedRoutes.length > 0 && (
+        <div className="apis-list" style={{ marginBottom: '20px', marginTop: '20px' }}>
+          <h3>Rutas Guardadas ({savedRoutes.length})</h3>
+          {savedRoutes.map((route) => (
+            <div key={route.id} className="api-card">
+              <div className="api-header">
+                <h3>{route.name}</h3>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--small"
+                    onClick={() => handleLoadRoute(route)}
+                  >
+                    Cargar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--small"
+                    onClick={() => handleDeleteRoute(route.id)}
+                    style={{ color: 'var(--error)' }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+              <div className="api-info">
+                <p><strong>Algoritmo:</strong> {route.algorithm}</p>
+                <p><strong>Distancia:</strong> {route.distance?.toFixed(2) || 'N/A'} unidades</p>
+                <p><strong>Puntos:</strong> {route.points?.length || 0}</p>
+                <p><strong>Fecha:</strong> {new Date(route.created_at).toLocaleDateString()}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Diálogo para guardar ruta */}
+      {showSaveDialog && routeResult && (
+        <div className="message" style={{ marginTop: '20px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
+          <h3 style={{ marginTop: 0 }}>¿Guardar esta ruta?</h3>
+          <p style={{ marginBottom: '15px', color: 'var(--text-secondary)' }}>
+            La ruta se guardará en la base de datos y podrás acceder a ella en cualquier momento.
+          </p>
+          <div className="form-field" style={{ marginTop: '15px' }}>
+            <label htmlFor="route-name">Nombre de la ruta</label>
+            <input
+              type="text"
+              id="route-name"
+              value={saveRouteName}
+              onChange={(e) => setSaveRouteName(e.target.value)}
+              placeholder="Ej: Ruta de entrega centro"
+              className="form-input"
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+            <button className="btn" onClick={handleSaveRoute} disabled={loading || !saveRouteName.trim()}>
+              {loading ? 'Guardando...' : 'Guardar Ruta'}
+            </button>
+            <button className="btn btn--ghost" onClick={() => setShowSaveDialog(false)} disabled={loading}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {routeResult && (
         <div className="stats-panel" style={{ marginTop: '30px' }}>

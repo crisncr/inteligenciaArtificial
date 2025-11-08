@@ -21,6 +21,7 @@ class User(Base):
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
     email_verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
     external_apis = relationship("ExternalAPI", back_populates="user", cascade="all, delete-orphan")
+    routes = relationship("Route", back_populates="user", cascade="all, delete-orphan")
 
 class Analysis(Base):
     __tablename__ = "analyses"
@@ -112,5 +113,36 @@ class ExternalAPI(Base):
     # Relaciones
     user = relationship("User", back_populates="external_apis")
     analyses = relationship("Analysis", back_populates="external_api", cascade="all, delete-orphan")
+
+class Route(Base):
+    __tablename__ = "routes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    algorithm = Column(String, default="astar", nullable=False)  # astar, dijkstra, tsp
+    distance = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relaciones
+    user = relationship("User", back_populates="routes")
+    points = relationship("RoutePoint", back_populates="route", cascade="all, delete-orphan", order_by="RoutePoint.order")
+
+class RoutePoint(Base):
+    __tablename__ = "route_points"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    route_id = Column(Integer, ForeignKey("routes.id"), nullable=False)
+    name = Column(String, nullable=False)
+    address = Column(String, nullable=False)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    display_name = Column(String, nullable=True)
+    order = Column(Integer, nullable=False)  # Orden en la ruta
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relaciones
+    route = relationship("Route", back_populates="points")
 
 
