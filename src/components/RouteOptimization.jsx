@@ -17,9 +17,12 @@ function RouteOptimization({ user }) {
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [saveRouteName, setSaveRouteName] = useState('')
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const startInputRef = useRef(null)
   const endInputRef = useRef(null)
   const suggestionsRef = useRef(null)
+  const startDebounceRef = useRef(null)
+  const endDebounceRef = useRef(null)
 
   // Cargar rutas guardadas al montar el componente
   useEffect(() => {
@@ -50,44 +53,76 @@ function RouteOptimization({ user }) {
     }
   }
 
-  // Autocompletado para dirección de inicio
-  const handleStartAddressChange = async (value) => {
+  // Autocompletado para dirección de inicio con debounce
+  const handleStartAddressChange = (value) => {
     setStartAddress(value)
     setStartSelected(null)
     
-    if (value.length >= 3) {
+    // Limpiar timeout anterior
+    if (startDebounceRef.current) {
+      clearTimeout(startDebounceRef.current)
+    }
+    
+    if (value.length < 3) {
+      setStartSuggestions([])
+      setShowStartSuggestions(false)
+      return
+    }
+    
+    // Debounce: esperar 300ms después de que el usuario deje de escribir
+    startDebounceRef.current = setTimeout(async () => {
+      setLoadingSuggestions(true)
       try {
         const suggestions = await routeOptimizationAPI.autocomplete(value)
+        console.log('Sugerencias de inicio:', suggestions)
         setStartSuggestions(suggestions)
-        setShowStartSuggestions(true)
+        if (suggestions.length > 0) {
+          setShowStartSuggestions(true)
+        }
       } catch (err) {
         console.error('Error en autocompletado:', err)
         setStartSuggestions([])
+        setShowStartSuggestions(false)
+      } finally {
+        setLoadingSuggestions(false)
       }
-    } else {
-      setStartSuggestions([])
-      setShowStartSuggestions(false)
-    }
+    }, 300)
   }
 
-  // Autocompletado para dirección de destino
-  const handleEndAddressChange = async (value) => {
+  // Autocompletado para dirección de destino con debounce
+  const handleEndAddressChange = (value) => {
     setEndAddress(value)
     setEndSelected(null)
     
-    if (value.length >= 3) {
+    // Limpiar timeout anterior
+    if (endDebounceRef.current) {
+      clearTimeout(endDebounceRef.current)
+    }
+    
+    if (value.length < 3) {
+      setEndSuggestions([])
+      setShowEndSuggestions(false)
+      return
+    }
+    
+    // Debounce: esperar 300ms después de que el usuario deje de escribir
+    endDebounceRef.current = setTimeout(async () => {
+      setLoadingSuggestions(true)
       try {
         const suggestions = await routeOptimizationAPI.autocomplete(value)
+        console.log('Sugerencias de destino:', suggestions)
         setEndSuggestions(suggestions)
-        setShowEndSuggestions(true)
+        if (suggestions.length > 0) {
+          setShowEndSuggestions(true)
+        }
       } catch (err) {
         console.error('Error en autocompletado:', err)
         setEndSuggestions([])
+        setShowEndSuggestions(false)
+      } finally {
+        setLoadingSuggestions(false)
       }
-    } else {
-      setEndSuggestions([])
-      setShowEndSuggestions(false)
-    }
+    }, 300)
   }
 
   const handleSelectStart = (suggestion) => {
@@ -103,26 +138,30 @@ function RouteOptimization({ user }) {
   }
 
   const handleCalculateRoute = async () => {
-    if (!startSelected || !endSelected) {
-      alert('Por favor selecciona direcciones válidas para inicio y destino')
+    if (!startAddress.trim() || !endAddress.trim()) {
+      alert('Por favor ingresa direcciones de inicio y destino')
       return
     }
 
     setLoading(true)
     setRouteResult(null)
+    setShowStartSuggestions(false)
+    setShowEndSuggestions(false)
 
     try {
       const points = [
-        { name: 'Punto de Inicio', address: startAddress },
-        { name: 'Punto de Destino', address: endAddress }
+        { name: 'Punto de Inicio', address: startAddress.trim() },
+        { name: 'Punto de Destino', address: endAddress.trim() }
       ]
       
+      console.log('Calculando ruta con puntos:', points)
       const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
+      console.log('Resultado de la ruta:', result)
       setRouteResult(result)
       setShowSaveDialog(true)
     } catch (err) {
       console.error('Error al calcular ruta:', err)
-      alert(`Error: ${err.message}`)
+      alert(`Error: ${err.message || 'No se pudo calcular la ruta. Verifica que las direcciones sean válidas.'}`)
     } finally {
       setLoading(false)
     }
@@ -284,7 +323,11 @@ function RouteOptimization({ user }) {
             id="start-address"
             value={startAddress}
             onChange={(e) => handleStartAddressChange(e.target.value)}
-            onFocus={() => startAddress.length >= 3 && setShowStartSuggestions(true)}
+            onFocus={() => {
+              if (startAddress.length >= 3 && startSuggestions.length > 0) {
+                setShowStartSuggestions(true)
+              }
+            }}
             placeholder="Ej: Pintor Gustavo Cabello Olguin 944, Rancagua, Chile"
             className="form-input"
             style={{ width: '100%', padding: '12px' }}
@@ -295,10 +338,10 @@ function RouteOptimization({ user }) {
               top: '100%',
               left: 0,
               right: 0,
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)',
+              background: '#fff',
+              border: '1px solid #ddd',
               borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               zIndex: 1000,
               maxHeight: '300px',
               overflowY: 'auto',
@@ -311,22 +354,44 @@ function RouteOptimization({ user }) {
                   style={{
                     padding: '12px',
                     cursor: 'pointer',
-                    borderBottom: index < startSuggestions.length - 1 ? '1px solid var(--border-color)' : 'none',
-                    transition: 'background 0.2s'
+                    borderBottom: index < startSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                    backgroundColor: 'transparent',
+                    transition: 'background-color 0.2s'
                   }}
-                  onMouseEnter={(e) => e.target.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f5f5f5'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
                 >
-                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                    {suggestion.display_name || suggestion.text}
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
+                    {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
                   </div>
-                  {suggestion.address_line2 && (
-                    <div style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-                      {suggestion.address_line2}
+                  {(suggestion.address_line2 || suggestion.city) && (
+                    <div style={{ fontSize: '0.9em', color: '#666' }}>
+                      {suggestion.address_line2 || suggestion.city}
                     </div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+          {showStartSuggestions && startSuggestions.length === 0 && startAddress.length >= 3 && !loadingSuggestions && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: '#fff',
+              border: '1px solid #ddd',
+              borderRadius: '8px',
+              padding: '12px',
+              marginTop: '5px',
+              color: '#666',
+              zIndex: 1000
+            }}>
+              No se encontraron sugerencias
             </div>
           )}
         </div>
@@ -342,7 +407,11 @@ function RouteOptimization({ user }) {
             id="end-address"
             value={endAddress}
             onChange={(e) => handleEndAddressChange(e.target.value)}
-            onFocus={() => endAddress.length >= 3 && setShowEndSuggestions(true)}
+            onFocus={() => {
+              if (endAddress.length >= 3 && endSuggestions.length > 0) {
+                setShowEndSuggestions(true)
+              }
+            }}
             placeholder="Ej: Av. Libertador Bernardo O'Higgins 123, Santiago, Chile"
             className="form-input"
             style={{ width: '100%', padding: '12px' }}
@@ -353,10 +422,10 @@ function RouteOptimization({ user }) {
               top: '100%',
               left: 0,
               right: 0,
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border-color)',
+              background: '#fff',
+              border: '1px solid #ddd',
               borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               zIndex: 1000,
               maxHeight: '300px',
               overflowY: 'auto',
@@ -369,22 +438,44 @@ function RouteOptimization({ user }) {
                   style={{
                     padding: '12px',
                     cursor: 'pointer',
-                    borderBottom: index < endSuggestions.length - 1 ? '1px solid var(--border-color)' : 'none',
-                    transition: 'background 0.2s'
+                    borderBottom: index < endSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                    backgroundColor: 'transparent',
+                    transition: 'background-color 0.2s'
                   }}
-                  onMouseEnter={(e) => e.target.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f5f5f5'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                  }}
                 >
-                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                    {suggestion.display_name || suggestion.text}
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
+                    {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
                   </div>
-                  {suggestion.address_line2 && (
-                    <div style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
-                      {suggestion.address_line2}
+                  {(suggestion.address_line2 || suggestion.city) && (
+                    <div style={{ fontSize: '0.9em', color: '#666' }}>
+                      {suggestion.address_line2 || suggestion.city}
                     </div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+          {showEndSuggestions && endSuggestions.length === 0 && endAddress.length >= 3 && !loadingSuggestions && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: '#fff',
+              border: '1px solid #ddd',
+              borderRadius: '8px',
+              padding: '12px',
+              marginTop: '5px',
+              color: '#666',
+              zIndex: 1000
+            }}>
+              No se encontraron sugerencias
             </div>
           )}
         </div>
@@ -406,11 +497,17 @@ function RouteOptimization({ user }) {
         <button 
           className="btn" 
           onClick={handleCalculateRoute} 
-          disabled={!startSelected || !endSelected || loading}
+          disabled={!startAddress.trim() || !endAddress.trim() || loading}
           style={{ width: '100%' }}
         >
           {loading ? 'Calculando ruta...' : 'Calcular Ruta Directa'}
         </button>
+        
+        {loadingSuggestions && (
+          <div style={{ marginTop: '10px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            Buscando sugerencias...
+          </div>
+        )}
       </div>
 
       {/* Diálogo para guardar ruta */}

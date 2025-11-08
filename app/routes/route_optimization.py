@@ -42,19 +42,26 @@ def normalize_address(address: str) -> str:
     address = re.sub(r'\s+', ' ', address.strip())
     return address
 
+# Constantes de API Geoapify
+GEOAPIFY_API_KEY = "6a3880920aad4e4283628f8cdfef0f3b"
+GEOAPIFY_GEOCODE_URL = "https://api.geoapify.com/v1/geocode/search"
+GEOAPIFY_AUTOCOMPLETE_URL = "https://api.geoapify.com/v1/geocode/autocomplete"
+GEOAPIFY_REVERSE_URL = "https://api.geoapify.com/v1/geocode/reverse"
+GEOAPIFY_ROUTING_URL = "https://api.geoapify.com/v1/routing"
+
 async def geocode_address(address: str) -> Dict:
     """Geocodificar dirección usando Geoapify - API con mejor precisión"""
     try:
         # Normalizar dirección
         normalized_address = normalize_address(address)
         
-        # Geoapify API
+        # Geoapify API - Geocodificación
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "https://api.geoapify.com/v1/geocode/search",
+                GEOAPIFY_GEOCODE_URL,
                 params={
                     "text": normalized_address,
-                    "apiKey": "6a3880920aad4e4283628f8cfdfe0f3b",
+                    "apiKey": GEOAPIFY_API_KEY,
                     "limit": 1,
                     "format": "json"
                 },
@@ -94,10 +101,10 @@ async def autocomplete_address(query: str) -> List[Dict]:
         
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "https://api.geoapify.com/v1/geocode/autocomplete",
+                GEOAPIFY_AUTOCOMPLETE_URL,
                 params={
                     "text": query,
-                    "apiKey": "6a3880920aad4e4283628f8cfdfe0f3b",
+                    "apiKey": GEOAPIFY_API_KEY,
                     "limit": 5,
                     "format": "json"
                 },
@@ -320,7 +327,9 @@ async def autocomplete_search(
     
     try:
         results = await autocomplete_address(query)
+        print(f"Autocompletado para '{query}': {len(results)} resultados")
         return results
     except Exception as e:
+        print(f"Error en autocompletado: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error en autocompletado: {str(e)}")
 
