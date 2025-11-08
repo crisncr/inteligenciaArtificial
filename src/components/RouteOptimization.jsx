@@ -3,27 +3,19 @@ import { routeOptimizationAPI } from '../utils/api'
 
 function RouteOptimization({ user }) {
   const [points, setPoints] = useState([])
-  const [newPoint, setNewPoint] = useState({ name: '', lat: '', lng: '' })
+  const [newPoint, setNewPoint] = useState({ name: '', address: '' })
   const [algorithm, setAlgorithm] = useState('astar')
   const [routeResult, setRouteResult] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const handleAddPoint = () => {
-    if (!newPoint.name || !newPoint.lat || !newPoint.lng) {
-      alert('Por favor completa todos los campos')
+    if (!newPoint.name || !newPoint.address) {
+      alert('Por favor completa todos los campos (nombre y dirección)')
       return
     }
 
-    const lat = parseFloat(newPoint.lat)
-    const lng = parseFloat(newPoint.lng)
-
-    if (isNaN(lat) || isNaN(lng)) {
-      alert('Latitud y longitud deben ser números válidos')
-      return
-    }
-
-    setPoints([...points, { name: newPoint.name, lat, lng }])
-    setNewPoint({ name: '', lat: '', lng: '' })
+    setPoints([...points, { name: newPoint.name, address: newPoint.address }])
+    setNewPoint({ name: '', address: '' })
   }
 
   const handleRemovePoint = (index) => {
@@ -68,30 +60,21 @@ function RouteOptimization({ user }) {
               id="point-name"
               value={newPoint.name}
               onChange={(e) => setNewPoint({ ...newPoint, name: e.target.value })}
-              placeholder="Ej: Almacén"
+              placeholder="Ej: Almacén Central"
             />
           </div>
-          <div className="form-field">
-            <label htmlFor="point-lat">Latitud</label>
+          <div className="form-field" style={{ flex: 2 }}>
+            <label htmlFor="point-address">Dirección</label>
             <input
-              type="number"
-              id="point-lat"
-              step="any"
-              value={newPoint.lat}
-              onChange={(e) => setNewPoint({ ...newPoint, lat: e.target.value })}
-              placeholder="Ej: -12.0464"
+              type="text"
+              id="point-address"
+              value={newPoint.address}
+              onChange={(e) => setNewPoint({ ...newPoint, address: e.target.value })}
+              placeholder="Ej: Av. Arequipa 123, Lima, Perú"
             />
-          </div>
-          <div className="form-field">
-            <label htmlFor="point-lng">Longitud</label>
-            <input
-              type="number"
-              id="point-lng"
-              step="any"
-              value={newPoint.lng}
-              onChange={(e) => setNewPoint({ ...newPoint, lng: e.target.value })}
-              placeholder="Ej: -77.0428"
-            />
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+              Ingresa la dirección completa (calle, ciudad, país) para mejor precisión
+            </small>
           </div>
         </div>
         <button type="button" className="btn" onClick={handleAddPoint}>
@@ -115,8 +98,7 @@ function RouteOptimization({ user }) {
                 </button>
               </div>
               <div className="api-info">
-                <p><strong>Lat:</strong> {point.lat}</p>
-                <p><strong>Lng:</strong> {point.lng}</p>
+                <p><strong>Dirección:</strong> {point.address}</p>
               </div>
             </div>
           ))}
@@ -150,8 +132,12 @@ function RouteOptimization({ user }) {
           <h3>Ruta Óptima</h3>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-value">{routeResult.distance}</div>
-              <div className="stat-label">Distancia Total</div>
+              <div className="stat-value">
+                {typeof routeResult.distance === 'number' 
+                  ? routeResult.distance.toFixed(2) 
+                  : routeResult.distance}
+              </div>
+              <div className="stat-label">Distancia Total (unidades)</div>
             </div>
             <div className="stat-card">
               <div className="stat-value">{routeResult.route.length - 1}</div>
@@ -161,13 +147,21 @@ function RouteOptimization({ user }) {
           
           <div className="history-list" style={{ marginTop: '20px' }}>
             <h3>Ruta Completa</h3>
-            {routeResult.route.map((point, index) => (
-              <div key={index} className="history-item">
-                <div className="history-item-header">
-                  <span><strong>{index + 1}.</strong> {point}</span>
+            {routeResult.route.map((pointName, index) => {
+              const pointInfo = routeResult.points_info?.find(p => p.name === pointName)
+              return (
+                <div key={index} className="history-item">
+                  <div className="history-item-header">
+                    <span><strong>{index + 1}.</strong> {pointName}</span>
+                  </div>
+                  {pointInfo && (
+                    <div className="history-text" style={{ marginTop: '5px', fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                      <p>{pointInfo.display_name || pointInfo.address}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {routeResult.steps && routeResult.steps.length > 0 && (
@@ -197,13 +191,16 @@ function RouteOptimization({ user }) {
       {/* Explicación Técnica - Parte 2 */}
       <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
         <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 2</h3>
+        <p><strong>Geocodificación:</strong> Utilizamos Nominatim (OpenStreetMap) para convertir direcciones en coordenadas geográficas. Es una API gratuita y no requiere clave de acceso.</p>
         <p><strong>Algoritmo:</strong> A* (A estrella)</p>
         <p><strong>Tipo:</strong> Búsqueda heurística</p>
         <p><strong>Justificación:</strong> A* combina el costo real del camino con una heurística estimada, encontrando la ruta óptima de manera eficiente.</p>
         <p><strong>Proceso:</strong></p>
         <ol>
+          <li>Geocodificar direcciones a coordenadas (lat, lng) usando Nominatim</li>
           <li>Crear grafo con puntos de entrega</li>
-          <li>Aplicar heurística (distancia euclidiana)</li>
+          <li>Calcular distancias entre todos los puntos (distancia euclidiana)</li>
+          <li>Aplicar heurística para seleccionar el siguiente nodo</li>
           <li>Seleccionar nodo con menor costo estimado</li>
           <li>Repetir hasta visitar todos los nodos</li>
           <li>Retornar ruta óptima</li>
