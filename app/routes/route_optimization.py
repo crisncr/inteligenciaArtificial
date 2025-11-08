@@ -43,144 +43,93 @@ def normalize_address(address: str) -> str:
     return address
 
 async def geocode_address(address: str) -> Dict:
-    """Geocodificar dirección usando Nominatim (OpenStreetMap) - API gratuita"""
+    """Geocodificar dirección usando Geoapify - API con mejor precisión"""
     try:
-        # Normalizar dirección: limpiar espacios alrededor de comas
+        # Normalizar dirección
         normalized_address = normalize_address(address)
         
-        # Si no tiene comas, probablemente necesita mejor formato
-        if ',' not in normalized_address:
-            # Intentar agregar país si no está presente
-            if 'chile' not in normalized_address.lower():
-                normalized_address = f"{normalized_address}, Chile"
-        
-        # Nominatim es gratuito y no requiere API key
+        # Geoapify API
         async with httpx.AsyncClient() as client:
-            # Crear variaciones de la dirección para mejorar la búsqueda
-            address_variations = [
-                normalized_address,
-                address,  # Original
-            ]
+            response = await client.get(
+                "https://api.geoapify.com/v1/geocode/search",
+                params={
+                    "text": normalized_address,
+                    "apiKey": "6a3880920aad4e4283628f8cfdfe0f3b",
+                    "limit": 1,
+                    "format": "json"
+                },
+                timeout=15.0
+            )
             
-            # Si la dirección tiene partes separadas por comas, crear variaciones
-            if ',' in normalized_address:
-                parts = [p.strip() for p in normalized_address.split(',')]
-                if len(parts) >= 2:
-                    # Agregar variaciones con y sin país explícito
-                    address_variations.extend([
-                        ", ".join(parts),
-                        f"{parts[0]}, {parts[1]}, Chile" if len(parts) >= 2 else normalized_address,
-                        f"{parts[0]}, Chile" if len(parts) >= 1 else normalized_address,
-                    ])
-            
-            # Intentar con todas las variaciones
-            responses = []
-            seen_locations = set()  # Para evitar duplicados
-            
-            for addr_variant in address_variations:
-                if not addr_variant or addr_variant in seen_locations:
-                    continue
-                try:
-                    response = await client.get(
-                        "https://nominatim.openstreetmap.org/search",
-                        params={
-                            "q": addr_variant,
-                            "format": "json",
-                            "limit": 5,  # Obtener más resultados para mejor matching
-                            "addressdetails": 1,
-                            "countrycodes": "cl",  # Priorizar Chile
-                            "accept-language": "es"  # Español
-                        },
-                        headers={
-                            "User-Agent": "RouteOptimizer/1.0"  # Nominatim requiere User-Agent
-                        },
-                        timeout=15.0
-                    )
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("features") and len(data["features"]) > 0:
+                    feature = data["features"][0]
+                    properties = feature.get("properties", {})
+                    geometry = feature.get("geometry", {})
+                    coordinates = geometry.get("coordinates", [])
                     
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data and len(data) > 0:
-                            # Agregar solo ubicaciones únicas
-                            for loc in data:
-                                loc_key = (loc.get("lat"), loc.get("lon"))
-                                if loc_key not in seen_locations:
-                                    responses.append(loc)
-                                    seen_locations.add(loc_key)
-                                    
-                            # Si encontramos resultados, usar el primero
-                            if responses:
-                                break
-                except Exception:
-                    continue
+                    if len(coordinates) >= 2:
+                        return {
+                            "lat": float(coordinates[1]),
+                            "lng": float(coordinates[0]),
+                            "display_name": properties.get("formatted", normalized_address),
+                            "address_line1": properties.get("address_line1", ""),
+                            "address_line2": properties.get("address_line2", ""),
+                            "city": properties.get("city", ""),
+                            "country": properties.get("country", "")
+                        }
             
-            if responses:
-                # Seleccionar el mejor resultado (el primero suele ser el más relevante)
-                location = responses[0]
-                return {
-                    "lat": float(location["lat"]),
-                    "lng": float(location["lon"]),
-                    "display_name": location.get("display_name", address)
-                }
-            
-            # Si no funciona, intentar con formato más específico
-            # Dividir por comas (incluso sin espacios) y reconstruir
-            # Manejar casos como "calle,ciudad,país" o "calle, ciudad, país"
-            parts = [p.strip() for p in re.split(r',\s*', address) if p.strip()]
-            
-            if len(parts) >= 2:
-                # Formatear como "calle, ciudad, país"
-                formatted = ", ".join(parts)
-                
-                # Asegurar que tenga país
-                if len(parts) < 3:
-                    if 'chile' not in formatted.lower():
-                        formatted = f"{formatted}, Chile"
-                
-                # Intentar con diferentes variaciones
-                variations = [
-                    formatted,
-                    f"{parts[0]}, {parts[1]}, Chile" if len(parts) >= 2 else formatted,
-                    ", ".join(parts[:2]) + ", Rancagua, Chile" if 'rancagua' in address.lower() else None,
-                ]
-                
-                for variation in variations:
-                    if not variation:
-                        continue
-                    try:
-                        async with httpx.AsyncClient() as client2:
-                            response = await client2.get(
-                                "https://nominatim.openstreetmap.org/search",
-                                params={
-                                    "q": variation,
-                                    "format": "json",
-                                    "limit": 1,
-                                    "addressdetails": 1,
-                                    "countrycodes": "cl",
-                                    "accept-language": "es"
-                                },
-                                headers={
-                                    "User-Agent": "RouteOptimizer/1.0"
-                                },
-                                timeout=15.0
-                            )
-                            
-                            if response.status_code == 200:
-                                data = response.json()
-                                if data and len(data) > 0:
-                                    location = data[0]
-                                    return {
-                                        "lat": float(location["lat"]),
-                                        "lng": float(location["lon"]),
-                                        "display_name": location.get("display_name", address)
-                                    }
-                    except Exception:
-                        continue
-            
-            raise ValueError(f"No se pudo geocodificar la dirección: {address}. Intenta con formato: 'Calle, Ciudad, País'")
+            raise ValueError(f"No se pudo geocodificar la dirección: {address}")
     except ValueError:
         raise
     except Exception as e:
         raise ValueError(f"Error al geocodificar '{address}': {str(e)}")
+
+async def autocomplete_address(query: str) -> List[Dict]:
+    """Autocompletar dirección usando Geoapify - API de autocompletado"""
+    try:
+        if not query or len(query) < 3:
+            return []
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.geoapify.com/v1/geocode/autocomplete",
+                params={
+                    "text": query,
+                    "apiKey": "6a3880920aad4e4283628f8cfdfe0f3b",
+                    "limit": 5,
+                    "format": "json"
+                },
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("features"):
+                    results = []
+                    for feature in data["features"]:
+                        properties = feature.get("properties", {})
+                        geometry = feature.get("geometry", {})
+                        coordinates = geometry.get("coordinates", [])
+                        
+                        if len(coordinates) >= 2:
+                            results.append({
+                                "text": properties.get("formatted", properties.get("name", query)),
+                                "display_name": properties.get("formatted", properties.get("name", query)),
+                                "address_line1": properties.get("address_line1", ""),
+                                "address_line2": properties.get("address_line2", ""),
+                                "city": properties.get("city", ""),
+                                "country": properties.get("country", ""),
+                                "lat": float(coordinates[1]),
+                                "lng": float(coordinates[0])
+                            })
+                    return results
+        
+        return []
+    except Exception as e:
+        print(f"Error en autocompletado: {str(e)}")
+        return []
 
 def normalize_plan(plan: str) -> str:
     """Normalizar plan a minúsculas sin espacios"""
@@ -358,4 +307,20 @@ async def delete_route(
     db.commit()
     
     return {"message": "Ruta eliminada correctamente"}
+
+@router.get("/autocomplete/search")
+async def autocomplete_search(
+    query: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Autocompletar direcciones mientras el usuario escribe"""
+    if not query or len(query) < 3:
+        return []
+    
+    try:
+        results = await autocomplete_address(query)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en autocompletado: {str(e)}")
 

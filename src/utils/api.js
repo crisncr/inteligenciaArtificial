@@ -295,6 +295,13 @@ export const routeOptimizationAPI = {
       method: 'DELETE',
     })
   },
+
+  autocomplete: async (query) => {
+    if (!query || query.length < 3) {
+      return []
+    }
+    return apiRequest(`/api/route-optimization/autocomplete/search?query=${encodeURIComponent(query)}`)
+  },
 }
 
 // Endpoints de Predicción de Ventas (Parte 3)

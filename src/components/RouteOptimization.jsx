@@ -1,9 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { routeOptimizationAPI } from '../utils/api'
 
 function RouteOptimization({ user }) {
-  const [points, setPoints] = useState([])
-  const [newPoint, setNewPoint] = useState({ name: '', address: '' })
+  const [startAddress, setStartAddress] = useState('')
+  const [endAddress, setEndAddress] = useState('')
+  const [startSuggestions, setStartSuggestions] = useState([])
+  const [endSuggestions, setEndSuggestions] = useState([])
+  const [showStartSuggestions, setShowStartSuggestions] = useState(false)
+  const [showEndSuggestions, setShowEndSuggestions] = useState(false)
+  const [startSelected, setStartSelected] = useState(null)
+  const [endSelected, setEndSelected] = useState(null)
   const [algorithm, setAlgorithm] = useState('astar')
   const [routeResult, setRouteResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -11,24 +17,25 @@ function RouteOptimization({ user }) {
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [saveRouteName, setSaveRouteName] = useState('')
   const [showSaveDialog, setShowSaveDialog] = useState(false)
-
-  const handleAddPoint = () => {
-    if (!newPoint.name || !newPoint.address) {
-      alert('Por favor completa todos los campos (nombre y dirección)')
-      return
-    }
-
-    setPoints([...points, { name: newPoint.name, address: newPoint.address }])
-    setNewPoint({ name: '', address: '' })
-  }
-
-  const handleRemovePoint = (index) => {
-    setPoints(points.filter((_, i) => i !== index))
-  }
+  const startInputRef = useRef(null)
+  const endInputRef = useRef(null)
+  const suggestionsRef = useRef(null)
 
   // Cargar rutas guardadas al montar el componente
   useEffect(() => {
     loadSavedRoutes()
+  }, [])
+
+  // Cerrar sugerencias al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target)) {
+        setShowStartSuggestions(false)
+        setShowEndSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const loadSavedRoutes = async () => {
@@ -43,9 +50,61 @@ function RouteOptimization({ user }) {
     }
   }
 
+  // Autocompletado para dirección de inicio
+  const handleStartAddressChange = async (value) => {
+    setStartAddress(value)
+    setStartSelected(null)
+    
+    if (value.length >= 3) {
+      try {
+        const suggestions = await routeOptimizationAPI.autocomplete(value)
+        setStartSuggestions(suggestions)
+        setShowStartSuggestions(true)
+      } catch (err) {
+        console.error('Error en autocompletado:', err)
+        setStartSuggestions([])
+      }
+    } else {
+      setStartSuggestions([])
+      setShowStartSuggestions(false)
+    }
+  }
+
+  // Autocompletado para dirección de destino
+  const handleEndAddressChange = async (value) => {
+    setEndAddress(value)
+    setEndSelected(null)
+    
+    if (value.length >= 3) {
+      try {
+        const suggestions = await routeOptimizationAPI.autocomplete(value)
+        setEndSuggestions(suggestions)
+        setShowEndSuggestions(true)
+      } catch (err) {
+        console.error('Error en autocompletado:', err)
+        setEndSuggestions([])
+      }
+    } else {
+      setEndSuggestions([])
+      setShowEndSuggestions(false)
+    }
+  }
+
+  const handleSelectStart = (suggestion) => {
+    setStartAddress(suggestion.display_name || suggestion.text)
+    setStartSelected(suggestion)
+    setShowStartSuggestions(false)
+  }
+
+  const handleSelectEnd = (suggestion) => {
+    setEndAddress(suggestion.display_name || suggestion.text)
+    setEndSelected(suggestion)
+    setShowEndSuggestions(false)
+  }
+
   const handleCalculateRoute = async () => {
-    if (points.length < 2) {
-      alert('Necesitas al menos 2 puntos para calcular una ruta')
+    if (!startSelected || !endSelected) {
+      alert('Por favor selecciona direcciones válidas para inicio y destino')
       return
     }
 
@@ -53,6 +112,11 @@ function RouteOptimization({ user }) {
     setRouteResult(null)
 
     try {
+      const points = [
+        { name: 'Punto de Inicio', address: startAddress },
+        { name: 'Punto de Destino', address: endAddress }
+      ]
+      
       const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
       setRouteResult(result)
       setShowSaveDialog(true)
@@ -70,8 +134,18 @@ function RouteOptimization({ user }) {
       return
     }
 
+    if (!startSelected || !endSelected) {
+      alert('Por favor selecciona direcciones válidas')
+      return
+    }
+
     setLoading(true)
     try {
+      const points = [
+        { name: 'Punto de Inicio', address: startAddress },
+        { name: 'Punto de Destino', address: endAddress }
+      ]
+      
       const result = await routeOptimizationAPI.optimize(points, algorithm, 0, true, saveRouteName)
       setRouteResult(result)
       setShowSaveDialog(false)
@@ -94,15 +168,23 @@ function RouteOptimization({ user }) {
       // Ordenar puntos por el campo 'order'
       const sortedPoints = [...loadedRoute.points].sort((a, b) => a.order - b.order)
       
-      // Cargar puntos desde la ruta guardada
-      const routePoints = sortedPoints.map(p => ({
-        name: p.name,
-        address: p.address
-      }))
-      setPoints(routePoints)
-      setAlgorithm(loadedRoute.algorithm)
+      if (sortedPoints.length >= 2) {
+        setStartAddress(sortedPoints[0].address)
+        setEndAddress(sortedPoints[1].address)
+        setStartSelected({
+          display_name: sortedPoints[0].display_name || sortedPoints[0].address,
+          lat: sortedPoints[0].lat,
+          lng: sortedPoints[0].lng
+        })
+        setEndSelected({
+          display_name: sortedPoints[1].display_name || sortedPoints[1].address,
+          lat: sortedPoints[1].lat,
+          lng: sortedPoints[1].lng
+        })
+        setAlgorithm(loadedRoute.algorithm)
+      }
       
-      // Construir resultado desde la ruta guardada (sin recalcular)
+      // Construir resultado desde la ruta guardada
       const routeResultData = {
         route: sortedPoints.map(p => p.name),
         distance: loadedRoute.distance,
@@ -115,7 +197,7 @@ function RouteOptimization({ user }) {
           lat: p.lat,
           lng: p.lng
         })),
-        steps: []  // Los pasos no se guardan, pero se pueden recalcular si es necesario
+        steps: []
       }
       
       setRouteResult(routeResultData)
@@ -152,100 +234,9 @@ function RouteOptimization({ user }) {
         </p>
       </div>
 
-      <form className="api-form" style={{ marginBottom: '20px' }}>
-        <div className="form-row">
-          <div className="form-field">
-            <label htmlFor="point-name">Nombre del Punto</label>
-            <input
-              type="text"
-              id="point-name"
-              value={newPoint.name}
-              onChange={(e) => setNewPoint({ ...newPoint, name: e.target.value })}
-              placeholder="Ej: Almacén Central"
-            />
-          </div>
-          <div className="form-field" style={{ flex: 2 }}>
-            <label htmlFor="point-address">Dirección</label>
-            <input
-              type="text"
-              id="point-address"
-              value={newPoint.address}
-              onChange={(e) => setNewPoint({ ...newPoint, address: e.target.value })}
-              placeholder="Ej: Pintor Gustavo Cabello Olguin 944, Rancagua, Chile"
-            />
-            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Ingresa la dirección completa (calle, ciudad, país). Puedes usar comas con o sin espacios. Ej: "Calle, Ciudad, País" o "Calle,Ciudad,País"
-            </small>
-          </div>
-        </div>
-        <button type="button" className="btn" onClick={handleAddPoint}>
-          + Agregar Punto
-        </button>
-      </form>
-
-      {points.length > 0 && (
-        <div className="apis-list" style={{ marginBottom: '20px' }}>
-          <h3>Puntos Agregados ({points.length})</h3>
-          {points.length === 2 && (
-            <div className="message" style={{ marginBottom: '15px', background: 'rgba(110, 139, 255, 0.1)', padding: '10px', borderRadius: '8px', fontSize: '0.9em' }}>
-              <p><strong>Nota:</strong> Con 2 puntos se calculará la ruta directa desde el punto de inicio hasta el punto de destino.</p>
-            </div>
-          )}
-          {points.length > 2 && (
-            <div className="message" style={{ marginBottom: '15px', background: 'rgba(110, 139, 255, 0.1)', padding: '10px', borderRadius: '8px', fontSize: '0.9em' }}>
-              <p><strong>Nota:</strong> Con {points.length} puntos se optimizará el orden de visita para minimizar la distancia total (incluyendo retorno al inicio).</p>
-            </div>
-          )}
-          {points.map((point, index) => (
-            <div key={index} className="api-card">
-              <div className="api-header">
-                <h3>
-                  {index === 0 ? '🚩 ' : index === points.length - 1 && points.length === 2 ? '🏁 ' : ''}
-                  {point.name}
-                  {index === 0 && points.length === 2 && <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)', marginLeft: '10px' }}>(Inicio)</span>}
-                  {index === 1 && points.length === 2 && <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)', marginLeft: '10px' }}>(Destino)</span>}
-                </h3>
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--small"
-                  onClick={() => handleRemovePoint(index)}
-                >
-                  Eliminar
-                </button>
-              </div>
-              <div className="api-info">
-                <p><strong>Dirección:</strong> {point.address}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="form-field" style={{ marginBottom: '20px' }}>
-        <label htmlFor="algorithm">Algoritmo</label>
-        <select
-          id="algorithm"
-          value={algorithm}
-          onChange={(e) => setAlgorithm(e.target.value)}
-          className="form-input"
-        >
-          <option value="astar">A* (Recomendado)</option>
-          <option value="dijkstra">Dijkstra</option>
-          <option value="tsp">TSP (Traveling Salesman)</option>
-        </select>
-      </div>
-
-      <button 
-        className="btn" 
-        onClick={handleCalculateRoute} 
-        disabled={points.length < 2 || loading}
-      >
-        {loading ? 'Calculando ruta...' : points.length === 2 ? 'Calcular Ruta Directa' : 'Calcular Ruta Óptima'}
-      </button>
-
       {/* Rutas Guardadas */}
       {savedRoutes.length > 0 && (
-        <div className="apis-list" style={{ marginBottom: '20px', marginTop: '20px' }}>
+        <div className="apis-list" style={{ marginBottom: '20px' }}>
           <h3>Rutas Guardadas ({savedRoutes.length})</h3>
           {savedRoutes.map((route) => (
             <div key={route.id} className="api-card">
@@ -279,6 +270,148 @@ function RouteOptimization({ user }) {
           ))}
         </div>
       )}
+
+      {/* Formulario de Rutas - Solo 2 campos: Inicio y Destino */}
+      <div className="api-form" style={{ marginBottom: '20px', position: 'relative' }} ref={suggestionsRef}>
+        <div className="form-field" style={{ marginBottom: '20px', position: 'relative' }}>
+          <label htmlFor="start-address">
+            <span style={{ fontSize: '1.2em', marginRight: '10px' }}>🚩</span>
+            Punto de Inicio
+          </label>
+          <input
+            ref={startInputRef}
+            type="text"
+            id="start-address"
+            value={startAddress}
+            onChange={(e) => handleStartAddressChange(e.target.value)}
+            onFocus={() => startAddress.length >= 3 && setShowStartSuggestions(true)}
+            placeholder="Ej: Pintor Gustavo Cabello Olguin 944, Rancagua, Chile"
+            className="form-input"
+            style={{ width: '100%', padding: '12px' }}
+          />
+          {showStartSuggestions && startSuggestions.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              zIndex: 1000,
+              maxHeight: '300px',
+              overflowY: 'auto',
+              marginTop: '5px'
+            }}>
+              {startSuggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleSelectStart(suggestion)}
+                  style={{
+                    padding: '12px',
+                    cursor: 'pointer',
+                    borderBottom: index < startSuggestions.length - 1 ? '1px solid var(--border-color)' : 'none',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                    {suggestion.display_name || suggestion.text}
+                  </div>
+                  {suggestion.address_line2 && (
+                    <div style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                      {suggestion.address_line2}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="form-field" style={{ marginBottom: '20px', position: 'relative' }}>
+          <label htmlFor="end-address">
+            <span style={{ fontSize: '1.2em', marginRight: '10px' }}>🏁</span>
+            Punto de Destino
+          </label>
+          <input
+            ref={endInputRef}
+            type="text"
+            id="end-address"
+            value={endAddress}
+            onChange={(e) => handleEndAddressChange(e.target.value)}
+            onFocus={() => endAddress.length >= 3 && setShowEndSuggestions(true)}
+            placeholder="Ej: Av. Libertador Bernardo O'Higgins 123, Santiago, Chile"
+            className="form-input"
+            style={{ width: '100%', padding: '12px' }}
+          />
+          {showEndSuggestions && endSuggestions.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              zIndex: 1000,
+              maxHeight: '300px',
+              overflowY: 'auto',
+              marginTop: '5px'
+            }}>
+              {endSuggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleSelectEnd(suggestion)}
+                  style={{
+                    padding: '12px',
+                    cursor: 'pointer',
+                    borderBottom: index < endSuggestions.length - 1 ? '1px solid var(--border-color)' : 'none',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                    {suggestion.display_name || suggestion.text}
+                  </div>
+                  {suggestion.address_line2 && (
+                    <div style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                      {suggestion.address_line2}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="form-field" style={{ marginBottom: '20px' }}>
+          <label htmlFor="algorithm">Algoritmo</label>
+          <select
+            id="algorithm"
+            value={algorithm}
+            onChange={(e) => setAlgorithm(e.target.value)}
+            className="form-input"
+          >
+            <option value="astar">A* (Recomendado)</option>
+            <option value="dijkstra">Dijkstra</option>
+            <option value="tsp">TSP (Traveling Salesman)</option>
+          </select>
+        </div>
+
+        <button 
+          className="btn" 
+          onClick={handleCalculateRoute} 
+          disabled={!startSelected || !endSelected || loading}
+          style={{ width: '100%' }}
+        >
+          {loading ? 'Calculando ruta...' : 'Calcular Ruta Directa'}
+        </button>
+      </div>
 
       {/* Diálogo para guardar ruta */}
       {showSaveDialog && routeResult && (
@@ -393,13 +526,14 @@ function RouteOptimization({ user }) {
       {/* Explicación Técnica - Parte 2 */}
       <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
         <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 2</h3>
-        <p><strong>Geocodificación:</strong> Utilizamos Nominatim (OpenStreetMap) para convertir direcciones en coordenadas geográficas. Es una API gratuita y no requiere clave de acceso.</p>
+        <p><strong>Geocodificación:</strong> Utilizamos Geoapify para convertir direcciones en coordenadas geográficas. Incluye autocompletado en tiempo real mientras escribes.</p>
         <p><strong>Algoritmo:</strong> A* (A estrella)</p>
         <p><strong>Tipo:</strong> Búsqueda heurística</p>
         <p><strong>Justificación:</strong> A* combina el costo real del camino con una heurística estimada, encontrando la ruta óptima de manera eficiente.</p>
         <p><strong>Proceso:</strong></p>
         <ol>
-          <li>Geocodificar direcciones a coordenadas (lat, lng) usando Nominatim</li>
+          <li>Autocompletar direcciones mientras el usuario escribe (Geoapify)</li>
+          <li>Geocodificar direcciones a coordenadas (lat, lng) usando Geoapify</li>
           <li>Crear grafo con puntos de entrega</li>
           <li>Calcular distancias entre todos los puntos (distancia euclidiana)</li>
           <li>Aplicar heurística para seleccionar el siguiente nodo</li>
@@ -414,4 +548,3 @@ function RouteOptimization({ user }) {
 }
 
 export default RouteOptimization
-
