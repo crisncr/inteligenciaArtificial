@@ -43,92 +43,81 @@ def normalize_address(address: str) -> str:
     address = re.sub(r'\s+', ' ', address.strip())
     return address
 
-# Constantes de API Google Maps
-# Nota: Necesitas obtener una API key de Google Cloud Console y habilitar:
-# - Geocoding API
-# - Places API (para autocompletado)
-GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
-GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-GOOGLE_PLACES_AUTOCOMPLETE_URL = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
-GOOGLE_PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
+# Constantes de API Nominatim (OpenStreetMap)
+# Nominatim es completamente gratuito y no requiere API key
+NOMINATIM_GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
+NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 
 async def geocode_address(address: str) -> Dict:
-    """Geocodificar dirección usando Google Maps Geocoding API"""
+    """Geocodificar dirección usando Nominatim (OpenStreetMap) - Gratuito y sin API key"""
     try:
-        if not GOOGLE_MAPS_API_KEY:
-            raise ValueError("Google Maps API key no configurada. Configura la variable de entorno GOOGLE_MAPS_API_KEY")
-        
         # Normalizar dirección
         normalized_address = normalize_address(address)
         
-        print(f"Geocodificando con Google Maps: {normalized_address}")
+        print(f"Geocodificando con Nominatim: {normalized_address}")
         
-        # Google Maps Geocoding API
+        # Nominatim Geocoding API - Completamente gratuito
         async with httpx.AsyncClient() as client:
+            # Agregar headers requeridos por Nominatim (User-Agent)
+            headers = {
+                "User-Agent": "RouteOptimizationApp/1.0 (contact@example.com)"  # Nominatim requiere User-Agent
+            }
+            
             response = await client.get(
-                GOOGLE_GEOCODE_URL,
+                NOMINATIM_GEOCODE_URL,
                 params={
-                    "address": normalized_address,
-                    "key": GOOGLE_MAPS_API_KEY,
-                    "language": "es",  # Idioma español
-                    "region": "cl"  # Priorizar resultados de Chile
+                    "q": normalized_address,
+                    "format": "json",
+                    "limit": 1,
+                    "addressdetails": 1,
+                    "countrycodes": "cl",  # Priorizar Chile
+                    "accept-language": "es"  # Idioma español
                 },
+                headers=headers,
                 timeout=15.0
             )
             
-            print(f"Geocodificación Google - Status: {response.status_code}")
+            print(f"Geocodificación Nominatim - Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"Geocodificación Google - Status API: {data.get('status')}")
                 
-                if data.get("status") == "OK" and data.get("results"):
+                if isinstance(data, list) and len(data) > 0:
                     # Usar el primer resultado (más relevante)
-                    result = data["results"][0]
-                    location = result.get("geometry", {}).get("location", {})
-                    formatted_address = result.get("formatted_address", normalized_address)
+                    result = data[0]
+                    lat = float(result.get("lat", 0))
+                    lng = float(result.get("lon", 0))
+                    display_name = result.get("display_name", normalized_address)
                     
                     # Extraer componentes de la dirección
-                    address_components = result.get("address_components", [])
-                    city = ""
-                    country = ""
-                    address_line1 = ""
+                    address_details = result.get("address", {})
+                    city = address_details.get("city") or address_details.get("town") or address_details.get("village") or ""
+                    country = address_details.get("country", "")
+                    address_line1 = address_details.get("road", "") or address_details.get("house_number", "")
                     address_line2 = ""
                     
-                    for component in address_components:
-                        types = component.get("types", [])
-                        long_name = component.get("long_name", "")
-                        
-                        if "locality" in types or "administrative_area_level_2" in types:
-                            city = long_name
-                        elif "country" in types:
-                            country = long_name
-                        elif "street_number" in types or "route" in types:
-                            if address_line1:
-                                address_line1 = f"{long_name} {address_line1}"
-                            else:
-                                address_line1 = long_name
+                    # Construir address_line2 con información adicional
+                    parts = []
+                    if address_details.get("suburb"):
+                        parts.append(address_details.get("suburb"))
+                    if address_details.get("postcode"):
+                        parts.append(address_details.get("postcode"))
+                    address_line2 = ", ".join(parts)
                     
                     geo_result = {
-                        "lat": float(location.get("lat", 0)),
-                        "lng": float(location.get("lng", 0)),
-                        "display_name": formatted_address,
-                        "address_line1": address_line1 or formatted_address.split(",")[0] if formatted_address else "",
-                        "address_line2": ", ".join(formatted_address.split(",")[1:]) if "," in formatted_address else "",
+                        "lat": lat,
+                        "lng": lng,
+                        "display_name": display_name,
+                        "address_line1": address_line1 or display_name.split(",")[0] if display_name else "",
+                        "address_line2": address_line2,
                         "city": city,
                         "country": country
                     }
                     print(f"Geocodificación exitosa: {geo_result['display_name']} - ({geo_result['lat']}, {geo_result['lng']})")
                     return geo_result
-                elif data.get("status") == "ZERO_RESULTS":
-                    raise ValueError(f"No se encontraron resultados para la dirección: {address}")
-                elif data.get("status") == "OVER_QUERY_LIMIT":
-                    raise ValueError("Límite de consultas excedido en Google Maps API")
-                elif data.get("status") == "REQUEST_DENIED":
-                    error_msg = data.get("error_message", "Acceso denegado a Google Maps API")
-                    raise ValueError(f"Error en Google Maps API: {error_msg}")
                 else:
-                    raise ValueError(f"Error en Google Maps API: {data.get('status')} - {data.get('error_message', '')}")
+                    raise ValueError(f"No se encontraron resultados para la dirección: {address}")
             else:
                 raise ValueError(f"Error HTTP {response.status_code} al geocodificar")
             
@@ -142,126 +131,84 @@ async def geocode_address(address: str) -> Dict:
         raise ValueError(error_msg)
 
 async def autocomplete_address(query: str) -> List[Dict]:
-    """Autocompletar dirección usando Google Places API Autocomplete"""
+    """Autocompletar dirección usando Nominatim Search (OpenStreetMap) - Gratuito y sin API key"""
     try:
-        if not GOOGLE_MAPS_API_KEY:
-            print("Google Maps API key no configurada, autocompletado no disponible")
-            return []
-        
         if not query or len(query) < 3:
             return []
         
-        print(f"Autocompletado Google Places - Query: {query}")
+        print(f"Autocompletado Nominatim - Query: {query}")
         
         async with httpx.AsyncClient() as client:
-            # Llamar a Places Autocomplete API
+            # Headers requeridos por Nominatim
+            headers = {
+                "User-Agent": "RouteOptimizationApp/1.0 (contact@example.com)"
+            }
+            
+            # Llamar a Nominatim Search API
             response = await client.get(
-                GOOGLE_PLACES_AUTOCOMPLETE_URL,
+                NOMINATIM_SEARCH_URL,
                 params={
-                    "input": query,
-                    "key": GOOGLE_MAPS_API_KEY,
-                    "language": "es",
-                    "components": "country:cl",  # Priorizar Chile
-                    "types": "address"  # Solo direcciones
+                    "q": query,
+                    "format": "json",
+                    "limit": 5,  # Limitar a 5 resultados
+                    "addressdetails": 1,
+                    "countrycodes": "cl",  # Priorizar Chile
+                    "accept-language": "es",
+                    "dedupe": 1  # Eliminar duplicados
                 },
+                headers=headers,
                 timeout=10.0
             )
             
-            print(f"Autocompletado Google - Status: {response.status_code}")
+            print(f"Autocompletado Nominatim - Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"Autocompletado Google - Status API: {data.get('status')}")
-                print(f"Autocompletado Google - Predictions count: {len(data.get('predictions', []))}")
                 
-                if data.get("status") == "OK" and data.get("predictions"):
+                if isinstance(data, list) and len(data) > 0:
                     results = []
-                    predictions = data.get("predictions", [])[:5]  # Limitar a 5 resultados
-                    
-                    # Para cada predicción, obtener detalles (incluyendo coordenadas)
-                    for prediction in predictions:
-                        place_id = prediction.get("place_id")
-                        description = prediction.get("description", "")
-                        structured_formatting = prediction.get("structured_formatting", {})
-                        main_text = structured_formatting.get("main_text", description)
-                        secondary_text = structured_formatting.get("secondary_text", "")
+                    for item in data[:5]:  # Limitar a 5 resultados
+                        lat = float(item.get("lat", 0))
+                        lng = float(item.get("lon", 0))
+                        display_name = item.get("display_name", query)
                         
-                        # Obtener detalles del lugar para tener coordenadas
-                        try:
-                            details_response = await client.get(
-                                GOOGLE_PLACES_DETAILS_URL,
-                                params={
-                                    "place_id": place_id,
-                                    "key": GOOGLE_MAPS_API_KEY,
-                                    "language": "es",
-                                    "fields": "geometry,formatted_address,address_components"
-                                },
-                                timeout=10.0
-                            )
-                            
-                            if details_response.status_code == 200:
-                                details_data = details_response.json()
-                                if details_data.get("status") == "OK" and details_data.get("result"):
-                                    place_result = details_data.get("result", {})
-                                    geometry = place_result.get("geometry", {})
-                                    location = geometry.get("location", {})
-                                    
-                                    address_components = place_result.get("address_components", [])
-                                    city = ""
-                                    country = ""
-                                    
-                                    for component in address_components:
-                                        types = component.get("types", [])
-                                        long_name = component.get("long_name", "")
-                                        
-                                        if "locality" in types or "administrative_area_level_2" in types:
-                                            city = long_name
-                                        elif "country" in types:
-                                            country = long_name
-                                    
-                                    formatted_address = place_result.get("formatted_address", description)
-                                    
-                                    results.append({
-                                        "text": description,
-                                        "display_name": formatted_address,
-                                        "address_line1": main_text,
-                                        "address_line2": secondary_text,
-                                        "city": city,
-                                        "country": country,
-                                        "lat": float(location.get("lat", 0)),
-                                        "lng": float(location.get("lng", 0))
-                                    })
-                        except Exception as detail_err:
-                            print(f"Error obteniendo detalles del lugar {place_id}: {str(detail_err)}")
-                            # Si falla obtener detalles, usar solo la descripción
-                            results.append({
-                                "text": description,
-                                "display_name": description,
-                                "address_line1": main_text,
-                                "address_line2": secondary_text,
-                                "city": "",
-                                "country": "",
-                                "lat": 0,
-                                "lng": 0
-                            })
+                        # Extraer componentes de la dirección
+                        address_details = item.get("address", {})
+                        city = address_details.get("city") or address_details.get("town") or address_details.get("village") or ""
+                        country = address_details.get("country", "")
+                        address_line1 = address_details.get("road", "") or address_details.get("house_number", "")
+                        address_line2 = address_details.get("suburb", "") or ""
+                        
+                        # Extraer partes principales de la dirección para address_line1
+                        main_parts = []
+                        if address_details.get("house_number"):
+                            main_parts.append(address_details.get("house_number"))
+                        if address_details.get("road"):
+                            main_parts.append(address_details.get("road"))
+                        address_line1 = " ".join(main_parts) if main_parts else display_name.split(",")[0]
+                        
+                        results.append({
+                            "text": display_name,
+                            "display_name": display_name,
+                            "address_line1": address_line1,
+                            "address_line2": address_line2,
+                            "city": city,
+                            "country": country,
+                            "lat": lat,
+                            "lng": lng
+                        })
                     
-                    print(f"Autocompletado Google - Results: {len(results)}")
+                    print(f"Autocompletado Nominatim - Results: {len(results)}")
                     return results
-                elif data.get("status") == "ZERO_RESULTS":
-                    print("Autocompletado Google - No se encontraron resultados")
-                    return []
-                elif data.get("status") == "OVER_QUERY_LIMIT":
-                    print("Autocompletado Google - Límite de consultas excedido")
-                    return []
                 else:
-                    print(f"Autocompletado Google - Error: {data.get('status')} - {data.get('error_message', '')}")
+                    print("Autocompletado Nominatim - No se encontraron resultados")
                     return []
             else:
-                print(f"Autocompletado Google - Error HTTP: {response.status_code}")
+                print(f"Autocompletado Nominatim - Error HTTP: {response.status_code}")
                 return []
         
     except Exception as e:
-        print(f"Error en autocompletado Google: {str(e)}")
+        print(f"Error en autocompletado Nominatim: {str(e)}")
         import traceback
         traceback.print_exc()
         return []

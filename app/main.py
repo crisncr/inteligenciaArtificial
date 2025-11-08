@@ -235,14 +235,6 @@ app.include_router(datasets_router.router)
 app.include_router(route_optimization_router.router)
 app.include_router(sales_prediction_router.router)
 
-@app.get("/api/config/google-maps")
-async def get_google_maps_config():
-    """Obtener configuración de Google Maps (solo si la API key está configurada)"""
-    google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY", "")
-    return {
-        "hasApiKey": bool(google_maps_api_key),
-        "apiKey": google_maps_api_key if google_maps_api_key else None  # Enviar la key al frontend para usar en el mapa
-    }
 
 # Endpoint público para análisis (sin autenticación, límite de 3)
 @app.post("/analyze")

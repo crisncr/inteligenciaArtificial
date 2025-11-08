@@ -1,5 +1,37 @@
 import { useState, useEffect, useRef } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import { routeOptimizationAPI } from '../utils/api'
+import 'leaflet/dist/leaflet.css'
+
+// Fix para iconos de Leaflet en React
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
+
+// Componente para actualizar el centro del mapa
+function MapUpdater({ center, zoom }) {
+  const map = useMap()
+  useEffect(() => {
+    map.setView(center, zoom)
+  }, [map, center, zoom])
+  return null
+}
+
+// Componente para escuchar clicks en el mapa
+function MapClickHandler({ onMapClick, selectingPoint }) {
+  useMapEvents({
+    click: (e) => {
+      if (selectingPoint) {
+        onMapClick(e.latlng.lat, e.latlng.lng)
+      }
+    },
+  })
+  return null
+}
 
 function RouteOptimization({ user }) {
   const [startAddress, setStartAddress] = useState('')
@@ -13,295 +45,57 @@ function RouteOptimization({ user }) {
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [saveRouteName, setSaveRouteName] = useState('')
   const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const [googleMapsApiKey, setGoogleMapsApiKey] = useState(null)
-  const [mapsLoaded, setMapsLoaded] = useState(false)
-  const [map, setMap] = useState(null)
-  const [startMarker, setStartMarker] = useState(null)
-  const [endMarker, setEndMarker] = useState(null)
-  const startAutocompleteRef = useRef(null)
-  const endAutocompleteRef = useRef(null)
+  const [selectingPoint, setSelectingPoint] = useState(null) // 'start' o 'end' o null
+  const [startSuggestions, setStartSuggestions] = useState([])
+  const [endSuggestions, setEndSuggestions] = useState([])
+  const [showStartSuggestions, setShowStartSuggestions] = useState(false)
+  const [showEndSuggestions, setShowEndSuggestions] = useState(false)
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [mapCenter, setMapCenter] = useState([-33.4489, -70.6693]) // Santiago, Chile
+  const [mapZoom, setMapZoom] = useState(10)
+  
   const startInputRef = useRef(null)
   const endInputRef = useRef(null)
-  const mapRef = useRef(null)
-  const startAutocompleteInstanceRef = useRef(null)
-  const endAutocompleteInstanceRef = useRef(null)
-  const [selectingPoint, setSelectingPoint] = useState(null) // 'start' o 'end' o null
+  const startDebounceRef = useRef(null)
+  const endDebounceRef = useRef(null)
 
-  // Cargar API key de Google Maps y rutas guardadas
+  // Cargar rutas guardadas al montar
   useEffect(() => {
-    loadGoogleMapsConfig()
     loadSavedRoutes()
   }, [])
 
-  // Cargar Google Maps cuando la API key esté disponible
+  // Manejar clicks fuera de las sugerencias
   useEffect(() => {
-    if (googleMapsApiKey && !mapsLoaded) {
-      loadGoogleMapsScript()
-    }
-  }, [googleMapsApiKey, mapsLoaded])
-
-  // Inicializar autocompletado cuando Google Maps esté cargado
-  useEffect(() => {
-    if (mapsLoaded && window.google && startInputRef.current && endInputRef.current) {
-      initializeAutocomplete()
-    }
-  }, [mapsLoaded, startInputRef.current, endInputRef.current])
-
-  // Inicializar mapa cuando Google Maps esté cargado y el ref esté disponible
-  useEffect(() => {
-    if (mapsLoaded && window.google && mapRef.current && !map) {
-      // Pequeño delay para asegurar que el DOM esté listo
-      setTimeout(() => {
-        initializeMap()
-      }, 100)
-    }
-  }, [mapsLoaded, mapRef.current])
-
-  // Actualizar marcadores cuando cambian los lugares
-  useEffect(() => {
-    if (map && startPlace && mapsLoaded) {
-      updateStartMarker()
-    }
-  }, [map, startPlace, mapsLoaded])
-
-  useEffect(() => {
-    if (map && endPlace && mapsLoaded) {
-      updateEndMarker()
-    }
-  }, [map, endPlace, mapsLoaded])
-
-  const loadGoogleMapsConfig = async () => {
-    try {
-      const response = await fetch('/api/config/google-maps')
-      const config = await response.json()
-      if (config.hasApiKey && config.apiKey) {
-        setGoogleMapsApiKey(config.apiKey)
-      } else {
-        console.warn('Google Maps API key no configurada')
+    const handleClickOutside = (event) => {
+      if (startInputRef.current && !startInputRef.current.contains(event.target)) {
+        setShowStartSuggestions(false)
       }
-    } catch (err) {
-      console.error('Error al cargar configuración de Google Maps:', err)
-    }
-  }
-
-  const loadGoogleMapsScript = () => {
-    if (window.google && window.google.maps && window.google.maps.places) {
-      setMapsLoaded(true)
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places&language=es&region=cl`
-    script.async = true
-    script.defer = true
-    script.onload = () => {
-      setMapsLoaded(true)
-    }
-    script.onerror = () => {
-      console.error('Error al cargar Google Maps API')
-    }
-    document.head.appendChild(script)
-  }
-
-  const initializeAutocomplete = () => {
-    if (!window.google || !window.google.maps || !window.google.maps.places) {
-      return
-    }
-
-    // Limpiar instancias anteriores
-    if (startAutocompleteInstanceRef.current) {
-      window.google.maps.event.clearInstanceListeners(startAutocompleteInstanceRef.current)
-    }
-    if (endAutocompleteInstanceRef.current) {
-      window.google.maps.event.clearInstanceListeners(endAutocompleteInstanceRef.current)
-    }
-
-    // Inicializar autocompletado para inicio
-    if (startInputRef.current) {
-      const startAutocomplete = new window.google.maps.places.Autocomplete(
-        startInputRef.current,
-        {
-          componentRestrictions: { country: 'cl' },
-          fields: ['geometry', 'formatted_address', 'address_components', 'place_id'],
-          types: ['address']
-        }
-      )
-
-      startAutocomplete.addListener('place_changed', () => {
-        const place = startAutocomplete.getPlace()
-        if (place.geometry) {
-          setStartPlace({
-            address: place.formatted_address,
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-            place_id: place.place_id
-          })
-          setStartAddress(place.formatted_address)
-        }
-      })
-
-      startAutocomplete.addListener('place_changed', () => {
-        const place = startAutocomplete.getPlace()
-        if (place.geometry) {
-          const location = {
-            address: place.formatted_address,
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-            place_id: place.place_id
-          }
-          setStartPlace(location)
-          setStartAddress(place.formatted_address)
-        }
-      })
-
-      startAutocompleteInstanceRef.current = startAutocomplete
-    }
-
-    // Inicializar autocompletado para destino
-    if (endInputRef.current) {
-      const endAutocomplete = new window.google.maps.places.Autocomplete(
-        endInputRef.current,
-        {
-          componentRestrictions: { country: 'cl' },
-          fields: ['geometry', 'formatted_address', 'address_components', 'place_id'],
-          types: ['address']
-        }
-      )
-
-      endAutocomplete.addListener('place_changed', () => {
-        const place = endAutocomplete.getPlace()
-        if (place.geometry) {
-          const location = {
-            address: place.formatted_address,
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-            place_id: place.place_id
-          }
-          setEndPlace(location)
-          setEndAddress(place.formatted_address)
-        }
-      })
-
-      endAutocompleteInstanceRef.current = endAutocomplete
-    }
-  }
-
-  const initializeMap = () => {
-    if (!window.google || !window.google.maps || !mapRef.current) {
-      return
-    }
-
-    // Crear mapa centrado en Chile
-    const googleMap = new window.google.maps.Map(mapRef.current, {
-      center: { lat: -33.4489, lng: -70.6693 }, // Santiago, Chile
-      zoom: 10,
-      mapTypeControl: true,
-      streetViewControl: true,
-      fullscreenControl: true
-    })
-
-    setMap(googleMap)
-
-    // Agregar listener para clicks en el mapa
-    googleMap.addListener('click', (event) => {
-      if (selectingPoint) {
-        const lat = event.latLng.lat()
-        const lng = event.latLng.lng()
-        
-        // Geocodificar reversa para obtener la dirección
-        const geocoder = new window.google.maps.Geocoder()
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          if (status === 'OK' && results[0]) {
-            const address = results[0].formatted_address
-            
-            if (selectingPoint === 'start') {
-              setStartPlace({ address, lat, lng })
-              setStartAddress(address)
-            } else if (selectingPoint === 'end') {
-              setEndPlace({ address, lat, lng })
-              setEndAddress(address)
-            }
-            
-            setSelectingPoint(null)
-          }
-        })
-      }
-    })
-  }
-
-  const updateStartMarker = () => {
-    if (!map || !startPlace || !window.google) return
-
-    // Eliminar marcador anterior si existe
-    if (startMarker) {
-      startMarker.setMap(null)
-    }
-
-    // Crear nuevo marcador
-    const marker = new window.google.maps.Marker({
-      position: { lat: startPlace.lat, lng: startPlace.lng },
-      map: map,
-      title: 'Punto de Inicio',
-      label: {
-        text: '🚩',
-        fontSize: '20px',
-        fontWeight: 'bold'
-      },
-      animation: window.google.maps.Animation.DROP
-    })
-
-    setStartMarker(marker)
-    
-    // Ajustar vista del mapa
-    if (endMarker && endPlace) {
-      const bounds = new window.google.maps.LatLngBounds()
-      bounds.extend(new window.google.maps.LatLng(startPlace.lat, startPlace.lng))
-      bounds.extend(new window.google.maps.LatLng(endPlace.lat, endPlace.lng))
-      map.fitBounds(bounds)
-    } else {
-      map.setCenter({ lat: startPlace.lat, lng: startPlace.lng })
-      if (map.getZoom() < 15) {
-        map.setZoom(15)
+      if (endInputRef.current && !endInputRef.current.contains(event.target)) {
+        setShowEndSuggestions(false)
       }
     }
-  }
-
-  const updateEndMarker = () => {
-    if (!map || !endPlace || !window.google) return
-
-    // Eliminar marcador anterior si existe
-    if (endMarker) {
-      endMarker.setMap(null)
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
     }
+  }, [])
 
-    // Crear nuevo marcador
-    const marker = new window.google.maps.Marker({
-      position: { lat: endPlace.lat, lng: endPlace.lng },
-      map: map,
-      title: 'Punto de Destino',
-      label: {
-        text: '🏁',
-        fontSize: '20px',
-        fontWeight: 'bold'
-      },
-      animation: window.google.maps.Animation.DROP
-    })
-
-    setEndMarker(marker)
-    
-    // Ajustar vista del mapa
-    if (startMarker && startPlace) {
-      const bounds = new window.google.maps.LatLngBounds()
-      bounds.extend(new window.google.maps.LatLng(startPlace.lat, startPlace.lng))
-      bounds.extend(new window.google.maps.LatLng(endPlace.lat, endPlace.lng))
-      map.fitBounds(bounds)
-    } else {
-      map.setCenter({ lat: endPlace.lat, lng: endPlace.lng })
-      if (map.getZoom() < 15) {
-        map.setZoom(15)
-      }
+  // Ajustar vista del mapa cuando hay marcadores (solo actualizar si cambian los lugares)
+  useEffect(() => {
+    if (startPlace && endPlace) {
+      // Centrar mapa para mostrar ambos marcadores
+      const centerLat = (startPlace.lat + endPlace.lat) / 2
+      const centerLng = (startPlace.lng + endPlace.lng) / 2
+      setMapCenter([centerLat, centerLng])
+      setMapZoom(12)
+    } else if (startPlace) {
+      setMapCenter([startPlace.lat, startPlace.lng])
+      setMapZoom(15)
+    } else if (endPlace) {
+      setMapCenter([endPlace.lat, endPlace.lng])
+      setMapZoom(15)
     }
-  }
+  }, [startPlace?.lat, startPlace?.lng, endPlace?.lat, endPlace?.lng])
 
   const loadSavedRoutes = async () => {
     setLoadingRoutes(true)
@@ -315,58 +109,171 @@ function RouteOptimization({ user }) {
     }
   }
 
+  // Autocompletado para dirección de inicio
+  const handleStartAddressChange = (value) => {
+    setStartAddress(value)
+    setStartPlace(null)
+    
+    if (startDebounceRef.current) {
+      clearTimeout(startDebounceRef.current)
+    }
+    
+    if (value.length < 3) {
+      setStartSuggestions([])
+      setShowStartSuggestions(false)
+      return
+    }
+    
+    startDebounceRef.current = setTimeout(async () => {
+      setLoadingSuggestions(true)
+      try {
+        const suggestions = await routeOptimizationAPI.autocomplete(value)
+        setStartSuggestions(suggestions)
+        if (suggestions.length > 0) {
+          setShowStartSuggestions(true)
+        }
+      } catch (err) {
+        console.error('Error en autocompletado:', err)
+        setStartSuggestions([])
+        setShowStartSuggestions(false)
+      } finally {
+        setLoadingSuggestions(false)
+      }
+    }, 300)
+  }
+
+  // Autocompletado para dirección de destino
+  const handleEndAddressChange = (value) => {
+    setEndAddress(value)
+    setEndPlace(null)
+    
+    if (endDebounceRef.current) {
+      clearTimeout(endDebounceRef.current)
+    }
+    
+    if (value.length < 3) {
+      setEndSuggestions([])
+      setShowEndSuggestions(false)
+      return
+    }
+    
+    endDebounceRef.current = setTimeout(async () => {
+      setLoadingSuggestions(true)
+      try {
+        const suggestions = await routeOptimizationAPI.autocomplete(value)
+        setEndSuggestions(suggestions)
+        if (suggestions.length > 0) {
+          setShowEndSuggestions(true)
+        }
+      } catch (err) {
+        console.error('Error en autocompletado:', err)
+        setEndSuggestions([])
+        setShowEndSuggestions(false)
+      } finally {
+        setLoadingSuggestions(false)
+      }
+    }, 300)
+  }
+
+  const handleSelectStart = (suggestion) => {
+    setStartAddress(suggestion.display_name || suggestion.text)
+    setStartPlace({
+      address: suggestion.display_name || suggestion.text,
+      lat: suggestion.lat,
+      lng: suggestion.lng
+    })
+    setShowStartSuggestions(false)
+  }
+
+  const handleSelectEnd = (suggestion) => {
+    setEndAddress(suggestion.display_name || suggestion.text)
+    setEndPlace({
+      address: suggestion.display_name || suggestion.text,
+      lat: suggestion.lat,
+      lng: suggestion.lng
+    })
+    setShowEndSuggestions(false)
+  }
+
+  // Geocodificar reversa cuando se hace click en el mapa
+  const handleMapClick = async (lat, lng) => {
+    try {
+      setLoading(true)
+      // Usar Nominatim para geocodificación reversa
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=es`,
+        {
+          headers: {
+            'User-Agent': 'RouteOptimizationApp/1.0'
+          }
+        }
+      )
+      
+      if (response.ok) {
+        const data = await response.json()
+        const address = data.display_name || `${lat}, ${lng}`
+        
+        if (selectingPoint === 'start') {
+          setStartAddress(address)
+          setStartPlace({ address, lat, lng })
+          setSelectingPoint(null)
+        } else if (selectingPoint === 'end') {
+          setEndAddress(address)
+          setEndPlace({ address, lat, lng })
+          setSelectingPoint(null)
+        }
+      }
+    } catch (err) {
+      console.error('Error en geocodificación reversa:', err)
+      // Si falla, usar coordenadas directamente
+      const address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      if (selectingPoint === 'start') {
+        setStartAddress(address)
+        setStartPlace({ address, lat, lng })
+        setSelectingPoint(null)
+      } else if (selectingPoint === 'end') {
+        setEndAddress(address)
+        setEndPlace({ address, lat, lng })
+        setSelectingPoint(null)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleCalculateRoute = async () => {
     if (!startAddress.trim() || !endAddress.trim()) {
       alert('Por favor ingresa direcciones de inicio y destino')
       return
     }
 
-    // Si tenemos los lugares de Google Maps, usarlos directamente
-    if (startPlace && endPlace) {
-      setLoading(true)
-      setRouteResult(null)
-      setShowSaveDialog(false)
+    setLoading(true)
+    setRouteResult(null)
+    setShowSaveDialog(false)
+    setShowStartSuggestions(false)
+    setShowEndSuggestions(false)
 
-      try {
-        const points = [
-          { name: 'Punto de Inicio', address: startAddress, lat: startPlace.lat, lng: startPlace.lng },
-          { name: 'Punto de Destino', address: endAddress, lat: endPlace.lat, lng: endPlace.lng }
-        ]
-        
-        console.log('Calculando ruta con puntos:', points)
-        const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
-        console.log('Resultado de la ruta:', result)
-        setRouteResult(result)
-        setShowSaveDialog(true)
-      } catch (err) {
-        console.error('Error al calcular ruta:', err)
-        alert(`Error: ${err.message || 'No se pudo calcular la ruta. Verifica que las direcciones sean válidas.'}`)
-      } finally {
-        setLoading(false)
-      }
-    } else {
-      // Si no tenemos los lugares, intentar geocodificar
-      setLoading(true)
-      setRouteResult(null)
-      setShowSaveDialog(false)
-
-      try {
-        const points = [
-          { name: 'Punto de Inicio', address: startAddress.trim() },
-          { name: 'Punto de Destino', address: endAddress.trim() }
-        ]
-        
-        console.log('Calculando ruta con direcciones:', points)
-        const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
-        console.log('Resultado de la ruta:', result)
-        setRouteResult(result)
-        setShowSaveDialog(true)
-      } catch (err) {
-        console.error('Error al calcular ruta:', err)
-        alert(`Error: ${err.message || 'No se pudo calcular la ruta. Verifica que las direcciones sean válidas.'}`)
-      } finally {
-        setLoading(false)
-      }
+    try {
+      const points = startPlace && endPlace
+        ? [
+            { name: 'Punto de Inicio', address: startAddress, lat: startPlace.lat, lng: startPlace.lng },
+            { name: 'Punto de Destino', address: endAddress, lat: endPlace.lat, lng: endPlace.lng }
+          ]
+        : [
+            { name: 'Punto de Inicio', address: startAddress.trim() },
+            { name: 'Punto de Destino', address: endAddress.trim() }
+          ]
+      
+      console.log('Calculando ruta con puntos:', points)
+      const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
+      console.log('Resultado de la ruta:', result)
+      setRouteResult(result)
+      setShowSaveDialog(true)
+    } catch (err) {
+      console.error('Error al calcular ruta:', err)
+      alert(`Error: ${err.message || 'No se pudo calcular la ruta. Verifica que las direcciones sean válidas.'}`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -470,6 +377,23 @@ function RouteOptimization({ user }) {
     }
   }
 
+  // Iconos personalizados para marcadores usando divIcon con emojis
+  const startIcon = L.divIcon({
+    className: 'custom-marker-icon',
+    html: '<div style="background-color: #ff4444; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">🚩</div>',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -30]
+  })
+
+  const endIcon = L.divIcon({
+    className: 'custom-marker-icon',
+    html: '<div style="background-color: #44ff44; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">🏁</div>',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -30]
+  })
+
   return (
     <section className="dashboard-section">
       <div className="section-header">
@@ -516,7 +440,7 @@ function RouteOptimization({ user }) {
         </div>
       )}
 
-      {/* Formulario de Rutas con Autocompletado de Google Maps */}
+      {/* Formulario de Rutas con Mapa Leaflet */}
       <div className="api-form" style={{ marginBottom: '20px' }}>
         <div className="form-field" style={{ marginBottom: '20px' }}>
           <label htmlFor="start-address">
@@ -524,16 +448,67 @@ function RouteOptimization({ user }) {
             Punto de Inicio
           </label>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <input
-              ref={startInputRef}
-              type="text"
-              id="start-address"
-              value={startAddress}
-              onChange={(e) => setStartAddress(e.target.value)}
-              placeholder="Escribe una dirección o selecciona del mapa"
-              className="form-input"
-              style={{ flex: 1, padding: '12px' }}
-            />
+            <div style={{ flex: 1, position: 'relative' }} ref={startInputRef}>
+              <input
+                type="text"
+                id="start-address"
+                value={startAddress}
+                onChange={(e) => handleStartAddressChange(e.target.value)}
+                onFocus={() => {
+                  if (startAddress.length >= 3 && startSuggestions.length > 0) {
+                    setShowStartSuggestions(true)
+                  }
+                }}
+                placeholder="Escribe una dirección o selecciona del mapa"
+                className="form-input"
+                style={{ width: '100%', padding: '12px' }}
+              />
+              {showStartSuggestions && startSuggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#fff',
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                  marginTop: '5px'
+                }}>
+                  {startSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleSelectStart(suggestion)}
+                      style={{
+                        padding: '12px',
+                        cursor: 'pointer',
+                        borderBottom: index < startSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                        backgroundColor: 'transparent',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f5f5f5'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
+                        {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
+                      </div>
+                      {(suggestion.address_line2 || suggestion.city) && (
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                          {suggestion.address_line2 || suggestion.city}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="btn btn--ghost"
@@ -552,16 +527,6 @@ function RouteOptimization({ user }) {
               👆 Haz click en el mapa para seleccionar el punto de inicio
             </small>
           )}
-          {!mapsLoaded && googleMapsApiKey && (
-            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Cargando Google Maps...
-            </small>
-          )}
-          {!googleMapsApiKey && (
-            <small style={{ color: 'var(--warning)', display: 'block', marginTop: '5px' }}>
-              ⚠️ Google Maps API key no configurada. Configura GOOGLE_MAPS_API_KEY en Render.
-            </small>
-          )}
         </div>
 
         <div className="form-field" style={{ marginBottom: '20px' }}>
@@ -570,16 +535,67 @@ function RouteOptimization({ user }) {
             Punto de Destino
           </label>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <input
-              ref={endInputRef}
-              type="text"
-              id="end-address"
-              value={endAddress}
-              onChange={(e) => setEndAddress(e.target.value)}
-              placeholder="Escribe una dirección o selecciona del mapa"
-              className="form-input"
-              style={{ flex: 1, padding: '12px' }}
-            />
+            <div style={{ flex: 1, position: 'relative' }} ref={endInputRef}>
+              <input
+                type="text"
+                id="end-address"
+                value={endAddress}
+                onChange={(e) => handleEndAddressChange(e.target.value)}
+                onFocus={() => {
+                  if (endAddress.length >= 3 && endSuggestions.length > 0) {
+                    setShowEndSuggestions(true)
+                  }
+                }}
+                placeholder="Escribe una dirección o selecciona del mapa"
+                className="form-input"
+                style={{ width: '100%', padding: '12px' }}
+              />
+              {showEndSuggestions && endSuggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#fff',
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                  marginTop: '5px'
+                }}>
+                  {endSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleSelectEnd(suggestion)}
+                      style={{
+                        padding: '12px',
+                        cursor: 'pointer',
+                        borderBottom: index < endSuggestions.length - 1 ? '1px solid #eee' : 'none',
+                        backgroundColor: 'transparent',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f5f5f5'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>
+                        {suggestion.display_name || suggestion.text || 'Dirección no disponible'}
+                      </div>
+                      {(suggestion.address_line2 || suggestion.city) && (
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                          {suggestion.address_line2 || suggestion.city}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="btn btn--ghost"
@@ -600,25 +616,45 @@ function RouteOptimization({ user }) {
           )}
         </div>
 
-        {/* Mapa de Google Maps */}
-        {googleMapsApiKey && (
-          <div className="form-field" style={{ marginBottom: '20px' }}>
-            <label>Mapa de Google Maps</label>
-            <div
-              ref={mapRef}
-              style={{
-                width: '100%',
-                height: '400px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                marginTop: '10px'
-              }}
-            />
-            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Escribe una dirección en los campos de arriba o haz click en el mapa para seleccionar puntos.
-            </small>
+        {/* Mapa de Leaflet */}
+        <div className="form-field" style={{ marginBottom: '20px' }}>
+          <label>Mapa Interactivo (OpenStreetMap)</label>
+          <div style={{
+            width: '100%',
+            height: '400px',
+            border: '1px solid #ddd',
+            borderRadius: '8px',
+            marginTop: '10px',
+            zIndex: 0
+          }}>
+            <MapContainer
+              center={mapCenter}
+              zoom={mapZoom}
+              style={{ height: '100%', width: '100%', borderRadius: '8px' }}
+              scrollWheelZoom={true}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <MapUpdater center={mapCenter} zoom={mapZoom} />
+              <MapClickHandler onMapClick={handleMapClick} selectingPoint={selectingPoint} />
+              {startPlace && (
+                <Marker position={[startPlace.lat, startPlace.lng]} icon={startIcon}>
+                  <Popup>🚩 Punto de Inicio<br />{startPlace.address}</Popup>
+                </Marker>
+              )}
+              {endPlace && (
+                <Marker position={[endPlace.lat, endPlace.lng]} icon={endIcon}>
+                  <Popup>🏁 Punto de Destino<br />{endPlace.address}</Popup>
+                </Marker>
+              )}
+            </MapContainer>
           </div>
-        )}
+          <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+            Escribe una dirección en los campos de arriba o haz click en el mapa para seleccionar puntos. Usando OpenStreetMap (gratuito).
+          </small>
+        </div>
 
         <div className="form-field" style={{ marginBottom: '20px' }}>
           <label htmlFor="algorithm">Algoritmo</label>
@@ -757,14 +793,14 @@ function RouteOptimization({ user }) {
       {/* Explicación Técnica - Parte 2 */}
       <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
         <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 2</h3>
-        <p><strong>Geocodificación:</strong> Utilizamos Google Maps Places API Autocomplete directamente en el navegador para autocompletado en tiempo real. Las direcciones se geocodifican usando Google Maps Geocoding API.</p>
+        <p><strong>Geocodificación:</strong> Utilizamos Nominatim (OpenStreetMap) para convertir direcciones en coordenadas geográficas. Incluye autocompletado en tiempo real mientras escribes y geocodificación reversa al hacer click en el mapa.</p>
         <p><strong>Algoritmo:</strong> A* (A estrella)</p>
         <p><strong>Tipo:</strong> Búsqueda heurística</p>
         <p><strong>Justificación:</strong> A* combina el costo real del camino con una heurística estimada, encontrando la ruta óptima de manera eficiente.</p>
         <p><strong>Proceso:</strong></p>
         <ol>
-          <li>Autocompletado de direcciones con Google Maps Places API (en el navegador)</li>
-          <li>Geocodificar direcciones a coordenadas (lat, lng) usando Google Maps Geocoding API</li>
+          <li>Autocompletado de direcciones con Nominatim (OpenStreetMap) - Gratuito y sin API key</li>
+          <li>Geocodificar direcciones a coordenadas (lat, lng) usando Nominatim</li>
           <li>Crear grafo con puntos de entrega</li>
           <li>Calcular distancias entre todos los puntos (distancia euclidiana)</li>
           <li>Aplicar heurística para seleccionar el siguiente nodo</li>
@@ -773,6 +809,7 @@ function RouteOptimization({ user }) {
           <li>Retornar ruta óptima</li>
         </ol>
         <p><strong>Selección de Nodos:</strong> En cada paso, el algoritmo evalúa todos los puntos no visitados, calcula la distancia desde el punto actual (heurística), y selecciona el punto más cercano. Esto minimiza la distancia total del recorrido.</p>
+        <p><strong>Ventajas de OpenStreetMap:</strong> Completamente gratuito, sin límites de API key, funciona inmediatamente sin configuración, y proporciona datos de mapas de alta calidad.</p>
       </div>
     </section>
   )
