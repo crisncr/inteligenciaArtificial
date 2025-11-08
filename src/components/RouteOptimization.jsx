@@ -623,7 +623,7 @@ function RouteOptimization({ user }) {
       {/* Explicación Técnica - Parte 2 */}
       <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
         <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 2</h3>
-        <p><strong>Geocodificación:</strong> Utilizamos Geoapify para convertir direcciones en coordenadas geográficas. Incluye autocompletado en tiempo real mientras escribes.</p>
+        <p><strong>Geocodificación:</strong> Utilizamos Google Maps Geocoding API y Places API para convertir direcciones en coordenadas geográficas. Incluye autocompletado en tiempo real mientras escribes.</p>
         <p><strong>Algoritmo:</strong> A* (A estrella)</p>
         <p><strong>Tipo:</strong> Búsqueda heurística</p>
         <p><strong>Justificación:</strong> A* combina el costo real del camino con una heurística estimada, encontrando la ruta óptima de manera eficiente.</p>
