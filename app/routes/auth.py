@@ -298,7 +298,7 @@ async def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Actualizar perfil del usuario (nombre y/o email)"""
+    """Actualizar perfil del usuario (nombre, email y/o plan)"""
     # Actualizar nombre si se proporciona
     if user_data.name is not None:
         current_user.name = user_data.name
@@ -322,6 +322,17 @@ async def update_profile(
         current_user.email = email_lower
         # Si cambia el email, requiere verificación nuevamente
         current_user.email_verified = False
+    
+    # Actualizar plan si se proporciona
+    if user_data.plan is not None:
+        plan_normalized = user_data.plan.lower().strip()
+        # Validar que el plan sea válido
+        if plan_normalized not in ['free', 'pro', 'enterprise']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Plan inválido. Los planes válidos son: free, pro, enterprise"
+            )
+        current_user.plan = plan_normalized
     
     db.commit()
     db.refresh(current_user)

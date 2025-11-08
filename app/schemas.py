@@ -91,6 +91,7 @@ class PasswordReset(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    plan: Optional[str] = None
 
 class PasswordChange(BaseModel):
     current_password: str

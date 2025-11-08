@@ -54,6 +54,12 @@ async def geocode_address(address: str) -> Dict:
     except Exception as e:
         raise ValueError(f"Error al geocodificar '{address}': {str(e)}")
 
+def normalize_plan(plan: str) -> str:
+    """Normalizar plan a minúsculas sin espacios"""
+    if not plan:
+        return 'free'
+    return plan.lower().strip()
+
 @router.post("/optimize")
 async def optimize_route(
     request: RouteRequest,
@@ -61,13 +67,23 @@ async def optimize_route(
     db: Session = Depends(get_db)
 ):
     """Optimizar ruta de distribución - Parte 2"""
-    if current_user.plan == 'free':
-        raise HTTPException(status_code=403, detail="Optimización de rutas disponible solo en planes Pro y Enterprise")
+    # Refrescar usuario desde la base de datos para obtener el plan más actualizado
+    db.refresh(current_user)
     
-    max_points = 50 if current_user.plan == 'pro' else 1000
+    # Normalizar plan para comparación robusta
+    user_plan = normalize_plan(current_user.plan)
+    
+    # Verificar que el usuario tenga un plan válido (pro o enterprise)
+    if user_plan not in ['pro', 'enterprise']:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Optimización de rutas disponible solo en planes Pro y Enterprise. Tu plan actual: {current_user.plan}"
+        )
+    
+    max_points = 50 if user_plan == 'pro' else 1000
     
     if len(request.points) > max_points:
-        raise HTTPException(status_code=403, detail=f"Plan {current_user.plan} permite máximo {max_points} puntos")
+        raise HTTPException(status_code=403, detail=f"Plan {current_user.plan} permite máximo {max_points} puntos. Has proporcionado {len(request.points)} puntos.")
     
     if len(request.points) < 2:
         raise HTTPException(status_code=400, detail="Se necesitan al menos 2 puntos")

@@ -244,28 +244,28 @@ function App() {
     }
 
     try {
-      // Aquí deberías llamar a la API para actualizar el plan del usuario
-      // Por ahora, actualizamos localmente
-      const updatedUser = { ...user, plan: planId }
+      // Llamar a la API para actualizar el plan del usuario en la base de datos
+      const { authAPI } = await import('./utils/api')
+      const updatedUser = await authAPI.updateProfile({ plan: planId })
+      
+      // Actualizar estado local con el usuario actualizado desde la BD
       setUser(updatedUser)
       
-      // Actualizar en localStorage
-      const users = JSON.parse(localStorage.getItem('users') || '[]')
-      const userIndex = users.findIndex(u => u.id === user.id)
-      if (userIndex !== -1) {
-        users[userIndex] = updatedUser
-        localStorage.setItem('users', JSON.stringify(users))
+      // Actualizar token en localStorage si existe
+      const token = localStorage.getItem('token')
+      if (token) {
         localStorage.setItem('currentUser', JSON.stringify(updatedUser))
       }
-      
-      // El estado del usuario ya se actualizó con setUser
 
       setShowLimitModal(false)
       const planNames = { free: 'Básico', pro: 'Pro', enterprise: 'Enterprise' }
-      alert(`Plan ${planNames[planId] || planId} seleccionado correctamente`)
+      alert(`Plan ${planNames[planId] || planId} actualizado correctamente. Recarga la página para aplicar los cambios.`)
+      
+      // Opcional: recargar la página para asegurar que todo esté actualizado
+      // window.location.reload()
     } catch (err) {
       console.error('Error al actualizar plan:', err)
-      alert('Error al actualizar el plan. Por favor, intenta de nuevo.')
+      alert(`Error al actualizar el plan: ${err.message || 'Por favor, intenta de nuevo.'}`)
     }
   }
 
