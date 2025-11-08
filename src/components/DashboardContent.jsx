@@ -13,6 +13,8 @@ import ExportData from './ExportData'
 import Integrations from './Integrations'
 import Reports from './Reports'
 import ManualAnalysis from './ManualAnalysis'
+import RouteOptimization from './RouteOptimization'
+import SalesPrediction from './SalesPrediction'
 
 function DashboardContent({ 
   activeSection, 
@@ -95,6 +97,10 @@ function DashboardContent({
         return <Integrations user={user} onSectionChange={onSectionChange} />
       case 'reportes':
         return <Reports user={user} />
+      case 'optimizacion-rutas':
+        return <RouteOptimization user={user} />
+      case 'prediccion-ventas':
+        return <SalesPrediction user={user} />
       default:
         return <DashboardHome user={user} />
     }

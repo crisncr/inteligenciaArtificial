@@ -26,7 +26,9 @@ function Stats({ history }) {
   return (
     <section id="stats" className="stats-panel">
       <h2>Estadísticas de API Externa</h2>
-      <p className="subtitle">Resumen de tus análisis de API externa</p>
+      <p className="subtitle">
+        Resumen de tus análisis de API externa - Todos los análisis usan Red Neuronal LSTM
+      </p>
       
       <div className="stats-grid">
         <div className="stat-card">

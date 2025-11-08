@@ -23,7 +23,7 @@ function History({ history, onReanalyze, onClearHistory, filter, onFilterChange 
     return (
       <section className="history-panel">
         <h3>Historial de Análisis de API Externa</h3>
-        <p className="subtitle">No hay análisis de API externa aún. Configura una API externa en la sección "API Externa" para comenzar a analizar comentarios automáticamente.</p>
+        <p className="subtitle">No hay análisis de API externa aún. Configura una API externa en la sección "API Externa" para comenzar a analizar comentarios automáticamente con Red Neuronal LSTM.</p>
       </section>
     )
   }
@@ -58,6 +58,9 @@ function History({ history, onReanalyze, onClearHistory, filter, onFilterChange 
     <section className="history-panel">
       <div className="history-header">
         <h3>Historial de Análisis de API Externa</h3>
+        <p className="subtitle" style={{ fontSize: '0.9rem', marginTop: '5px', opacity: 0.8 }}>
+          Todos los análisis fueron realizados con Red Neuronal LSTM
+        </p>
         <div className="history-actions">
           <div className="history-filters">
             {filters.map((f) => (

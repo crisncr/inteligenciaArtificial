@@ -229,3 +229,117 @@ export const paymentsAPI = {
   },
 }
 
+// Endpoints de Datasets (Parte 1)
+export const datasetsAPI = {
+  upload: async (file) => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_URL}/api/datasets/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: `Error ${response.status}` }))
+      throw new Error(errorData.detail || errorData.message || `Error ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  analyzeBatch: async (texts) => {
+    return apiRequest('/api/datasets/analyze-batch', {
+      method: 'POST',
+      body: JSON.stringify(texts),
+    })
+  },
+
+  search: async (query, texts) => {
+    return apiRequest('/api/datasets/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, texts }),
+    })
+  },
+}
+
+// Endpoints de Optimización de Rutas (Parte 2)
+export const routeOptimizationAPI = {
+  optimize: async (points, algorithm = 'astar', startPoint = 0) => {
+    return apiRequest('/api/route-optimization/optimize', {
+      method: 'POST',
+      body: JSON.stringify({
+        points,
+        algorithm,
+        start_point: startPoint,
+      }),
+    })
+  },
+}
+
+// Endpoints de Predicción de Ventas (Parte 3)
+export const salesPredictionAPI = {
+  upload: async (file) => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_URL}/api/sales-prediction/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: `Error ${response.status}` }))
+      throw new Error(errorData.detail || errorData.message || `Error ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  train: async (file, region = '', modelType = 'linear_regression') => {
+    const token = getToken()
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    let url = `${API_URL}/api/sales-prediction/train?model_type=${modelType}`
+    if (region) {
+      url += `&region=${encodeURIComponent(region)}`
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: `Error ${response.status}` }))
+      throw new Error(errorData.detail || errorData.message || `Error ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  predict: async (region, modelType, startDate, days = 30) => {
+    return apiRequest('/api/sales-prediction/predict', {
+      method: 'POST',
+      body: JSON.stringify({
+        region,
+        model_type: modelType,
+        start_date: startDate,
+        days,
+      }),
+    })
+  },
+}
+

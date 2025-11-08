@@ -35,6 +35,7 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
       
       if (user) {
         // Usuario autenticado: usar API real que guarda en BD
+        // analyze_sentiment() ahora SOLO usa red neuronal LSTM
         const analysis = await analysesAPI.create(text)
         data = {
           sentiment: analysis.sentiment,
@@ -43,6 +44,7 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
         }
       } else {
         // Usuario no autenticado: usar endpoint público
+        // El endpoint /analyze usa red neuronal LSTM
         const apiUrl = import.meta.env.PROD ? '/analyze' : 'http://127.0.0.1:8000/analyze'
         const res = await fetch(apiUrl, {
           method: 'POST',
@@ -107,7 +109,7 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
         <div className="panel-title-group">
           <h2>Prueba la demo</h2>
           <p className="subtitle">
-            Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>neutral</strong>.
+            Escribe una frase y detecta si es <strong>positiva</strong>, <strong>negativa</strong> o <strong>neutral</strong> usando <strong>Red Neuronal LSTM</strong>.
           </p>
         </div>
       </div>
@@ -149,8 +151,9 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
           <button 
             type="submit" 
             disabled={(!user || user.plan === 'free') && freeAnalysesLeft <= 0}
+            title="Análisis con Red Neuronal LSTM"
           >
-            <span className="btn-text">{loading ? 'Analizando...' : 'Analizar Sentimiento'}</span>
+            <span className="btn-text">{loading ? 'Analizando con IA...' : 'Analizar con Red Neuronal'}</span>
           </button>
           {text && (
             <button type="button" className="btn--ghost btn--small" onClick={handleClear}>

@@ -290,17 +290,24 @@ async def analyze_external_api(
         
         for comment in comments:
             try:
-                # Analizar sentimiento
+                # Analizar sentimiento usando SOLO red neuronal LSTM
+                # analyze_sentiment() ahora usa exclusivamente red neuronal
                 result = analyze_sentiment(comment)
                 
-                # Guardar análisis
+                # Verificar que se usó red neuronal
+                if result.get('method') != 'neural_network':
+                    print(f"⚠️ Advertencia: El análisis no marcó método neuronal, pero debería ser neuronal")
+                
+                # Guardar análisis en BD
+                # source='api_external' indica que viene de API externa
+                # Todos estos análisis son neuronales
                 new_analysis = Analysis(
                     user_id=current_user.id,
                     text=comment,
                     sentiment=result["sentiment"],
                     score=result["score"],
                     emoji=result["emoji"],
-                    source="api_external",
+                    source="api_external",  # Marca que viene de API externa
                     external_api_id=api.id
                 )
                 

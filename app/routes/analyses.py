@@ -44,17 +44,19 @@ async def create_analysis(
             detail="Has alcanzado el límite de análisis para tu plan. Actualiza tu plan para continuar."
         )
     
-    # Analizar sentimiento
+    # Analizar sentimiento usando SOLO red neuronal LSTM
+    # analyze_sentiment() ahora usa exclusivamente red neuronal
     result = analyze_sentiment(analysis_data.text)
     
-    # Guardar en BD con source='manual' por defecto
+    # Guardar en BD con source='manual'
+    # Todos los análisis, incluso los manuales, son neuronales
     new_analysis = Analysis(
         user_id=current_user.id,
         text=analysis_data.text,
         sentiment=result["sentiment"],
         score=result["score"],
         emoji=result["emoji"],
-        source="manual"  # Análisis manual por defecto
+        source="manual"  # Análisis manual, pero usando red neuronal
     )
     
     db.add(new_analysis)
@@ -194,18 +196,21 @@ async def analyze_batch(
                 detail=f"Excederías el límite diario. Solo puedes analizar {10 - today_analyses} textos más hoy."
             )
     
-    # Analizar todos los textos
+    # Analizar todos los textos usando SOLO red neuronal LSTM
+    # analyze_sentiment() ahora usa exclusivamente red neuronal
     results = []
     for text in batch_data.texts:
         result = analyze_sentiment(text)
         
         # Guardar en BD
+        # Todos los análisis batch son neuronales
         new_analysis = Analysis(
             user_id=current_user.id,
             text=text,
             sentiment=result["sentiment"],
             score=result["score"],
-            emoji=result["emoji"]
+            emoji=result["emoji"],
+            source="manual"  # Análisis batch manual, pero usando red neuronal
         )
         db.add(new_analysis)
         results.append(new_analysis)

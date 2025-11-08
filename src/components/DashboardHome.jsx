@@ -45,17 +45,47 @@ function DashboardHome({ user, onSelectPlan, onSectionChange }) {
         <div className="overview-section">
           <h2>Servicios</h2>
           <div className="services-grid">
-            {/* Análisis de Sentimientos - Disponible para plan gratuito */}
-            {plan === 'free' && (
+            {/* Análisis de Sentimientos - Disponible para todos los planes */}
+            <div 
+              className="service-card" 
+              style={{ cursor: 'pointer' }}
+              onClick={() => onSectionChange && onSectionChange('analisis-sentimientos')}
+            >
+              <div className="service-icon">📊</div>
+              <div className="service-info">
+                <h3>Análisis de Sentimientos</h3>
+                <p>Parte 1: Clasificación de texto con Red Neuronal {plan === 'free' ? '(10 análisis/día)' : '(ilimitado)'}</p>
+                <span className="service-status active">✓ Disponible</span>
+              </div>
+            </div>
+            
+            {/* Optimización de Rutas - Solo Pro y Enterprise */}
+            {(plan === 'pro' || plan === 'enterprise') && (
               <div 
                 className="service-card" 
                 style={{ cursor: 'pointer' }}
-                onClick={() => onSectionChange && onSectionChange('analisis-sentimientos')}
+                onClick={() => onSectionChange && onSectionChange('optimizacion-rutas')}
               >
-                <div className="service-icon">📊</div>
+                <div className="service-icon">🗺️</div>
                 <div className="service-info">
-                  <h3>Análisis de Sentimientos</h3>
-                  <p>Analiza texto directamente sin necesidad de API externa</p>
+                  <h3>Optimización de Rutas</h3>
+                  <p>Parte 2: Optimiza rutas de distribución minimizando distancia</p>
+                  <span className="service-status active">✓ Disponible</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Predicción de Ventas - Solo Enterprise */}
+            {plan === 'enterprise' && (
+              <div 
+                className="service-card" 
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSectionChange && onSectionChange('prediccion-ventas')}
+              >
+                <div className="service-icon">💰</div>
+                <div className="service-info">
+                  <h3>Predicción de Ventas</h3>
+                  <p>Parte 3: Predice ventas futuras por región usando IA</p>
                   <span className="service-status active">✓ Disponible</span>
                 </div>
               </div>

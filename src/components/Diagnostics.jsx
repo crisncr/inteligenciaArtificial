@@ -56,7 +56,7 @@ function Diagnostics({ user, history, onReanalyze }) {
     <section className="diagnostics-panel">
       <h2>Diagnósticos de API Externa</h2>
       <p className="subtitle">
-        Historial de análisis obtenidos de APIs externas
+        Historial de análisis obtenidos de APIs externas - Todos analizados con Red Neuronal LSTM
       </p>
 
       {loading ? (

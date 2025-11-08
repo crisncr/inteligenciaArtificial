@@ -10,6 +10,9 @@ from app.routes import auth as auth_router
 from app.routes import analyses as analyses_router
 from app.routes import external_api as external_api_router
 from app.routes import payments as payments_router
+from app.routes import datasets as datasets_router
+from app.routes import route_optimization as route_optimization_router
+from app.routes import sales_prediction as sales_prediction_router
 
 # Importar todos los modelos para que SQLAlchemy los registre
 from app.models import User, Analysis, Plan, Payment, PasswordResetToken, EmailVerificationToken, ExternalAPI
@@ -228,12 +231,16 @@ app.include_router(auth_router.router)
 app.include_router(analyses_router.router)
 app.include_router(external_api_router.router)
 app.include_router(payments_router.router)
+app.include_router(datasets_router.router)
+app.include_router(route_optimization_router.router)
+app.include_router(sales_prediction_router.router)
 
 # Endpoint público para análisis (sin autenticación, límite de 3)
 @app.post("/analyze")
 async def analyze_public(payload: dict = Body(...)):
-    """Endpoint público para análisis (máximo 3 análisis gratuitos)"""
+    """Endpoint público para análisis usando Red Neuronal LSTM (máximo 3 análisis gratuitos)"""
     text = (payload.get("text") or "").strip()
+    # Usa analyze_sentiment que ahora SOLO usa red neuronal LSTM
     result = analyze_sentiment(text)
     return JSONResponse(result)
 

@@ -132,7 +132,7 @@ function ExternalAPI({ user, onAnalyze }) {
       const result = await externalAPI.analyze(id)
       setMessage({ 
         type: 'success', 
-        text: `Análisis completado: ${result.analyses_created} comentarios analizados de ${result.comments_count} encontrados${result.errors ? '. Algunos errores: ' + result.errors.join(', ') : ''}` 
+        text: `✅ Análisis completado con Red Neuronal LSTM: ${result.analyses_created} comentarios analizados de ${result.comments_count} encontrados${result.errors ? '. Algunos errores: ' + result.errors.join(', ') : ''}` 
       })
       if (onAnalyze) {
         // Esperar un poco para que el backend procese
@@ -152,7 +152,7 @@ function ExternalAPI({ user, onAnalyze }) {
       <div className="panel-header">
         <h2>API Externa</h2>
         <p className="subtitle">
-          Configura una API externa para obtener comentarios y analizarlos automáticamente
+          Configura una API externa para obtener comentarios y analizarlos automáticamente con Red Neuronal LSTM
         </p>
         <button 
           className="btn" 
@@ -319,8 +319,9 @@ function ExternalAPI({ user, onAnalyze }) {
                   className="btn--ghost btn--small" 
                   onClick={() => handleAnalyze(api.id)}
                   disabled={loading || !api.active}
+                  title="Analizar comentarios con Red Neuronal LSTM"
                 >
-                  📊 Analizar
+                  📊 Analizar (Red Neuronal)
                 </button>
                 <button 
                   className="btn--ghost btn--small" 
