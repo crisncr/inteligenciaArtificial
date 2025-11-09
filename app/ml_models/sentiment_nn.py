@@ -79,12 +79,21 @@ class SentimentNeuralNetwork:
         self.is_trained = False
         
     def clean_text(self, text: str) -> str:
-        """Limpieza de texto - Parte 1"""
+        """Limpieza de texto mejorada con normalización"""
         if not text:
             return ""
         
         # Convertir a minúsculas
         text = text.lower()
+        
+        # Normalizar tildes y caracteres especiales (esto ayuda a que "atención" y "atencion" se traten igual)
+        # Reemplazar tildes por versiones sin tilde para normalizar
+        replacements = {
+            'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
+            'ñ': 'n', 'ü': 'u'
+        }
+        for old, new in replacements.items():
+            text = text.replace(old, new)
         
         # Eliminar URLs
         text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
@@ -93,7 +102,7 @@ class SentimentNeuralNetwork:
         text = re.sub(r'@\w+|#\w+', '', text)
         
         # Eliminar caracteres especiales excepto letras, números y espacios
-        text = re.sub(r'[^a-záéíóúñü\s]', ' ', text)
+        text = re.sub(r'[^a-z0-9\s]', ' ', text)
         
         # Eliminar espacios múltiples
         text = re.sub(r'\s+', ' ', text)
@@ -158,12 +167,12 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM ULTRA-PEQUEÑA para entrenar MUY RÁPIDO en Render (512 MB limit)
-        # Modelo reducido al mínimo para evitar bloqueos y completar entrenamiento rápido
+        # Red neuronal LSTM optimizada para aprender mejor con datos limitados
+        # Modelo más grande para mejor capacidad de aprendizaje, pero aún ligero para Render (512 MB)
         model = Sequential([
-            Embedding(vocab_size + 1, 4),  # Reducido a 4, SIN input_length (deprecated, se construye automáticamente)
-            LSTM(2, dropout=0.0),        # Reducido a 2 unidades, sin dropout para más velocidad
-            Dense(2, activation='relu'),   # Reducido a 2 unidades
+            Embedding(vocab_size + 1, 16),  # Aumentado a 16 para mejor representación de palabras
+            LSTM(8, dropout=0.2),        # Aumentado a 8 unidades con dropout para regularización
+            Dense(8, activation='relu'),   # Aumentado a 8 unidades para más capacidad
             Dense(num_classes, activation='softmax')  # Salida (probabilidades: positivo/negativo/neutral)
         ])
         
@@ -198,7 +207,8 @@ class SentimentNeuralNetwork:
             print(f"   - {label_name}: {count} muestras")
         
         # Limitar tamaño de datos si es muy grande (para ahorrar memoria y velocidad)
-        max_samples = 15  # REDUCIDO A 15 para entrenar ULTRA-RÁPIDO y evitar bloqueos
+        # Aumentado a 30 para mejor aprendizaje, pero aún manejable en Render
+        max_samples = 30  # Aumentado para mejor aprendizaje del modelo
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
             
@@ -302,8 +312,8 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # REDUCIR ÉPOCAS Y AJUSTAR BATCH SIZE para entrenar MÁS RÁPIDO
-        actual_epochs = min(epochs, 1)  # Solo 1 época para velocidad
+        # Aumentar épocas para mejor aprendizaje, pero mantenerlo razonable
+        actual_epochs = min(epochs, 3)  # Aumentado a 3 épocas para mejor aprendizaje
         # Batch size debe ser menor o igual al número de muestras
         # Si hay 15 muestras, usar batch_size=15 (entrenar todas a la vez es más rápido)
         actual_batch_size = min(batch_size, len(X_train))  # No puede ser mayor que las muestras disponibles
@@ -700,14 +710,20 @@ class SentimentNeuralNetwork:
         # Datos de entrenamiento con comentarios completos (hasta 25 palabras)
         # Incluir frases cortas Y comentarios completos para mejor aprendizaje
         
-        # SOLO frases cortas para entrenar RÁPIDO (eliminar comentarios largos temporalmente)
-        # Comentarios POSITIVOS (solo frases cortas)
+        # Datos de entrenamiento mejorados con más ejemplos y palabras clave
+        # Comentarios POSITIVOS (incluir variaciones de palabras clave como "excelente", "buena")
         positive_texts = [
             "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho",
             "recomiendo totalmente", "calidad superior", "atención perfecta",
             "super contento", "vale la pena", "muy recomendado", "increíble experiencia",
             "excelente servicio", "muy buena calidad", "excelente atención", 
             "producto genial", "muy bien hecho", "súper recomendable",
+            # Agregar más variaciones con palabras clave
+            "excelente atención", "buena atención", "muy buena atención",
+            "excelente producto", "buen producto", "muy buen producto",
+            "excelente servicio al cliente", "buen servicio", "servicio excelente",
+            "muy buena experiencia", "experiencia excelente", "experiencia positiva",
+            "altamente recomendado", "muy recomendable", "totalmente recomendado",
         ]
         
         # Comentarios NEGATIVOS (solo frases cortas)
@@ -735,11 +751,11 @@ class SentimentNeuralNetwork:
         print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
         print(f"🔍 [DEBUG] Textos positivos: {len(positive_texts)}, negativos: {len(negative_texts)}, neutrales: {len(neutral_texts)}")
         
-        # Entrenamiento RÁPIDO - solo 1 época para que termine rápido
-        print("🔍 [DEBUG] Iniciando entrenamiento RÁPIDO...")
+        # Entrenamiento con más épocas para mejor aprendizaje
+        print("🔍 [DEBUG] Iniciando entrenamiento...")
         try:
-            # REDUCIR a 1 época y batch size más grande para velocidad
-            history = self.train(texts, labels, epochs=1, batch_size=16)  # 1 época, batch más grande
+            # Aumentar épocas para mejor aprendizaje, batch size razonable
+            history = self.train(texts, labels, epochs=3, batch_size=16)  # 3 épocas para mejor aprendizaje
             print("✅ [DEBUG] Método train() completado")
             
             # Validar que el modelo está entrenado
