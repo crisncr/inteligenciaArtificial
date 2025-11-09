@@ -10,6 +10,41 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.callbacks import Callback
+import time
+
+class TrainingProgressCallback(Callback):
+    """Callback para monitorear el progreso del entrenamiento"""
+    def __init__(self):
+        self.start_time = None
+        self.epoch_times = []
+    
+    def on_train_begin(self, logs=None):
+        self.start_time = time.time()
+        print(f"⏱️ [DEBUG] Entrenamiento comenzó a las {time.strftime('%H:%M:%S')}")
+    
+    def on_epoch_begin(self, epoch, logs=None):
+        epoch_start = time.time()
+        print(f"🔄 [DEBUG] Época {epoch + 1} comenzando...")
+        self.current_epoch_start = epoch_start
+    
+    def on_epoch_end(self, epoch, logs=None):
+        epoch_time = time.time() - self.current_epoch_start
+        self.epoch_times.append(epoch_time)
+        loss = logs.get('loss', 'N/A')
+        accuracy = logs.get('accuracy', 'N/A')
+        val_loss = logs.get('val_loss', 'N/A')
+        val_accuracy = logs.get('val_accuracy', 'N/A')
+        print(f"✅ [DEBUG] Época {epoch + 1} completada en {epoch_time:.2f}s - loss: {loss:.4f}, accuracy: {accuracy:.4f}, val_loss: {val_loss}, val_accuracy: {val_accuracy}")
+    
+    def on_train_end(self, logs=None):
+        total_time = time.time() - self.start_time
+        print(f"⏱️ [DEBUG] Entrenamiento terminado en {total_time:.2f}s total")
+        if self.epoch_times:
+            avg_time = sum(self.epoch_times) / len(self.epoch_times)
+            print(f"📊 [DEBUG] Tiempo promedio por época: {avg_time:.2f}s")
+        else:
+            print(f"⚠️ [DEBUG] No se registraron épocas completadas")
 
 class SentimentNeuralNetwork:
     def __init__(self, max_words=800, max_len=35):
@@ -94,21 +129,29 @@ class SentimentNeuralNetwork:
     
     def build_model(self, vocab_size: int, num_classes: int):
         """Construir red neuronal LSTM basada en texto para comentarios de hasta 25 palabras"""
-        # Red neuronal LSTM real - suficiente capacidad para aprender patrones de texto
+        print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
+        print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
+        
+        # Red neuronal LSTM MÁS PEQUEÑA para entrenar MÁS RÁPIDO en Render (512 MB limit)
+        # Modelo reducido para que termine el entrenamiento rápido
         model = Sequential([
-            Embedding(vocab_size + 1, 24),  # Embedding layer (vectores de palabras)
-            LSTM(16, dropout=0.2),        # LSTM layer (16 neuronas - aprende patrones de texto)
-            Dense(8, activation='relu'),   # Dense layer (red neuronal)
-            Dropout(0.2),
+            Embedding(vocab_size + 1, 8),  # Reducido de 24 a 8, SIN input_length (más flexible)
+            LSTM(4, dropout=0.0),        # Reducido de 16 a 4, sin dropout para más velocidad
+            Dense(3, activation='relu'),   # Reducido de 8 a 3
             Dense(num_classes, activation='softmax')  # Salida (probabilidades: positivo/negativo/neutral)
         ])
         
+        print(f"🔍 [DEBUG] Modelo construido, compilando...")
         # Compilar modelo neuronal
         model.compile(
             optimizer='adam',  # Optimizador de red neuronal
             loss='sparse_categorical_crossentropy',  # Función de pérdida
             metrics=['accuracy']
         )
+        
+        # Contar parámetros del modelo
+        total_params = model.count_params()
+        print(f"🔍 [DEBUG] Modelo compilado - Total de parámetros: {total_params:,}")
         
         return model
     
@@ -120,10 +163,10 @@ class SentimentNeuralNetwork:
         print(f"📊 Preparando datos: {len(texts)} textos, {len(set(labels))} clases")
         X, y = self.prepare_data(texts, labels)
         
-        # Limitar tamaño de datos si es muy grande (para ahorrar memoria)
-        max_samples = 150  # Máximo 150 muestras para entrenamiento (suficiente para comentarios)
+        # Limitar tamaño de datos si es muy grande (para ahorrar memoria y velocidad)
+        max_samples = 30  # REDUCIDO A 30 para entrenar MUY RÁPIDO
         if len(X) > max_samples:
-            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
+            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
             X = X[:max_samples]
             y = y[:max_samples]
         
@@ -142,42 +185,84 @@ class SentimentNeuralNetwork:
         print(f"📊 Datos entrenamiento: {len(X_train)}, Validación: {len(X_val) if use_validation else 'N/A'}")
         
         # Limpiar memoria antes de construir modelo
+        print("🔍 [DEBUG] Limpiando memoria antes de construir modelo...")
         gc.collect()
         
+        print("🔍 [DEBUG] Construyendo modelo...")
+        build_start = time.time()
         self.model = self.build_model(vocab_size, num_classes)
+        build_time = time.time() - build_start
+        print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        print(f"🚀 Iniciando entrenamiento: {epochs} épocas, batch_size={batch_size}")
+        # REDUCIR ÉPOCAS Y AUMENTAR BATCH SIZE para entrenar MÁS RÁPIDO
+        actual_epochs = min(epochs, 2)  # Máximo 2 épocas
+        actual_batch_size = max(batch_size, min(16, len(X_train)))  # Batch size más grande
         
-        # Entrenar con batch size pequeño para usar menos memoria
+        print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
+        print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
+        print(f"📊 Shape de X_train: {X_train.shape}, Shape de y_train: {y_train.shape}")
+        
+        # Crear callback de progreso
+        progress_callback = TrainingProgressCallback()
+        
+        # Entrenar con batch size más grande para más velocidad
         fit_kwargs = {
-            'epochs': epochs,
-            'batch_size': batch_size,
-            'verbose': 0,  # Sin logs para acelerar y ahorrar memoria
+            'epochs': actual_epochs,
+            'batch_size': actual_batch_size,
+            'verbose': 0,  # Sin logs de TensorFlow (usamos nuestro callback)
+            'callbacks': [progress_callback]  # Agregar callback de progreso
         }
         
-        if use_validation:
-            fit_kwargs['validation_data'] = (X_val, y_val)
-            print("🔍 [DEBUG] Llamando a model.fit() con validación...")
-            history = self.model.fit(X_train, y_train, **fit_kwargs)
-            print("🔍 [DEBUG] model.fit() completado")
-            # Evaluar modelo
-            print("🔍 [DEBUG] Evaluando modelo...")
-            val_loss, val_accuracy = self.model.evaluate(X_val, y_val, verbose=0)
-            print(f"✅ Entrenamiento completado - Precisión validación: {val_accuracy:.2%}")
-        else:
-            print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
-            history = self.model.fit(X_train, y_train, **fit_kwargs)
-            print("🔍 [DEBUG] model.fit() completado")
-            print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
+        try:
+            if use_validation:
+                fit_kwargs['validation_data'] = (X_val, y_val)
+                print("🔍 [DEBUG] Llamando a model.fit() con validación...")
+                print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+                print(f"🔍 [DEBUG] X_val shape: {X_val.shape}, y_val shape: {y_val.shape}")
+                
+                fit_start = time.time()
+                history = self.model.fit(X_train, y_train, **fit_kwargs)
+                fit_time = time.time() - fit_start
+                print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                
+                # Evaluar modelo
+                print("🔍 [DEBUG] Evaluando modelo...")
+                eval_start = time.time()
+                val_loss, val_accuracy = self.model.evaluate(X_val, y_val, verbose=0)
+                eval_time = time.time() - eval_start
+                print(f"✅ [DEBUG] Evaluación completada en {eval_time:.2f}s")
+                print(f"✅ Entrenamiento completado - Precisión validación: {val_accuracy:.2%}")
+            else:
+                print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
+                print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+                
+                fit_start = time.time()
+                history = self.model.fit(X_train, y_train, **fit_kwargs)
+                fit_time = time.time() - fit_start
+                print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
+        except Exception as e:
+            print(f"❌ [DEBUG] ERROR durante model.fit(): {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
         
         # Limpiar memoria después de entrenar
-        print("🔍 [DEBUG] Limpiando memoria...")
+        print("🔍 [DEBUG] Limpiando memoria después de entrenar...")
         gc.collect()
+        
+        # Validar que el modelo esté correctamente entrenado
+        print("🔍 [DEBUG] Validando modelo después del entrenamiento...")
+        if self.model is None:
+            raise ValueError("El modelo no existe después del entrenamiento")
         
         print("🔍 [DEBUG] Marcando modelo como entrenado...")
         self.is_trained = True
         print(f"✅ [DEBUG] Modelo marcado como entrenado: is_trained={self.is_trained}")
         print(f"🔍 [DEBUG] Modelo existe: {self.model is not None}")
+        print(f"🔍 [DEBUG] Tokenizer tiene word_index: {hasattr(self.tokenizer, 'word_index') and len(self.tokenizer.word_index) > 0}")
+        print(f"🔍 [DEBUG] Label encoder tiene classes: {hasattr(self.label_encoder, 'classes_') and len(self.label_encoder.classes_) > 0}")
+        
         return history
     
     def predict(self, texts: List[str]) -> List[Dict]:
@@ -443,60 +528,30 @@ class SentimentNeuralNetwork:
         # Datos de entrenamiento con comentarios completos (hasta 25 palabras)
         # Incluir frases cortas Y comentarios completos para mejor aprendizaje
         
-        # Comentarios POSITIVOS (hasta 25 palabras)
+        # SOLO frases cortas para entrenar RÁPIDO (eliminar comentarios largos temporalmente)
+        # Comentarios POSITIVOS (solo frases cortas)
         positive_texts = [
-            # Frases cortas
             "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho",
             "recomiendo totalmente", "calidad superior", "atención perfecta",
             "super contento", "vale la pena", "muy recomendado", "increíble experiencia",
             "excelente servicio", "muy buena calidad", "excelente atención", 
             "producto genial", "muy bien hecho", "súper recomendable",
-            
-            # Comentarios completos (10-25 palabras)
-            "excelente servicio al cliente muy atento y profesional la atención fue rápida y eficiente",
-            "me encantó este producto la calidad es superior y el precio es muy razonable lo recomiendo totalmente",
-            "muy buena experiencia de compra el producto llegó rápido y en perfecto estado estoy muy satisfecho",
-            "servicio impecable desde el primer contacto hasta la entrega todo fue perfecto muy recomendado",
-            "calidad excelente el producto superó mis expectativas y el servicio fue muy profesional y amable",
-            "increíble experiencia el producto es de muy buena calidad y la atención al cliente fue excepcional",
-            "muy contento con la compra el servicio fue rápido y el producto es de excelente calidad",
-            "recomiendo totalmente este producto la calidad es superior y el precio es muy justo",
         ]
         
-        # Comentarios NEGATIVOS (hasta 25 palabras)
+        # Comentarios NEGATIVOS (solo frases cortas)
         negative_texts = [
-            # Frases cortas
             "pésimo servicio muy malo", "no recomiendo para nada", "calidad terrible",
             "muy decepcionado", "atención horrible", "lento e ineficiente", "no vale la pena",
             "muy insatisfecho", "problema grave", "no cumplió expectativas", "servicio pésimo",
             "mal servicio", "muy mala calidad", "no funciona bien", "muy decepcionante",
-            
-            # Comentarios completos (10-25 palabras)
-            "pésimo servicio al cliente muy lento y desatento la atención fue horrible y no resolvieron mi problema",
-            "muy decepcionado con este producto la calidad es terrible y no funciona como se esperaba no lo recomiendo",
-            "servicio muy malo el producto llegó tarde y en mal estado estoy muy insatisfecho con la compra",
-            "no recomiendo para nada este producto tiene muchos defectos y el servicio al cliente es pésimo",
-            "muy mala experiencia el producto no cumple con lo prometido y la atención fue horrible",
-            "calidad terrible el producto se rompió al poco tiempo y el servicio no respondió a mis quejas",
-            "problema grave con este producto no funciona correctamente y el servicio al cliente fue ineficiente",
-            "muy insatisfecho con la compra el producto es de mala calidad y el servicio fue pésimo",
         ]
         
-        # Comentarios NEUTRALES (hasta 25 palabras)
+        # Comentarios NEUTRALES (solo frases cortas)
         neutral_texts = [
-            # Frases cortas
             "producto regular", "ni bueno ni malo", "aceptable", "normal", "sin comentarios",
             "básico", "estándar", "cumple su función", "nada especial", "producto común",
             "servicio estándar", "normal como cualquier otro", "ni destacable ni malo",
             "producto promedio", "servicio básico",
-            
-            # Comentarios completos (10-25 palabras)
-            "producto regular que cumple su función básica nada especial pero tampoco tiene problemas mayores",
-            "servicio estándar normal como cualquier otro no destacó ni positivo ni negativo simplemente aceptable",
-            "producto promedio que funciona como se espera sin nada que destacar pero tampoco con problemas",
-            "experiencia normal el producto es básico y cumple su función sin sorpresas positivas ni negativas",
-            "servicio básico que funciona correctamente sin problemas pero tampoco con características especiales",
-            "producto común que cumple con lo mínimo esperado ni bueno ni malo simplemente aceptable",
         ]
         
         texts = positive_texts + negative_texts + neutral_texts
@@ -508,10 +563,11 @@ class SentimentNeuralNetwork:
         print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
         print(f"🔍 [DEBUG] Textos positivos: {len(positive_texts)}, negativos: {len(negative_texts)}, neutrales: {len(neutral_texts)}")
         
-        # Entrenamiento con más épocas para mejor aprendizaje de comentarios completos
-        print("🔍 [DEBUG] Iniciando entrenamiento...")
+        # Entrenamiento RÁPIDO - solo 1 época para que termine rápido
+        print("🔍 [DEBUG] Iniciando entrenamiento RÁPIDO...")
         try:
-            history = self.train(texts, labels, epochs=5, batch_size=12)  # 5 épocas para mejor aprendizaje
+            # REDUCIR a 1 época y batch size más grande para velocidad
+            history = self.train(texts, labels, epochs=1, batch_size=16)  # 1 época, batch más grande
             print("✅ [DEBUG] Método train() completado")
             
             # Validar que el modelo está entrenado
