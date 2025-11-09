@@ -47,30 +47,47 @@ class SentimentNeuralNetwork:
     
     def prepare_data(self, texts: List[str], labels: List[str] = None) -> Tuple:
         """Preparar datos para entrenamiento o predicción"""
+        print(f"🔍 [DEBUG] prepare_data() llamado con {len(texts)} texto(s), labels={labels is not None}")
+        
         if not texts:
+            print("❌ [DEBUG] Error: lista de textos vacía en prepare_data")
             raise ValueError("La lista de textos no puede estar vacía")
         
         # Limpiar textos
+        print("🔍 [DEBUG] Limpiando textos...")
         cleaned_texts = [self.clean_text(text) if text else "" for text in texts]
+        print(f"🔍 [DEBUG] Textos limpiados: {[t[:30] + '...' if len(t) > 30 else t for t in cleaned_texts[:3]]}")
         
         # Tokenizar
         if labels:
             # Si hay etiquetas, estamos entrenando, ajustar tokenizer
+            print("🔍 [DEBUG] Entrenando tokenizer...")
             self.tokenizer.fit_on_texts(cleaned_texts)
+            print(f"🔍 [DEBUG] Tokenizer entrenado: vocab_size={len(self.tokenizer.word_index)}")
         elif not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
             # Si no hay tokenizer entrenado y no estamos entrenando, error
+            print("❌ [DEBUG] Error: tokenizer no está entrenado")
             raise ValueError("El tokenizer no está entrenado. Debe entrenar el modelo primero.")
+        else:
+            print(f"🔍 [DEBUG] Usando tokenizer existente: vocab_size={len(self.tokenizer.word_index)}")
         
+        print("🔍 [DEBUG] Convirtiendo textos a secuencias...")
         sequences = self.tokenizer.texts_to_sequences(cleaned_texts)
+        print(f"🔍 [DEBUG] Secuencias creadas: {[seq[:5] for seq in sequences[:3]]}")
         
         # Asegurar que todas las secuencias tengan al menos un elemento (OOV token)
         # Si una secuencia está vacía, agregar el token OOV (índice 1 generalmente)
         sequences = [seq if seq else [1] for seq in sequences]
+        print(f"🔍 [DEBUG] Secuencias después de OOV: {[seq[:5] for seq in sequences[:3]]}")
         
+        print(f"🔍 [DEBUG] Haciendo padding: maxlen={self.max_len}")
         padded_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post', truncating='post')
+        print(f"🔍 [DEBUG] Secuencias con padding: shape={padded_sequences.shape}")
         
         if labels:
+            print("🔍 [DEBUG] Codificando etiquetas...")
             encoded_labels = self.label_encoder.fit_transform(labels)
+            print(f"🔍 [DEBUG] Etiquetas codificadas: {encoded_labels[:5]}")
             return padded_sequences, encoded_labels
         
         return padded_sequences
@@ -155,34 +172,87 @@ class SentimentNeuralNetwork:
         return history
     
     def predict(self, texts: List[str]) -> List[Dict]:
-        """Predecir sentimiento"""
-        if not self.is_trained or not self.model:
-            raise ValueError("El modelo no está entrenado")
+        """Predecir sentimiento usando red neuronal LSTM"""
+        print(f"🔍 [DEBUG] predict() llamado con {len(texts)} texto(s)")
+        
+        # Validar que el modelo esté completamente entrenado y listo
+        print(f"🔍 [DEBUG] Validando modelo: is_trained={self.is_trained}, model={self.model is not None}")
+        if not self.is_trained:
+            print("❌ [DEBUG] Error: modelo no está entrenado")
+            raise ValueError(
+                "El modelo de red neuronal no está entrenado. "
+                "El modelo se está cargando o entrenando. Por favor, espera unos momentos."
+            )
+        
+        if not self.model:
+            print("❌ [DEBUG] Error: modelo no está inicializado")
+            raise ValueError(
+                "El modelo de red neuronal no está inicializado. "
+                "El modelo se está cargando. Por favor, espera unos momentos."
+            )
+        
+        # Validar que el tokenizer esté entrenado
+        print(f"🔍 [DEBUG] Validando tokenizer: has word_index={hasattr(self.tokenizer, 'word_index')}")
+        if not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
+            print("❌ [DEBUG] Error: tokenizer no tiene word_index")
+            raise ValueError(
+                "El tokenizer del modelo no está entrenado. "
+                "El modelo se está cargando. Por favor, espera unos momentos."
+            )
+        
+        # Validar que el label encoder esté entrenado
+        print(f"🔍 [DEBUG] Validando label_encoder: has classes={hasattr(self.label_encoder, 'classes_')}")
+        if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
+            print("❌ [DEBUG] Error: label_encoder no tiene classes")
+            raise ValueError(
+                "El label encoder del modelo no está entrenado. "
+                "El modelo se está cargando. Por favor, espera unos momentos."
+            )
         
         if not texts:
+            print("❌ [DEBUG] Error: lista de textos vacía")
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
+            print(f"🔍 [DEBUG] Preparando datos para {len(texts)} texto(s)...")
+            # Preparar datos para predicción
             X = self.prepare_data(texts)
+            print(f"🔍 [DEBUG] Datos preparados: shape={X.shape}")
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
+                print("❌ [DEBUG] Error: X.shape[0] == 0")
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
+            print("🔍 [DEBUG] Haciendo predicción con modelo neuronal...")
+            # Hacer predicción con la red neuronal
             predictions = self.model.predict(X, verbose=0)
+            print(f"🔍 [DEBUG] Predicciones recibidas: shape={predictions.shape if predictions is not None else None}")
             
-            # Manejar caso donde el modelo devuelve predicciones vacías
-            if predictions is None or len(predictions) == 0:
-                raise ValueError("El modelo no devolvió predicciones válidas")
+            # Validar predicciones
+            if predictions is None:
+                print("❌ [DEBUG] Error: predictions es None")
+                raise ValueError("El modelo no devolvió predicciones (None)")
             
+            if len(predictions) == 0:
+                print("❌ [DEBUG] Error: predictions está vacío")
+                raise ValueError("El modelo no devolvió predicciones (vacío)")
+            
+            print(f"🔍 [DEBUG] Procesando predicciones...")
+            # Procesar predicciones de la red neuronal
             predicted_classes = np.argmax(predictions, axis=1)
+            print(f"🔍 [DEBUG] predicted_classes: {predicted_classes}")
+            
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
+            print(f"🔍 [DEBUG] predicted_labels: {predicted_labels}")
+            
             confidence = np.max(predictions, axis=1)
+            print(f"🔍 [DEBUG] confidence: {confidence}")
             
             results = []
             for i, text in enumerate(texts):
                 if i >= len(predicted_labels):
-                    # Si hay menos predicciones que textos, usar neutral por defecto
+                    print(f"⚠️ [DEBUG] Advertencia: índice {i} fuera de rango para predicciones")
                     label = 'neutral'
                     score = 0.5
                 else:
@@ -210,16 +280,39 @@ class SentimentNeuralNetwork:
                     'confidence': round(score, 3)
                 })
             
+            print(f"✅ [DEBUG] Predicción completada: {len(results)} resultado(s)")
             return results
+            
+        except ValueError as e:
+            # Re-lanzar ValueError con mensaje claro
+            error_msg = str(e)
+            print(f"❌ [DEBUG] ValueError en predict: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            raise ValueError(error_msg)
         except Exception as e:
-            error_msg = f"Error en predicción: {str(e)}"
-            print(f"❌ {error_msg}")
+            error_msg = f"Error en predicción de red neuronal: {str(e)}"
+            print(f"❌ [DEBUG] Exception en predict: {error_msg}")
+            import traceback
+            traceback.print_exc()
             raise ValueError(error_msg)
     
     def predict_single(self, text: str) -> Dict:
         """Predecir sentimiento de un solo texto"""
-        results = self.predict([text])
-        return results[0]
+        print(f"🔍 [DEBUG] predict_single() llamado con texto: '{text[:50]}...'")
+        try:
+            results = self.predict([text])
+            if not results or len(results) == 0:
+                print("❌ [DEBUG] Error: predict() no devolvió resultados")
+                raise ValueError("No se obtuvieron resultados de la predicción")
+            result = results[0]
+            print(f"🔍 [DEBUG] predict_single() resultado: sentiment={result.get('sentiment')}, score={result.get('score')}")
+            return result
+        except Exception as e:
+            print(f"❌ [DEBUG] Error en predict_single: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def load_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
         """Cargar modelo pre-entrenado"""
@@ -269,6 +362,28 @@ class SentimentNeuralNetwork:
                     raise ValueError("El label encoder no se cargó correctamente")
                 
                 self.is_trained = True
+                
+                # Validación final: asegurar que el modelo puede hacer una predicción de prueba
+                print("🔍 [DEBUG] Validando modelo con predicción de prueba...")
+                try:
+                    # Hacer una predicción de prueba para validar que el modelo funciona
+                    test_text = "excelente"
+                    print(f"🔍 [DEBUG] Texto de prueba: '{test_text}'")
+                    test_X = self.prepare_data([test_text])
+                    print(f"🔍 [DEBUG] Datos de prueba preparados: shape={test_X.shape}")
+                    test_pred = self.model.predict(test_X, verbose=0)
+                    print(f"🔍 [DEBUG] Predicción de prueba: {test_pred}")
+                    if test_pred is None or len(test_pred) == 0:
+                        raise ValueError("El modelo no puede hacer predicciones válidas")
+                    print("✅ [DEBUG] Modelo validado correctamente con predicción de prueba")
+                except Exception as e:
+                    print(f"⚠️ [DEBUG] Error al validar modelo: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Si falla la validación, marcar como no entrenado
+                    self.is_trained = False
+                    raise ValueError(f"El modelo no está funcionando correctamente: {str(e)}")
+                
                 print("✅ Modelo de red neuronal cargado y verificado correctamente")
                 return
             except Exception as e:
@@ -289,17 +404,33 @@ class SentimentNeuralNetwork:
         
         # Si no existe o falló cargar, crear y entrenar modelo
         print("🔄 Creando y entrenando modelo de red neuronal (versión rápida, ~10-20 segundos)...")
+        print("🔍 [DEBUG] Iniciando _create_pretrained_model()...")
         try:
             self._create_pretrained_model()
             print("✅ Modelo de red neuronal entrenado y guardado correctamente")
+            
+            # Validar que el modelo esté completamente listo después del entrenamiento
+            print("🔍 [DEBUG] Validando modelo después del entrenamiento...")
+            if not self.is_trained:
+                raise ValueError("El modelo no se marcó como entrenado después de _create_pretrained_model()")
+            if not self.model:
+                raise ValueError("El modelo no se creó después de _create_pretrained_model()")
+            if not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
+                raise ValueError("El tokenizer no se entrenó correctamente")
+            if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
+                raise ValueError("El label encoder no se entrenó correctamente")
+            
+            print("✅ [DEBUG] Modelo completamente validado después del entrenamiento")
         except Exception as e:
             print(f"❌ Error al crear modelo de red neuronal: {e}")
             import traceback
             traceback.print_exc()
+            self.is_trained = False
             raise
     
     def _create_pretrained_model(self):
         """Entrenar red neuronal LSTM con comentarios de hasta 25 palabras"""
+        print("🔍 [DEBUG] _create_pretrained_model() iniciado")
         # Datos de entrenamiento con comentarios completos (hasta 25 palabras)
         # Incluir frases cortas Y comentarios completos para mejor aprendizaje
         
@@ -366,9 +497,36 @@ class SentimentNeuralNetwork:
         
         print("🔄 Entrenando red neuronal LSTM para comentarios de hasta 25 palabras...")
         print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
+        print(f"🔍 [DEBUG] Textos positivos: {len(positive_texts)}, negativos: {len(negative_texts)}, neutrales: {len(neutral_texts)}")
+        
         # Entrenamiento con más épocas para mejor aprendizaje de comentarios completos
-        self.train(texts, labels, epochs=5, batch_size=12)  # 5 épocas para mejor aprendizaje
-        self.save_model()
+        print("🔍 [DEBUG] Iniciando entrenamiento...")
+        try:
+            self.train(texts, labels, epochs=5, batch_size=12)  # 5 épocas para mejor aprendizaje
+            print("✅ [DEBUG] Entrenamiento completado")
+            
+            # Validar que el modelo está entrenado
+            if not self.is_trained:
+                raise ValueError("El modelo no se marcó como entrenado después del entrenamiento")
+            if not self.model:
+                raise ValueError("El modelo no existe después del entrenamiento")
+            
+            print("🔍 [DEBUG] Guardando modelo...")
+            self.save_model()
+            print("✅ [DEBUG] Modelo guardado correctamente")
+            
+            # Validación final: hacer una predicción de prueba
+            print("🔍 [DEBUG] Haciendo predicción de prueba después del entrenamiento...")
+            test_result = self.predict_single("excelente servicio")
+            print(f"🔍 [DEBUG] Predicción de prueba: {test_result}")
+            
+        except Exception as e:
+            print(f"❌ [DEBUG] Error en _create_pretrained_model: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            self.is_trained = False
+            raise
+        
         print("✅ Red neuronal LSTM entrenada correctamente (soporta comentarios de hasta 25 palabras)")
     
     def save_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
