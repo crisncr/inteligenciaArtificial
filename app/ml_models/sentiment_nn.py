@@ -568,10 +568,7 @@ class SentimentNeuralNetwork:
             raise
     
     def load_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
-        """Cargar modelo pre-entrenado"""
-        # En Render, el sistema de archivos es efímero, así que siempre creamos el modelo en memoria
-        # pero solo lo entrenamos una vez por instancia de la aplicación
-        
+        """Cargar modelo pre-entrenado - Descarga automática desde GitHub Releases si no existe"""
         # Asegurar que el directorio existe
         model_dir = os.path.dirname(model_path)
         if not os.path.exists(model_dir):
@@ -580,7 +577,84 @@ class SentimentNeuralNetwork:
         tokenizer_path = os.path.join(model_dir, 'tokenizer.pkl')
         label_encoder_path = os.path.join(model_dir, 'label_encoder.pkl')
         
-        # Intentar cargar modelo existente (puede no existir en Render)
+        # URLs para descargar modelo pre-entrenado desde GitHub Releases
+        # ACTUALIZA ESTAS URLs con las URLs reales después de subir a GitHub Releases
+        MODEL_URL = os.getenv(
+            'MODEL_URL', 
+            'https://github.com/crisncr/inteligenciaArtificial/releases/download/v1.0.0/sentiment_model.h5'
+        )
+        TOKENIZER_URL = os.getenv(
+            'TOKENIZER_URL',
+            'https://github.com/crisncr/inteligenciaArtificial/releases/download/v1.0.0/tokenizer.pkl'
+        )
+        LABEL_ENCODER_URL = os.getenv(
+            'LABEL_ENCODER_URL',
+            'https://github.com/crisncr/inteligenciaArtificial/releases/download/v1.0.0/label_encoder.pkl'
+        )
+        
+        def download_file(url: str, filepath: str) -> bool:
+            """Descargar archivo desde URL"""
+            try:
+                import requests
+                print(f"📥 Descargando {os.path.basename(filepath)} desde GitHub Releases...")
+                response = requests.get(url, timeout=60, stream=True)
+                response.raise_for_status()
+                
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                with open(filepath, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                
+                print(f"✅ {os.path.basename(filepath)} descargado correctamente ({downloaded / 1024:.1f} KB)")
+                return True
+            except Exception as e:
+                print(f"⚠️ No se pudo descargar {os.path.basename(filepath)}: {str(e)}")
+                try:
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                except:
+                    pass
+                return False
+        
+        # Verificar qué archivos faltan
+        missing_files = []
+        if not os.path.exists(model_path):
+            missing_files.append(('Modelo', MODEL_URL, model_path))
+        if not os.path.exists(tokenizer_path):
+            missing_files.append(('Tokenizer', TOKENIZER_URL, tokenizer_path))
+        if not os.path.exists(label_encoder_path):
+            missing_files.append(('Label Encoder', LABEL_ENCODER_URL, label_encoder_path))
+        
+        # Descargar archivos faltantes
+        if missing_files:
+            print(f"📥 Descargando {len(missing_files)} archivo(s) del modelo pre-entrenado desde GitHub Releases...")
+            downloaded_count = 0
+            for name, url, filepath in missing_files:
+                print(f"📥 Descargando {name}...")
+                if download_file(url, filepath):
+                    downloaded_count += 1
+                else:
+                    print(f"❌ Error al descargar {name}")
+            
+            if downloaded_count < len(missing_files):
+                print(f"⚠️ Solo se descargaron {downloaded_count}/{len(missing_files)} archivos.")
+                print("🔄 Se entrenará el modelo desde cero (esto tomará más tiempo)...")
+                # Limpiar archivos parcialmente descargados
+                for name, url, filepath in missing_files:
+                    if os.path.exists(filepath):
+                        try:
+                            os.remove(filepath)
+                        except:
+                            pass
+            else:
+                print("✅ Todos los archivos del modelo se descargaron correctamente")
+        
+        # Intentar cargar modelo existente (local o descargado)
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
             try:
                 print("🔄 Cargando modelo de red neuronal pre-entrenado...")
@@ -624,7 +698,7 @@ class SentimentNeuralNetwork:
                     print(f"🔍 [DEBUG] Texto de prueba: '{test_text}'")
                     test_X = self.prepare_data([test_text])
                     print(f"🔍 [DEBUG] Datos de prueba preparados: shape={test_X.shape}")
-                    test_pred = self.model.predict(test_X, verbose=0)
+                    test_pred = self.model.predict(test_X, batch_size=1, verbose=0)
                     print(f"🔍 [DEBUG] Predicción de prueba: {test_pred}")
                     if test_pred is None or len(test_pred) == 0:
                         raise ValueError("El modelo no puede hacer predicciones válidas")
@@ -655,8 +729,9 @@ class SentimentNeuralNetwork:
                 except:
                     pass
         
-        # Si no existe o falló cargar, crear y entrenar modelo
-        print("🔄 Creando y entrenando modelo de red neuronal (versión rápida, ~10-20 segundos)...")
+        # Si no existe o falló cargar, crear y entrenar modelo (FALLBACK)
+        print("🔄 Creando y entrenando modelo de red neuronal (versión rápida, ~30-60 segundos)...")
+        print("⚠️ NOTA: Esto se ejecuta solo si no se pudo descargar el modelo pre-entrenado")
         print("🔍 [DEBUG] Iniciando _create_pretrained_model()...")
         try:
             self._create_pretrained_model()
