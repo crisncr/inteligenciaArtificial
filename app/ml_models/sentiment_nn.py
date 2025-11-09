@@ -167,14 +167,14 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM ULTRA-PEQUEÑA para entrenamiento INSTANTÁNEO
-        # Modelo mínimo pero funcional para entrenar en segundos
+        # Red neuronal LSTM PEQUEÑA pero capaz de aprender
+        # Modelo pequeño pero con suficiente capacidad para diferenciar sentimientos
         from tensorflow.keras.initializers import GlorotUniform
         
         model = Sequential([
-            Embedding(vocab_size + 1, 4, embeddings_initializer=GlorotUniform()),  # 4 dimensiones (mínimo para velocidad)
-            LSTM(2, dropout=0.0, kernel_initializer=GlorotUniform()),        # 2 unidades (mínimo para velocidad)
-            Dense(3, activation='relu', kernel_initializer=GlorotUniform()),   # 3 unidades (mínimo)
+            Embedding(vocab_size + 1, 8, embeddings_initializer=GlorotUniform()),  # 8 dimensiones (suficiente para aprender)
+            LSTM(4, dropout=0.1, kernel_initializer=GlorotUniform()),        # 4 unidades (suficiente para aprender)
+            Dense(8, activation='relu', kernel_initializer=GlorotUniform()),   # 8 unidades (capaz de aprender patrones)
             Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida
         ])
         
@@ -314,25 +314,35 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN MÁXIMA: Solo 1 época, batch size = número de muestras (entrenamiento ultra-rápido)
-        actual_epochs = 1  # Solo 1 época para entrenamiento ULTRA-RÁPIDO
-        # Usar batch size igual al número de muestras (entrenar todo en un solo paso)
-        actual_batch_size = len(X_train)  # Entrenar todas las muestras a la vez (más rápido)
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (todas las muestras en 1 batch)")
-        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (entrenamiento ultra-rápido)")
+        # OPTIMIZACIÓN: 3 épocas para que aprenda, batch size pequeño para mejor aprendizaje
+        actual_epochs = 3  # 3 épocas para que el modelo realmente aprenda (sigue siendo rápido)
+        # Batch size pequeño (4-8) para mejor aprendizaje con gradient descent
+        actual_batch_size = min(8, len(X_train))  # Batch pequeño para mejor aprendizaje
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch pequeño para mejor aprendizaje)")
+        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (suficiente para aprender)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
         print(f"📊 Shape de X_train: {X_train.shape}, Shape de y_train: {y_train.shape}")
         
-        # NO usar callback para máxima velocidad (los callbacks pueden ralentizar)
-        # Entrenamiento ultra-rápido sin callbacks
+        # Callbacks simples para entrenamiento
         fit_kwargs = {
             'epochs': actual_epochs,
             'batch_size': actual_batch_size,
-            'verbose': 1,  # Logs mínimos de TensorFlow (solo para ver progreso)
-            'callbacks': []  # Sin callbacks para máxima velocidad
+            'verbose': 1,  # Mostrar progress (se cambia a 1 en fit())
+            'callbacks': []  # Sin callbacks complejos para velocidad
         }
+        
+        # Construir el modelo explícitamente antes de entrenar (puede ayudar a evitar bloqueos)
+        print("🔍 [DEBUG] Construyendo modelo explícitamente antes de entrenar...")
+        try:
+            # Construir el modelo con una muestra de datos dummy
+            dummy_sample = X_train[:1]
+            _ = self.model(dummy_sample)
+            print("✅ [DEBUG] Modelo construido explícitamente")
+        except Exception as e:
+            print(f"⚠️ [DEBUG] No se pudo construir modelo explícitamente: {e}")
+            # Continuar de todos modos
         
         # Entrenamiento SIMPLIFICADO - sin validación, sin callbacks, máximo velocidad
         print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
@@ -343,15 +353,28 @@ class SentimentNeuralNetwork:
         import sys
         sys.stdout.flush()
         
-        print("🚀 [DEBUG] INICIANDO model.fit() - entrenamiento ultra-rápido...")
+        print("🚀 [DEBUG] INICIANDO model.fit() - entrenamiento con 3 épocas...")
         sys.stdout.flush()
         
         fit_start = time.time()
         try:
-            # Entrenamiento directo sin callbacks para máxima velocidad
+            # Entrenamiento con verbose para ver accuracy
+            fit_kwargs['verbose'] = 1  # Mostrar progress para ver si está aprendiendo
             history = self.model.fit(X_train, y_train, **fit_kwargs)
             fit_time = time.time() - fit_start
             print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+            
+            # Verificar accuracy final
+            if hasattr(history, 'history') and 'accuracy' in history.history:
+                final_accuracy = history.history['accuracy'][-1]
+                print(f"📊 [DEBUG] Accuracy final del entrenamiento: {final_accuracy:.4f}")
+                if final_accuracy < 0.5:
+                    print(f"⚠️ [DEBUG] ADVERTENCIA: Accuracy muy baja ({final_accuracy:.4f}), el modelo podría no estar aprendiendo bien")
+                else:
+                    print(f"✅ [DEBUG] Accuracy aceptable: {final_accuracy:.4f}")
+            else:
+                print(f"⚠️ [DEBUG] No se pudo obtener accuracy del historial")
+            
             sys.stdout.flush()
         except Exception as fit_error:
             fit_time = time.time() - fit_start
@@ -386,6 +409,35 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Modelo existe: {self.model is not None}")
         print(f"🔍 [DEBUG] Tokenizer tiene word_index: {hasattr(self.tokenizer, 'word_index') and len(self.tokenizer.word_index) > 0}")
         print(f"🔍 [DEBUG] Label encoder tiene classes: {hasattr(self.label_encoder, 'classes_') and len(self.label_encoder.classes_) > 0}")
+        
+        # Prueba rápida: predecir con algunos textos de entrenamiento para verificar que está aprendiendo
+        print("🔍 [DEBUG] Realizando prueba rápida de predicción con datos de entrenamiento...")
+        try:
+            test_texts = []
+            test_labels = []
+            # Tomar 1 texto de cada clase para probar
+            unique_labels_all = np.unique(y_train)
+            for label in unique_labels_all:
+                label_indices = np.where(y_train == label)[0]
+                if len(label_indices) > 0:
+                    text_idx = label_indices[0]
+                    # Obtener el texto original (necesitamos guardarlo o recrearlo)
+                    # Por ahora, solo verificamos que el modelo puede predecir
+                    pass
+            
+            # Probar con algunos textos de ejemplo
+            if len(X_train) > 0:
+                test_predictions = self.model.predict(X_train[:3], verbose=0)
+                test_classes = np.argmax(test_predictions, axis=1)
+                test_expected = y_train[:3]
+                print(f"🔍 [DEBUG] Prueba de predicción:")
+                print(f"   Esperado: {self.label_encoder.inverse_transform(test_expected)}")
+                print(f"   Predicho: {self.label_encoder.inverse_transform(test_classes)}")
+                print(f"   Probabilidades: {test_predictions}")
+                correct = np.sum(test_classes == test_expected)
+                print(f"   Correctas: {correct}/3")
+        except Exception as e:
+            print(f"⚠️ [DEBUG] No se pudo realizar prueba rápida: {e}")
         
         return history
     
@@ -457,22 +509,25 @@ class SentimentNeuralNetwork:
                 raise ValueError("El modelo no devolvió predicciones (vacío)")
             
             print(f"🔍 [DEBUG] Procesando predicciones...")
-            # Mostrar probabilidades completas para diagnóstico
-            print(f"🔍 [DEBUG] Probabilidades completas (primeras 3 predicciones):")
-            for i in range(min(3, len(predictions))):
+            # Mostrar probabilidades completas para diagnóstico (SIEMPRE)
+            print(f"🔍 [DEBUG] Probabilidades completas para TODAS las predicciones:")
+            label_names = self.label_encoder.classes_
+            print(f"🔍 [DEBUG] Orden de clases en label_encoder: {label_names}")
+            for i in range(len(predictions)):
                 probs = predictions[i]
-                label_names = self.label_encoder.classes_
-                print(f"   Predicción {i}: {dict(zip(label_names, probs))}")
+                prob_dict = dict(zip(label_names, probs))
+                print(f"   Predicción {i} (texto: '{texts[i][:30]}...'): {prob_dict}")
             
             # Procesar predicciones de la red neuronal
             predicted_classes = np.argmax(predictions, axis=1)
-            print(f"🔍 [DEBUG] predicted_classes: {predicted_classes}")
+            print(f"🔍 [DEBUG] predicted_classes (índices): {predicted_classes}")
+            print(f"🔍 [DEBUG] predicted_classes (nombres): {[label_names[c] for c in predicted_classes]}")
             
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
-            print(f"🔍 [DEBUG] predicted_labels: {predicted_labels}")
+            print(f"🔍 [DEBUG] predicted_labels (después de inverse_transform): {predicted_labels}")
             
             confidence = np.max(predictions, axis=1)
-            print(f"🔍 [DEBUG] confidence: {confidence}")
+            print(f"🔍 [DEBUG] confidence (máxima probabilidad): {confidence}")
             
             results = []
             for i, text in enumerate(texts):
