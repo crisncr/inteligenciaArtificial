@@ -67,10 +67,10 @@ class TrainingProgressCallback(Callback):
             self._print_and_flush(f"⚠️ [DEBUG] No se registraron épocas completadas")
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=500, max_len=25):
-        # Red neuronal LSTM basada en texto - Soporta comentarios de hasta 25 palabras
-        # max_words: 500 (vocabulario reducido para memoria)
-        # max_len: 25 (reducido para memoria)
+    def __init__(self, max_words=300, max_len=20):
+        # Red neuronal LSTM basada en texto - Modelo MÍNIMO para Render 512MB
+        # max_words: 300 (vocabulario mínimo para memoria)
+        # max_len: 20 (longitud mínima para memoria)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -111,53 +111,41 @@ class SentimentNeuralNetwork:
     
     def prepare_data(self, texts: List[str], labels: List[str] = None) -> Tuple:
         """Preparar datos para entrenamiento o predicción"""
-        print(f"🔍 [DEBUG] prepare_data() llamado con {len(texts)} texto(s), labels={labels is not None}")
+        # Logging mínimo para ahorrar memoria durante predicción
+        if labels:
+            print(f"🔍 [DEBUG] prepare_data() entrenamiento: {len(texts)} textos")
+        # Si no hay labels, es predicción - logging mínimo
         
         if not texts:
-            print("❌ [DEBUG] Error: lista de textos vacía en prepare_data")
             raise ValueError("La lista de textos no puede estar vacía")
         
         # Limpiar textos
-        print("🔍 [DEBUG] Limpiando textos...")
         cleaned_texts = [self.clean_text(text) if text else "" for text in texts]
-        print(f"🔍 [DEBUG] Textos limpiados: {[t[:30] + '...' if len(t) > 30 else t for t in cleaned_texts[:3]]}")
         
         # Tokenizar
         if labels:
             # Si hay etiquetas, estamos entrenando, ajustar tokenizer
-            print("🔍 [DEBUG] Entrenando tokenizer...")
             self.tokenizer.fit_on_texts(cleaned_texts)
-            print(f"🔍 [DEBUG] Tokenizer entrenado: vocab_size={len(self.tokenizer.word_index)}")
+            if len(self.tokenizer.word_index) > 0:
+                print(f"🔍 [DEBUG] Tokenizer entrenado: vocab_size={len(self.tokenizer.word_index)}")
         elif not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
-            # Si no hay tokenizer entrenado y no estamos entrenando, error
-            print("❌ [DEBUG] Error: tokenizer no está entrenado")
             raise ValueError("El tokenizer no está entrenado. Debe entrenar el modelo primero.")
-        else:
-            print(f"🔍 [DEBUG] Usando tokenizer existente: vocab_size={len(self.tokenizer.word_index)}")
         
-        print("🔍 [DEBUG] Convirtiendo textos a secuencias...")
+        # Convertir textos a secuencias
         sequences = self.tokenizer.texts_to_sequences(cleaned_texts)
-        print(f"🔍 [DEBUG] Secuencias creadas: {[seq[:5] for seq in sequences[:3]]}")
         
         # Asegurar que todas las secuencias tengan al menos un elemento (OOV token)
-        # Si una secuencia está vacía, agregar el token OOV (índice 1 generalmente)
         sequences = [seq if seq else [1] for seq in sequences]
-        print(f"🔍 [DEBUG] Secuencias después de OOV: {[seq[:5] for seq in sequences[:3]]}")
         
-        print(f"🔍 [DEBUG] Haciendo padding: maxlen={self.max_len}")
+        # Hacer padding
         padded_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post', truncating='post')
-        print(f"🔍 [DEBUG] Secuencias con padding: shape={padded_sequences.shape}")
         
         if labels:
-            print("🔍 [DEBUG] Codificando etiquetas...")
             encoded_labels = self.label_encoder.fit_transform(labels)
-            # Mostrar distribución completa de etiquetas codificadas
+            # Mostrar distribución de etiquetas (logging mínimo)
             unique_encoded, counts_encoded = np.unique(encoded_labels, return_counts=True)
             label_names_encoded = self.label_encoder.inverse_transform(unique_encoded)
-            print(f"🔍 [DEBUG] Distribución de etiquetas codificadas:")
-            for label_name, label_code, count in zip(label_names_encoded, unique_encoded, counts_encoded):
-                print(f"   - {label_name} (código {label_code}): {count} muestras")
-            print(f"🔍 [DEBUG] Primeras 10 etiquetas codificadas: {encoded_labels[:10]}")
+            print(f"🔍 [DEBUG] Datos preparados: shape={padded_sequences.shape}, Distribución: {dict(zip(label_names_encoded, counts_encoded))}")
             return padded_sequences, encoded_labels
         
         return padded_sequences
@@ -170,16 +158,16 @@ class SentimentNeuralNetwork:
         # Red neuronal LSTM con suficiente capacidad para aprender
         from tensorflow.keras.initializers import GlorotUniform
         
-        # Modelo ULTRA-LIGERO para Render 512MB
-        # Limitar vocab_size al máximo para ahorrar memoria
+        # Modelo MÍNIMO pero funcional para Render 512MB
+        # Reducir al mínimo absoluto pero mantener capacidad de aprendizaje
         effective_vocab_size = min(vocab_size + 1, self.max_words + 1)
         model = Sequential([
-            Embedding(effective_vocab_size, 8, mask_zero=True),  # 8 dimensiones (mínimo para memoria)
-            LSTM(4, dropout=0.0, recurrent_dropout=0.0),  # 4 unidades (mínimo para memoria)
-            Dense(8, activation='relu'),   # 8 unidades (mínimo para memoria)
-            Dense(num_classes, activation='softmax')  # Salida
+            Embedding(effective_vocab_size, 6, mask_zero=True),  # 6 dimensiones (mínimo absoluto)
+            LSTM(3, dropout=0.0, recurrent_dropout=0.0),  # 3 unidades (mínimo absoluto)
+            Dense(6, activation='relu'),   # 6 unidades (mínimo absoluto)
+            Dense(num_classes, activation='softmax')  # Salida (3 clases)
         ])
-        print(f"🔍 [DEBUG] Vocabulario efectivo: {effective_vocab_size} (limitado a max_words={self.max_words})")
+        print(f"🔍 [DEBUG] Vocabulario: {effective_vocab_size}, Modelo mínimo: Embedding(6), LSTM(3), Dense(6)")
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
         # Compilar modelo neuronal con learning rate más conservador para mejor convergencia
@@ -213,9 +201,9 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # USAR datos limitados para evitar problemas de memoria (512 MB límite en Render)
-        # Modelo ultra-ligero necesita menos datos para entrenar
-        max_samples = 60  # Usar solo 60 muestras (reducido agresivamente para memoria)
+        # USAR datos mínimos pero balanceados para evitar problemas de memoria (512 MB límite)
+        # Modelo mínimo necesita datos balanceados pero pocos
+        max_samples = 50  # Usar solo 50 muestras (mínimo para aprender las 3 clases)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
             
@@ -327,12 +315,11 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: Mínimo para memoria (512 MB límite)
-        actual_epochs = 8  # Solo 8 épocas (reducido agresivamente para memoria)
-        # Batch size mínimo para menor uso de memoria
-        actual_batch_size = min(4, len(X_train))  # Batch muy pequeño (4) para mínimo uso de memoria
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch mínimo para memoria)")
-        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (mínimo para memoria)")
+        # OPTIMIZACIÓN: Mínimo absoluto para memoria (512 MB límite)
+        actual_epochs = 5  # Solo 5 épocas (mínimo para aprender)
+        # Batch size mínimo absoluto para menor uso de memoria
+        actual_batch_size = min(3, len(X_train))  # Batch mínimo (3) para mínimo uso de memoria
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size}, Épocas: {actual_epochs} (mínimo para memoria)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
@@ -475,10 +462,11 @@ class SentimentNeuralNetwork:
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
-            print(f"🔍 [DEBUG] Preparando datos para {len(texts)} texto(s)...")
-            # Preparar datos para predicción
+            # Preparar datos para predicción (logging mínimo para ahorrar memoria)
             X = self.prepare_data(texts)
-            print(f"🔍 [DEBUG] Datos preparados: shape={X.shape}")
+            # Limpiar memoria inmediatamente después de preparar datos
+            import gc
+            gc.collect()
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
@@ -486,8 +474,9 @@ class SentimentNeuralNetwork:
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
             print("🔍 [DEBUG] Haciendo predicción con modelo neuronal...")
-            # Hacer predicción con la red neuronal
-            predictions = self.model.predict(X, verbose=0)
+            # Hacer predicción con batch_size=1 para mínimo uso de memoria
+            # Procesar uno por uno para evitar problemas de memoria
+            predictions = self.model.predict(X, batch_size=1, verbose=0)
             print(f"🔍 [DEBUG] Predicciones recibidas: shape={predictions.shape if predictions is not None else None}")
             
             # Validar predicciones
@@ -500,25 +489,18 @@ class SentimentNeuralNetwork:
                 raise ValueError("El modelo no devolvió predicciones (vacío)")
             
             print(f"🔍 [DEBUG] Procesando predicciones...")
-            # Mostrar probabilidades completas para diagnóstico (SIEMPRE)
-            print(f"🔍 [DEBUG] Probabilidades completas para TODAS las predicciones:")
+            # Mostrar solo la primera predicción para ahorrar memoria (logging mínimo)
             label_names = self.label_encoder.classes_
-            print(f"🔍 [DEBUG] Orden de clases en label_encoder: {label_names}")
-            for i in range(len(predictions)):
-                probs = predictions[i]
+            if len(predictions) > 0:
+                probs = predictions[0]
                 prob_dict = dict(zip(label_names, probs))
-                print(f"   Predicción {i} (texto: '{texts[i][:30]}...'): {prob_dict}")
+                print(f"🔍 [DEBUG] Predicción 0: {prob_dict}")
             
-            # Procesar predicciones de la red neuronal
+            # Procesar predicciones de la red neuronal (mínimo logging para ahorrar memoria)
             predicted_classes = np.argmax(predictions, axis=1)
-            print(f"🔍 [DEBUG] predicted_classes (índices): {predicted_classes}")
-            print(f"🔍 [DEBUG] predicted_classes (nombres): {[label_names[c] for c in predicted_classes]}")
-            
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
-            print(f"🔍 [DEBUG] predicted_labels (después de inverse_transform): {predicted_labels}")
-            
             confidence = np.max(predictions, axis=1)
-            print(f"🔍 [DEBUG] confidence (máxima probabilidad): {confidence}")
+            print(f"🔍 [DEBUG] Predicción: {predicted_labels[0] if len(predicted_labels) > 0 else 'N/A'}, confianza: {confidence[0]:.3f if len(confidence) > 0 else 0}")
             
             results = []
             for i, text in enumerate(texts):
