@@ -243,10 +243,13 @@ async def startup_event():
     import threading
     
     # Configurar TensorFlow para usar MÍNIMA memoria (Render tiene 512 MB limit)
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reducir logs
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Reducir logs al máximo
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-    # Limitar uso de memoria
-    os.environ['TF_MEMORY_ALLOCATION'] = '0.3'  # Usar solo 30% de memoria disponible
+    # Limitar uso de memoria al máximo
+    os.environ['TF_MEMORY_ALLOCATION'] = '0.2'  # Usar solo 20% de memoria disponible
+    # Deshabilitar funciones que usan memoria extra
+    os.environ['TF_DISABLE_MKL'] = '1'  # Deshabilitar MKL para ahorrar memoria
+    os.environ['TF_DISABLE_POOL_ALLOCATOR'] = '1'  # Deshabilitar pool allocator
     
     try:
         import tensorflow as tf
@@ -270,22 +273,10 @@ async def startup_event():
     except Exception as e:
         print(f"⚠️ No se pudo configurar TensorFlow: {e}")
     
-    # Precargar modelo en thread separado (no bloquea el startup)
-    def precargar_modelo():
-        try:
-            from app.sentiment import _train_model_async
-            print("🚀 Iniciando precarga del modelo en background (versión ultra-ligera)...")
-            _train_model_async()
-            print("✅ Modelo precargado correctamente")
-        except Exception as e:
-            print(f"⚠️ Error al precargar modelo (se cargará en el primer request): {e}")
-            import traceback
-            traceback.print_exc()
-    
-    # Iniciar thread de precarga (daemon=True para que no bloquee el cierre)
-    thread = threading.Thread(target=precargar_modelo, daemon=True, name="ModelPreloader")
-    thread.start()
-    print("✅ Thread de precarga iniciado (no bloquea el servidor)")
+    # NO precargar modelo en startup para ahorrar memoria
+    # El modelo se cargará lazy (solo cuando se necesite)
+    # Esto ahorra memoria durante el startup
+    print("✅ TensorFlow configurado - Modelo se cargará lazy (solo cuando se necesite)")
 
 
 # Endpoint público para análisis (sin autenticación, límite de 3)

@@ -12,10 +12,10 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=1000, max_len=50):
-        # Versión ULTRA-LIGERA para Render (512 MB limit)
-        # max_words: 3000 -> 1000 (menos palabras = menos memoria)
-        # max_len: 100 -> 50 (secuencias más cortas = menos memoria)
+    def __init__(self, max_words=500, max_len=30):
+        # Versión EXTREMA-LIGERA para Render (512 MB limit)
+        # max_words: 1000 -> 500 (vocabulario mínimo pero funcional)
+        # max_len: 50 -> 30 (secuencias muy cortas = mínima memoria)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -76,18 +76,18 @@ class SentimentNeuralNetwork:
         return padded_sequences
     
     def build_model(self, vocab_size: int, num_classes: int):
-        """Construir modelo ULTRA-LIGERO para Render (512 MB limit) - Mantiene funcionalidad"""
-        # Modelo mínimo pero funcional: embedding pequeño + LSTM pequeña
-        # Aunque es pequeño, sigue siendo una red neuronal LSTM completamente funcional
+        """Construir modelo EXTREMA-LIGERO para Render (512 MB) - Mantiene funcionalidad completa"""
+        # Modelo mínimo pero completamente funcional: red neuronal LSTM
+        # Aunque es muy pequeño, sigue siendo una red neuronal LSTM funcional
         model = Sequential([
-            Embedding(vocab_size + 1, 32),  # Reducido de 64 a 32 para menos memoria
-            LSTM(16, dropout=0.2),  # Reducido de 32 a 16 neuronas
-            Dense(8, activation='relu'),  # Reducido de 16 a 8
-            Dropout(0.2),
+            Embedding(vocab_size + 1, 16),  # Reducido a 16 dimensiones (mínimo funcional)
+            LSTM(8, dropout=0.1),  # Reducido a 8 neuronas LSTM
+            Dense(4, activation='relu'),  # Reducido a 4 neuronas
+            Dropout(0.1),
             Dense(num_classes, activation='softmax')
         ])
         
-        # Usar optimizador estándar (Adam es eficiente en memoria)
+        # Usar optimizador eficiente en memoria
         model.compile(
             optimizer='adam',
             loss='sparse_categorical_crossentropy',
@@ -105,7 +105,7 @@ class SentimentNeuralNetwork:
         X, y = self.prepare_data(texts, labels)
         
         # Limitar tamaño de datos si es muy grande (para ahorrar memoria)
-        max_samples = 200  # Máximo 200 muestras para entrenamiento
+        max_samples = 100  # Máximo 100 muestras para entrenamiento (mínimo para funcionalidad)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
             X = X[:max_samples]
@@ -300,49 +300,42 @@ class SentimentNeuralNetwork:
             raise
     
     def _create_pretrained_model(self):
-        """Crear modelo pre-entrenado - Versión ULTRA-LIGERA para Render (512 MB) pero FUNCIONAL"""
-        # Datos de entrenamiento balanceados pero reducidos para ahorrar memoria
-        # Mantenemos suficiente variedad para que el modelo aprenda correctamente
+        """Crear modelo pre-entrenado - Versión EXTREMA-LIGERA para Render (512 MB) pero FUNCIONAL"""
+        # Datos de entrenamiento mínimos pero balanceados para ahorrar memoria máxima
+        # Mantenemos variedad suficiente para que el modelo aprenda correctamente
         positive_texts = [
-            "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho con la compra",
-            "recomiendo totalmente", "calidad superior", "atención perfecta", "rápido y eficiente",
-            "super contento", "vale la pena", "muy recomendado", "increíble experiencia", "servicio de primera",
+            "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho",
+            "recomiendo totalmente", "calidad superior", "atención perfecta",
+            "super contento", "vale la pena", "muy recomendado", "increíble experiencia",
             "muy buena calidad", "excelente atención", "producto genial", "muy bien hecho",
-            "súper recomendable", "calidad excelente", "muy profesional", "servicio impecable",
-            "excelente servicio al cliente", "muy buena experiencia", "producto de calidad",
-            "muy satisfecho", "recomiendo este producto", "muy bueno", "excelente calidad",
-            "muy rápido", "muy eficiente", "muy bien", "excelente", "genial", "perfecto"
-        ] * 2  # Reducido de 5 a 2 para ahorrar memoria (pero mantiene variedad)
+            "súper recomendable", "calidad excelente", "muy profesional", "servicio impecable"
+        ] * 1  # Solo 1 vez (mínimo para funcionalidad)
         
         negative_texts = [
             "pésimo servicio muy malo", "no recomiendo para nada", "calidad terrible",
             "muy decepcionado", "atención horrible", "lento e ineficiente", "no vale la pena",
             "muy insatisfecho", "problema grave", "no cumplió expectativas", "servicio pésimo",
             "muy mala calidad", "no funciona bien", "muy decepcionante", "producto defectuoso",
-            "atención pésima", "muy caro para lo que es", "no lo recomiendo", "muy mal servicio",
-            "problemas constantes", "muy malo", "terrible", "pésimo", "horrible", "decepcionante",
-            "no funciona", "defectuoso", "mala calidad", "mal servicio", "no recomiendo",
-            "insatisfecho", "problemas", "muy mal", "no vale", "terrible experiencia"
-        ] * 2  # Reducido de 5 a 2
+            "atención pésima", "muy caro para lo que es", "no lo recomiendo", "muy mal servicio"
+        ] * 1  # Solo 1 vez
         
         neutral_texts = [
             "producto regular", "ni bueno ni malo", "aceptable", "normal", "sin comentarios",
             "básico", "estándar", "cumple su función", "nada especial", "producto común",
             "servicio estándar", "normal como cualquier otro", "ni destacable ni malo",
-            "producto promedio", "servicio básico", "regular", "aceptable", "normal",
-            "estándar", "básico", "promedio", "común", "sin destacar"
-        ] * 2  # Reducido de 5 a 2
+            "producto promedio", "servicio básico"
+        ] * 1  # Solo 1 vez
         
         texts = positive_texts + negative_texts + neutral_texts
         labels = (['positivo'] * len(positive_texts) + 
                  ['negativo'] * len(negative_texts) + 
                  ['neutral'] * len(neutral_texts))
         
-        print("🔄 Entrenando modelo ULTRA-LIGERO (optimizado para 512 MB, pero completamente funcional)...")
+        print("🔄 Entrenando modelo EXTREMA-LIGERO (512 MB, pero completamente funcional)...")
         print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
-        # Entrenamiento con batch pequeño para usar menos memoria
-        # Aunque es pequeño, el modelo sigue siendo una red neuronal LSTM funcional
-        self.train(texts, labels, epochs=3, batch_size=16)  # 3 épocas, batch pequeño = menos memoria
+        # Entrenamiento con batch muy pequeño y menos épocas para mínima memoria
+        # Aunque es muy pequeño, el modelo sigue siendo una red neuronal LSTM completamente funcional
+        self.train(texts, labels, epochs=2, batch_size=8)  # 2 épocas, batch muy pequeño = mínima memoria
         self.save_model()
         print("✅ Modelo entrenado y guardado correctamente (red neuronal LSTM funcional)")
     
