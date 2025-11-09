@@ -39,7 +39,7 @@ services:
     startCommand: python3 -m gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.12"
+        value: "3.11"
       - key: NODE_VERSION
         value: 20
       - key: DATABASE_URL
