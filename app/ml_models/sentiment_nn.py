@@ -169,17 +169,22 @@ class SentimentNeuralNetwork:
         
         # Red neuronal LSTM optimizada para aprender mejor con datos limitados
         # Modelo más grande para mejor capacidad de aprendizaje, pero aún ligero para Render (512 MB)
+        # Usar inicialización mejorada para mejor aprendizaje
+        from tensorflow.keras.initializers import GlorotUniform
+        
         model = Sequential([
-            Embedding(vocab_size + 1, 16),  # Aumentado a 16 para mejor representación de palabras
-            LSTM(8, dropout=0.2),        # Aumentado a 8 unidades con dropout para regularización
-            Dense(8, activation='relu'),   # Aumentado a 8 unidades para más capacidad
-            Dense(num_classes, activation='softmax')  # Salida (probabilidades: positivo/negativo/neutral)
+            Embedding(vocab_size + 1, 16, embeddings_initializer=GlorotUniform()),  # Aumentado a 16 con inicialización mejorada
+            LSTM(8, dropout=0.2, kernel_initializer=GlorotUniform()),        # Aumentado a 8 unidades con dropout y inicialización mejorada
+            Dense(8, activation='relu', kernel_initializer=GlorotUniform()),   # Aumentado a 8 unidades con inicialización mejorada
+            Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida con inicialización mejorada
         ])
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
-        # Compilar modelo neuronal
+        # Compilar modelo neuronal con learning rate más alto para mejor aprendizaje
+        from tensorflow.keras.optimizers import Adam
+        optimizer = Adam(learning_rate=0.01)  # Learning rate más alto (0.01) para aprender más rápido con pocos datos
         model.compile(
-            optimizer='adam',  # Optimizador de red neuronal
+            optimizer=optimizer,  # Optimizador con learning rate configurado
             loss='sparse_categorical_crossentropy',  # Función de pérdida
             metrics=['accuracy'],
             run_eagerly=True  # Ejecutar en modo eager para evitar bloqueos durante compilación
@@ -313,7 +318,7 @@ class SentimentNeuralNetwork:
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
         # Aumentar épocas para mejor aprendizaje, pero mantenerlo razonable
-        actual_epochs = min(epochs, 3)  # Aumentado a 3 épocas para mejor aprendizaje
+        actual_epochs = min(epochs, 5)  # Aumentado a 5 épocas para mejor aprendizaje con learning rate más alto
         # Batch size debe ser menor o igual al número de muestras
         # Si hay 15 muestras, usar batch_size=15 (entrenar todas a la vez es más rápido)
         actual_batch_size = min(batch_size, len(X_train))  # No puede ser mayor que las muestras disponibles
@@ -515,6 +520,13 @@ class SentimentNeuralNetwork:
                 raise ValueError("El modelo no devolvió predicciones (vacío)")
             
             print(f"🔍 [DEBUG] Procesando predicciones...")
+            # Mostrar probabilidades completas para diagnóstico
+            print(f"🔍 [DEBUG] Probabilidades completas (primeras 3 predicciones):")
+            for i in range(min(3, len(predictions))):
+                probs = predictions[i]
+                label_names = self.label_encoder.classes_
+                print(f"   Predicción {i}: {dict(zip(label_names, probs))}")
+            
             # Procesar predicciones de la red neuronal
             predicted_classes = np.argmax(predictions, axis=1)
             print(f"🔍 [DEBUG] predicted_classes: {predicted_classes}")
@@ -755,7 +767,7 @@ class SentimentNeuralNetwork:
         print("🔍 [DEBUG] Iniciando entrenamiento...")
         try:
             # Aumentar épocas para mejor aprendizaje, batch size razonable
-            history = self.train(texts, labels, epochs=3, batch_size=16)  # 3 épocas para mejor aprendizaje
+            history = self.train(texts, labels, epochs=5, batch_size=16)  # 5 épocas para mejor aprendizaje con learning rate más alto
             print("✅ [DEBUG] Método train() completado")
             
             # Validar que el modelo está entrenado
