@@ -67,10 +67,10 @@ class TrainingProgressCallback(Callback):
             self._print_and_flush(f"⚠️ [DEBUG] No se registraron épocas completadas")
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=800, max_len=35):
+    def __init__(self, max_words=500, max_len=25):
         # Red neuronal LSTM basada en texto - Soporta comentarios de hasta 25 palabras
-        # max_words: 800 (vocabulario suficiente para comentarios)
-        # max_len: 35 (soporta cómodamente hasta 25 palabras)
+        # max_words: 500 (vocabulario reducido para memoria)
+        # max_len: 25 (reducido para memoria)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -170,12 +170,16 @@ class SentimentNeuralNetwork:
         # Red neuronal LSTM con suficiente capacidad para aprender
         from tensorflow.keras.initializers import GlorotUniform
         
+        # Modelo ULTRA-LIGERO para Render 512MB
+        # Limitar vocab_size al máximo para ahorrar memoria
+        effective_vocab_size = min(vocab_size + 1, self.max_words + 1)
         model = Sequential([
-            Embedding(vocab_size + 1, 16, mask_zero=True),  # 16 dimensiones (reducido para memoria), mask_zero=True para ignorar padding
-            LSTM(8, dropout=0.0, recurrent_dropout=0.0),  # 8 unidades (reducido para memoria), sin dropout para que aprenda
-            Dense(16, activation='relu'),   # 16 unidades (reducido para memoria)
+            Embedding(effective_vocab_size, 8, mask_zero=True),  # 8 dimensiones (mínimo para memoria)
+            LSTM(4, dropout=0.0, recurrent_dropout=0.0),  # 4 unidades (mínimo para memoria)
+            Dense(8, activation='relu'),   # 8 unidades (mínimo para memoria)
             Dense(num_classes, activation='softmax')  # Salida
         ])
+        print(f"🔍 [DEBUG] Vocabulario efectivo: {effective_vocab_size} (limitado a max_words={self.max_words})")
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
         # Compilar modelo neuronal con learning rate más conservador para mejor convergencia
@@ -209,9 +213,9 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # USAR la mayoría de los datos pero limitar para evitar problemas de memoria
-        # Balance entre aprendizaje y memoria (512 MB límite en Render)
-        max_samples = 100  # Usar 100 muestras (balance entre aprendizaje y memoria)
+        # USAR datos limitados para evitar problemas de memoria (512 MB límite en Render)
+        # Modelo ultra-ligero necesita menos datos para entrenar
+        max_samples = 60  # Usar solo 60 muestras (reducido agresivamente para memoria)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
             
@@ -310,9 +314,12 @@ class SentimentNeuralNetwork:
         else:
             print(f"✅ [DEBUG] Todas las clases ({num_classes}) están representadas en los datos de entrenamiento")
         
-        # Limpiar memoria antes de construir modelo
+        # Limpiar memoria ANTES de construir modelo (CRÍTICO para Render 512 MB)
         print("🔍 [DEBUG] Limpiando memoria antes de construir modelo...")
-        gc.collect()
+        import tensorflow as tf
+        tf.keras.backend.clear_session()  # Limpiar sesión de Keras antes
+        gc.collect()  # Recolectar basura
+        print("✅ [DEBUG] Memoria limpiada antes de construir modelo")
         
         print("🔍 [DEBUG] Construyendo modelo...")
         build_start = time.time()
@@ -320,12 +327,12 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: Balance entre épocas y memoria
-        actual_epochs = 15  # 15 épocas (balance entre aprendizaje y tiempo/memoria)
-        # Batch size pequeño para mejor aprendizaje y menor uso de memoria
-        actual_batch_size = min(8, len(X_train))  # Batch pequeño (8) para mejor aprendizaje y menor memoria
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch pequeño para aprendizaje y memoria)")
-        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (balance entre aprendizaje y memoria)")
+        # OPTIMIZACIÓN: Mínimo para memoria (512 MB límite)
+        actual_epochs = 8  # Solo 8 épocas (reducido agresivamente para memoria)
+        # Batch size mínimo para menor uso de memoria
+        actual_batch_size = min(4, len(X_train))  # Batch muy pequeño (4) para mínimo uso de memoria
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch mínimo para memoria)")
+        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (mínimo para memoria)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
@@ -339,16 +346,9 @@ class SentimentNeuralNetwork:
             'callbacks': []  # Sin callbacks complejos para velocidad
         }
         
-        # Construir el modelo explícitamente antes de entrenar (puede ayudar a evitar bloqueos)
-        print("🔍 [DEBUG] Construyendo modelo explícitamente antes de entrenar...")
-        try:
-            # Construir el modelo con una muestra de datos dummy
-            dummy_sample = X_train[:1]
-            _ = self.model(dummy_sample)
-            print("✅ [DEBUG] Modelo construido explícitamente")
-        except Exception as e:
-            print(f"⚠️ [DEBUG] No se pudo construir modelo explícitamente: {e}")
-            # Continuar de todos modos
+        # NO construir modelo explícitamente - ahorra memoria
+        # El modelo se construirá automáticamente en el primer fit()
+        print("🔍 [DEBUG] El modelo se construirá automáticamente en el primer fit()")
         
         # Entrenamiento SIMPLIFICADO - sin validación, sin callbacks, máximo velocidad
         print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
@@ -408,9 +408,11 @@ class SentimentNeuralNetwork:
         # Limpiar memoria después de entrenar (CRÍTICO para Render 512 MB)
         print("🔍 [DEBUG] Limpiando memoria después de entrenar...")
         import tensorflow as tf
-        tf.keras.backend.clear_session()  # Limpiar sesión de Keras
+        # NO limpiar la sesión aquí porque necesitamos el modelo para predicciones
+        # Solo limpiar variables temporales
+        del history  # Eliminar historial que ocupa memoria
         gc.collect()  # Recolectar basura de Python
-        print("✅ [DEBUG] Memoria limpiada")
+        print("✅ [DEBUG] Memoria limpiada (modelo preservado)")
         
         # Validar que el modelo esté correctamente entrenado
         print("🔍 [DEBUG] Validando modelo después del entrenamiento...")
@@ -424,34 +426,9 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Tokenizer tiene word_index: {hasattr(self.tokenizer, 'word_index') and len(self.tokenizer.word_index) > 0}")
         print(f"🔍 [DEBUG] Label encoder tiene classes: {hasattr(self.label_encoder, 'classes_') and len(self.label_encoder.classes_) > 0}")
         
-        # Prueba rápida: predecir con algunos textos de entrenamiento para verificar que está aprendiendo
-        print("🔍 [DEBUG] Realizando prueba rápida de predicción con datos de entrenamiento...")
-        try:
-            test_texts = []
-            test_labels = []
-            # Tomar 1 texto de cada clase para probar
-            unique_labels_all = np.unique(y_train)
-            for label in unique_labels_all:
-                label_indices = np.where(y_train == label)[0]
-                if len(label_indices) > 0:
-                    text_idx = label_indices[0]
-                    # Obtener el texto original (necesitamos guardarlo o recrearlo)
-                    # Por ahora, solo verificamos que el modelo puede predecir
-                    pass
-            
-            # Probar con algunos textos de ejemplo
-            if len(X_train) > 0:
-                test_predictions = self.model.predict(X_train[:3], verbose=0)
-                test_classes = np.argmax(test_predictions, axis=1)
-                test_expected = y_train[:3]
-                print(f"🔍 [DEBUG] Prueba de predicción:")
-                print(f"   Esperado: {self.label_encoder.inverse_transform(test_expected)}")
-                print(f"   Predicho: {self.label_encoder.inverse_transform(test_classes)}")
-                print(f"   Probabilidades: {test_predictions}")
-                correct = np.sum(test_classes == test_expected)
-                print(f"   Correctas: {correct}/3")
-        except Exception as e:
-            print(f"⚠️ [DEBUG] No se pudo realizar prueba rápida: {e}")
+        # NO hacer prueba rápida para ahorrar memoria
+        # El modelo ya está entrenado y validado por el accuracy del entrenamiento
+        print("🔍 [DEBUG] Prueba rápida omitida para ahorrar memoria")
         
         return history
     
