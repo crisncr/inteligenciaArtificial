@@ -158,16 +158,17 @@ class SentimentNeuralNetwork:
         # Red neuronal LSTM con suficiente capacidad para aprender
         from tensorflow.keras.initializers import GlorotUniform
         
-        # Modelo MÍNIMO pero funcional para Render 512MB
-        # Reducir al mínimo absoluto pero mantener capacidad de aprendizaje
+        # Modelo optimizado para mejor aprendizaje (aumentado de tamaño mínimo)
+        # Balance entre memoria y capacidad de aprendizaje
         effective_vocab_size = min(vocab_size + 1, self.max_words + 1)
         model = Sequential([
-            Embedding(effective_vocab_size, 6, mask_zero=True),  # 6 dimensiones (mínimo absoluto)
-            LSTM(3, dropout=0.0, recurrent_dropout=0.0),  # 3 unidades (mínimo absoluto)
-            Dense(6, activation='relu'),   # 6 unidades (mínimo absoluto)
+            Embedding(effective_vocab_size, 16, mask_zero=True),  # 16 dimensiones (aumentado de 6)
+            LSTM(8, dropout=0.2, recurrent_dropout=0.2),  # 8 unidades (aumentado de 3) con dropout
+            Dense(16, activation='relu'),   # 16 unidades (aumentado de 6)
+            Dropout(0.3),  # Dropout para regularización
             Dense(num_classes, activation='softmax')  # Salida (3 clases)
         ])
-        print(f"🔍 [DEBUG] Vocabulario: {effective_vocab_size}, Modelo mínimo: Embedding(6), LSTM(3), Dense(6)")
+        print(f"🔍 [DEBUG] Vocabulario: {effective_vocab_size}, Modelo mejorado: Embedding(16), LSTM(8), Dense(16)")
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
         # Compilar modelo neuronal con learning rate más conservador para mejor convergencia
@@ -201,9 +202,9 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # USAR datos mínimos pero balanceados para evitar problemas de memoria (512 MB límite)
-        # Modelo mínimo necesita datos balanceados pero pocos
-        max_samples = 50  # Usar solo 50 muestras (mínimo para aprender las 3 clases)
+        # USAR más datos para mejor aprendizaje (pero sin exceder memoria)
+        # Aumentar muestras para mejor precisión
+        max_samples = 120  # Usar 120 muestras para mejor aprendizaje (aumentado de 50)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
             
@@ -315,11 +316,11 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: Mínimo absoluto para memoria (512 MB límite)
-        actual_epochs = 5  # Solo 5 épocas (mínimo para aprender)
-        # Batch size mínimo absoluto para menor uso de memoria
-        actual_batch_size = min(3, len(X_train))  # Batch mínimo (3) para mínimo uso de memoria
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size}, Épocas: {actual_epochs} (mínimo para memoria)")
+        # OPTIMIZACIÓN: Balance entre memoria y aprendizaje
+        actual_epochs = 15  # Aumentar épocas para mejor aprendizaje (aumentado de 5)
+        # Batch size balanceado para mejor aprendizaje
+        actual_batch_size = min(8, len(X_train))  # Batch size aumentado para mejor estabilidad (aumentado de 3)
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size}, Épocas: {actual_epochs} (optimizado para mejor aprendizaje)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
