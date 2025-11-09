@@ -43,15 +43,27 @@ class SentimentNeuralNetwork:
         return text.strip()
     
     def prepare_data(self, texts: List[str], labels: List[str] = None) -> Tuple:
-        """Preparar datos para entrenamiento"""
+        """Preparar datos para entrenamiento o predicción"""
+        if not texts:
+            raise ValueError("La lista de textos no puede estar vacía")
+        
         # Limpiar textos
-        cleaned_texts = [self.clean_text(text) for text in texts]
+        cleaned_texts = [self.clean_text(text) if text else "" for text in texts]
         
         # Tokenizar
         if labels:
+            # Si hay etiquetas, estamos entrenando, ajustar tokenizer
             self.tokenizer.fit_on_texts(cleaned_texts)
+        elif not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
+            # Si no hay tokenizer entrenado y no estamos entrenando, error
+            raise ValueError("El tokenizer no está entrenado. Debe entrenar el modelo primero.")
         
         sequences = self.tokenizer.texts_to_sequences(cleaned_texts)
+        
+        # Asegurar que todas las secuencias tengan al menos un elemento (OOV token)
+        # Si una secuencia está vacía, agregar el token OOV (índice 1 generalmente)
+        sequences = [seq if seq else [1] for seq in sequences]
+        
         padded_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post', truncating='post')
         
         if labels:
@@ -62,8 +74,9 @@ class SentimentNeuralNetwork:
     
     def build_model(self, vocab_size: int, num_classes: int):
         """Construir modelo de red neuronal"""
+        # input_length está deprecado en Keras, se infiere automáticamente
         model = Sequential([
-            Embedding(vocab_size + 1, 128, input_length=self.max_len),
+            Embedding(vocab_size + 1, 128),
             LSTM(64, return_sequences=True),
             Dropout(0.5),
             LSTM(32),
@@ -105,39 +118,62 @@ class SentimentNeuralNetwork:
         if not self.is_trained or not self.model:
             raise ValueError("El modelo no está entrenado")
         
-        X = self.prepare_data(texts)
-        predictions = self.model.predict(X, verbose=0)
-        predicted_classes = np.argmax(predictions, axis=1)
-        predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
-        confidence = np.max(predictions, axis=1)
+        if not texts:
+            raise ValueError("La lista de textos no puede estar vacía")
         
-        results = []
-        for i, text in enumerate(texts):
-            label = predicted_labels[i]
-            score = float(confidence[i])
+        try:
+            X = self.prepare_data(texts)
             
-            if label == 'positivo':
-                sentiment = 'positivo'
-                emoji = '🟢'
-                score_value = score
-            elif label == 'negativo':
-                sentiment = 'negativo'
-                emoji = '🔴'
-                score_value = -score
-            else:
-                sentiment = 'neutral'
-                emoji = '🟡'
-                score_value = 0.0
+            # Verificar que tenemos datos válidos
+            if X.shape[0] == 0:
+                raise ValueError("No se pudieron preparar los datos para predicción")
             
-            results.append({
-                'text': text,
-                'sentiment': sentiment,
-                'score': round(score_value, 3),
-                'emoji': emoji,
-                'confidence': round(score, 3)
-            })
-        
-        return results
+            predictions = self.model.predict(X, verbose=0)
+            
+            # Manejar caso donde el modelo devuelve predicciones vacías
+            if predictions is None or len(predictions) == 0:
+                raise ValueError("El modelo no devolvió predicciones válidas")
+            
+            predicted_classes = np.argmax(predictions, axis=1)
+            predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
+            confidence = np.max(predictions, axis=1)
+            
+            results = []
+            for i, text in enumerate(texts):
+                if i >= len(predicted_labels):
+                    # Si hay menos predicciones que textos, usar neutral por defecto
+                    label = 'neutral'
+                    score = 0.5
+                else:
+                    label = predicted_labels[i]
+                    score = float(confidence[i])
+                
+                if label == 'positivo':
+                    sentiment = 'positivo'
+                    emoji = '🟢'
+                    score_value = score
+                elif label == 'negativo':
+                    sentiment = 'negativo'
+                    emoji = '🔴'
+                    score_value = -score
+                else:
+                    sentiment = 'neutral'
+                    emoji = '🟡'
+                    score_value = 0.0
+                
+                results.append({
+                    'text': text,
+                    'sentiment': sentiment,
+                    'score': round(score_value, 3),
+                    'emoji': emoji,
+                    'confidence': round(score, 3)
+                })
+            
+            return results
+        except Exception as e:
+            error_msg = f"Error en predicción: {str(e)}"
+            print(f"❌ {error_msg}")
+            raise ValueError(error_msg)
     
     def predict_single(self, text: str) -> Dict:
         """Predecir sentimiento de un solo texto"""
@@ -146,6 +182,9 @@ class SentimentNeuralNetwork:
     
     def load_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
         """Cargar modelo pre-entrenado"""
+        # En Render, el sistema de archivos es efímero, así que siempre creamos el modelo en memoria
+        # pero solo lo entrenamos una vez por instancia de la aplicación
+        
         # Asegurar que el directorio existe
         model_dir = os.path.dirname(model_path)
         if not os.path.exists(model_dir):
@@ -154,29 +193,37 @@ class SentimentNeuralNetwork:
         tokenizer_path = os.path.join(model_dir, 'tokenizer.pkl')
         label_encoder_path = os.path.join(model_dir, 'label_encoder.pkl')
         
-        # Intentar cargar modelo existente
+        # Intentar cargar modelo existente (puede no existir en Render)
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
             try:
-                print("Cargando modelo de red neuronal pre-entrenado...")
-                self.model = load_model(model_path)
+                print("🔄 Cargando modelo de red neuronal pre-entrenado...")
+                self.model = load_model(model_path, compile=False)
+                # Recompilar el modelo
+                self.model.compile(
+                    optimizer='adam',
+                    loss='sparse_categorical_crossentropy',
+                    metrics=['accuracy']
+                )
                 with open(tokenizer_path, 'rb') as f:
                     self.tokenizer = pickle.load(f)
                 with open(label_encoder_path, 'rb') as f:
                     self.label_encoder = pickle.load(f)
                 self.is_trained = True
-                print("Modelo de red neuronal cargado correctamente")
+                print("✅ Modelo de red neuronal cargado correctamente")
                 return
             except Exception as e:
-                print(f"Error al cargar modelo pre-entrenado: {e}")
-                print("Se creará un nuevo modelo...")
+                print(f"⚠️ Error al cargar modelo pre-entrenado: {e}")
+                print("🔄 Se creará un nuevo modelo...")
         
-        # Si no existe, crear y entrenar modelo (solo la primera vez)
-        print("Creando y entrenando modelo de red neuronal (esto puede tomar unos minutos)...")
+        # Si no existe o falló cargar, crear y entrenar modelo
+        print("🔄 Creando y entrenando modelo de red neuronal (esto puede tomar unos minutos)...")
         try:
             self._create_pretrained_model()
-            print("Modelo de red neuronal entrenado y guardado correctamente")
+            print("✅ Modelo de red neuronal entrenado y guardado correctamente")
         except Exception as e:
-            print(f"Error al crear modelo de red neuronal: {e}")
+            print(f"❌ Error al crear modelo de red neuronal: {e}")
+            import traceback
+            traceback.print_exc()
             raise
     
     def _create_pretrained_model(self):

@@ -1303,27 +1303,6 @@ function RouteOptimization({ user }) {
         </div>
       )}
 
-      {/* Explicación Técnica - Parte 2 */}
-      <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 2</h3>
-        <p><strong>Geocodificación:</strong> Utilizamos Nominatim (OpenStreetMap) para convertir direcciones en coordenadas geográficas. Incluye autocompletado en tiempo real mientras escribes y geocodificación reversa al hacer click en el mapa.</p>
-        <p><strong>Algoritmo:</strong> A* (A estrella)</p>
-        <p><strong>Tipo:</strong> Búsqueda heurística</p>
-        <p><strong>Justificación:</strong> A* combina el costo real del camino con una heurística estimada, encontrando la ruta óptima de manera eficiente.</p>
-        <p><strong>Proceso:</strong></p>
-        <ol>
-          <li>Autocompletado de direcciones con Nominatim (OpenStreetMap) - Gratuito y sin API key</li>
-          <li>Geocodificar direcciones a coordenadas (lat, lng) usando Nominatim</li>
-          <li>Crear grafo con puntos de entrega</li>
-          <li>Calcular distancias entre todos los puntos (distancia euclidiana)</li>
-          <li>Aplicar heurística para seleccionar el siguiente nodo</li>
-          <li>Seleccionar nodo con menor costo estimado</li>
-          <li>Repetir hasta visitar todos los nodos</li>
-          <li>Retornar ruta óptima</li>
-        </ol>
-        <p><strong>Selección de Nodos:</strong> En cada paso, el algoritmo evalúa todos los puntos no visitados, calcula la distancia desde el punto actual (heurística), y selecciona el punto más cercano. Esto minimiza la distancia total del recorrido.</p>
-        <p><strong>Ventajas de OpenStreetMap:</strong> Completamente gratuito, sin límites de API key, funciona inmediatamente sin configuración, y proporciona datos de mapas de alta calidad.</p>
-      </div>
     </section>
   )
 }

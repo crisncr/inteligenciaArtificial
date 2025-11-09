@@ -275,35 +275,6 @@ function SalesPrediction({ user }) {
         </div>
       )}
 
-      {/* Explicación Técnica - Parte 3 */}
-      <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 3</h3>
-        <p><strong>Tipo de Aprendizaje:</strong> Supervisado (Regresión)</p>
-        <p><strong>Algoritmos Sugeridos:</strong></p>
-        <ul>
-          <li><strong>Regresión Lineal:</strong> Eficiente para datos con tendencias lineales, proporciona interpretabilidad clara de las relaciones entre variables.</li>
-          <li><strong>Red Neuronal:</strong> Captura relaciones no lineales complejas y patrones temporales en los datos de ventas, mejorando la precisión en predicciones.</li>
-        </ul>
-        <p><strong>Justificación Técnica:</strong> La predicción de ventas es un problema de regresión supervisada donde se utilizan datos históricos (fechas, regiones) para predecir valores futuros. La regresión lineal es rápida y interpretable, mientras que las redes neuronales pueden capturar patrones más complejos.</p>
-        <p><strong>Proceso de IA (de datos a predicción):</strong></p>
-        <ol>
-          {predictions?.process_explanation ? (
-            Object.values(predictions.process_explanation).map((step, index) => (
-              <li key={index}>{step}</li>
-            ))
-          ) : (
-            <>
-              <li>Recolección de datos históricos de ventas</li>
-              <li>Preprocesamiento (normalización, codificación de fechas)</li>
-              <li>División en conjunto de entrenamiento y prueba</li>
-              <li>Entrenamiento del modelo (Regresión Lineal o Red Neuronal)</li>
-              <li>Evaluación del modelo (R², MSE)</li>
-              <li>Predicción de ventas futuras</li>
-              <li>Visualización de resultados</li>
-            </>
-          )}
-        </ol>
-      </div>
     </section>
   )
 }

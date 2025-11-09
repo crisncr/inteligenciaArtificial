@@ -430,21 +430,6 @@ function ManualAnalysis({ user, onAnalyze, freeAnalysesLeft, onLimitReached }) {
         </div>
       )}
 
-      {/* Explicación Técnica - Parte 1 */}
-      <div className="message" style={{ marginTop: '30px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Explicación Técnica - Parte 1</h3>
-        <p><strong>Tipo de Aprendizaje:</strong> Supervisado</p>
-        <p><strong>Algoritmo:</strong> Red Neuronal (LSTM)</p>
-        <p><strong>Justificación:</strong> Las redes neuronales LSTM capturan el contexto y las relaciones semánticas en el texto, superando métodos basados en diccionarios.</p>
-        <p><strong>Proceso de IA:</strong></p>
-        <ol>
-          <li>Recolección de datos (comentarios de redes sociales, blogs, etc.)</li>
-          <li>Limpieza de texto (eliminar URLs, caracteres especiales, normalización)</li>
-          <li>Tokenización (convertir texto a secuencias numéricas)</li>
-          <li>Entrenamiento del modelo (ajustar pesos de la red neuronal)</li>
-          <li>Clasificación (positivo/negativo/neutral)</li>
-        </ol>
-      </div>
     </section>
   )
 }
