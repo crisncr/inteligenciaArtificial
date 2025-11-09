@@ -394,6 +394,34 @@ function RouteOptimization({ user }) {
               last_coord: r.coordinates?.[r.coordinates?.length - 1]
             })
           })
+          
+          // Si el punto de destino fue ajustado a la calle, actualizar endPlace
+          if (result.points_info && result.points_info.length >= 2) {
+            const endPointInfo = result.points_info[1]
+            // Si hay coordenadas ajustadas (lat/lng) y son diferentes de las originales, actualizar
+            if (endPointInfo.lat && endPointInfo.lng && endPointInfo.original_lat && endPointInfo.original_lng) {
+              const latDiff = Math.abs(endPointInfo.lat - endPointInfo.original_lat)
+              const lngDiff = Math.abs(endPointInfo.lng - endPointInfo.original_lng)
+              // Si la diferencia es mayor a 0.0001 (aproximadamente 10 metros), se ajustó
+              if (latDiff > 0.0001 || lngDiff > 0.0001) {
+                console.log(`📍 Punto de destino ajustado a la calle: (${endPointInfo.original_lat}, ${endPointInfo.original_lng}) -> (${endPointInfo.lat}, ${endPointInfo.lng})`)
+                // Actualizar el estado del punto de destino con las coordenadas ajustadas
+                setEndPlace(prev => ({
+                  ...prev,
+                  lat: endPointInfo.lat,
+                  lng: endPointInfo.lng
+                }))
+              }
+            } else if (endPointInfo.lat && endPointInfo.lng) {
+              // Si solo hay coordenadas ajustadas (sin originales), actualizar de todas formas
+              setEndPlace(prev => ({
+                ...prev,
+                lat: endPointInfo.lat,
+                lng: endPointInfo.lng
+              }))
+            }
+          }
+          
           setRouteResult(result)
           setSelectedRouteIndex(0) // Seleccionar la mejor ruta por defecto
         } else {

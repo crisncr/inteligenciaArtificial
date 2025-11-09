@@ -53,6 +53,7 @@ NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 # Formato: https://router.project-osrm.org/route/v1/{profile}/{coordinates}
 # coordinates: lng1,lat1;lng2,lat2
 OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving"
+OSRM_NEAREST_URL = "https://router.project-osrm.org/nearest/v1/driving"  # Para snap a calle
 
 async def geocode_address(address: str) -> Dict:
     """Geocodificar dirección usando Nominatim (OpenStreetMap) - Normaliza número adelante/atrás"""
@@ -254,10 +255,55 @@ async def autocomplete_address(query: str) -> List[Dict]:
         traceback.print_exc()
         return []
 
-async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, alternatives: int = 2) -> List[Dict]:
+async def snap_to_road(lat: float, lng: float) -> tuple[float, float]:
+    """Ajustar coordenadas al punto más cercano en una calle usando OSRM Nearest"""
+    try:
+        print(f"🔧 Snap to road: ajustando ({lat}, {lng}) a la calle más cercana")
+        
+        async with httpx.AsyncClient() as client:
+            # OSRM Nearest usa formato: lng,lat (longitud primero)
+            url = f"{OSRM_NEAREST_URL}/{lng},{lat}"
+            
+            response = await client.get(
+                url,
+                params={
+                    "number": 1,  # Solo necesitamos el punto más cercano
+                },
+                timeout=10.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get("code") == "Ok" and data.get("waypoints") and len(data["waypoints"]) > 0:
+                    waypoint = data["waypoints"][0]
+                    snapped_lat = waypoint["location"][1]  # OSRM devuelve [lng, lat]
+                    snapped_lng = waypoint["location"][0]
+                    
+                    distance = waypoint.get("distance", 0)
+                    print(f"✅ Snap to road exitoso: ({lat}, {lng}) -> ({snapped_lat}, {snapped_lng}), distancia: {distance:.2f}m")
+                    
+                    return snapped_lat, snapped_lng
+                else:
+                    print(f"⚠️ Snap to road: no se encontró punto cercano, usando coordenadas originales")
+                    return lat, lng
+            else:
+                print(f"⚠️ Snap to road: error HTTP {response.status_code}, usando coordenadas originales")
+                return lat, lng
+                
+    except Exception as e:
+        print(f"⚠️ Error en snap to road: {str(e)}, usando coordenadas originales")
+        return lat, lng
+
+async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, alternatives: int = 2, snap_destination: bool = True) -> List[Dict]:
     """Obtener rutas reales por calles usando OSRM (OpenStreetMap Routing Machine)"""
     try:
         print(f"🔵 OSRM: Obteniendo rutas desde ({lat1}, {lng1}) hasta ({lat2}, {lng2})")
+        
+        # Ajustar el punto de destino a la calle más cercana para evitar que termine dentro de edificios
+        if snap_destination:
+            lat2, lng2 = await snap_to_road(lat2, lng2)
+            print(f"🔵 OSRM: Punto de destino ajustado a calle: ({lat2}, {lng2})")
         
         async with httpx.AsyncClient() as client:
             # OSRM usa formato: lng,lat (longitud primero) y las coordenadas van en la URL
@@ -456,17 +502,28 @@ async def optimize_route(
             start_point = points_with_coords[0]
             end_point = points_with_coords[1]
             
+            # Guardar coordenadas originales del destino
+            original_end_lat = end_point["lat"]
+            original_end_lng = end_point["lng"]
+            
+            # Ajustar el punto de destino a la calle más cercana (snap to road)
+            # Esto evita que la ruta termine dentro de edificios
+            snapped_end_lat, snapped_end_lng = await snap_to_road(original_end_lat, original_end_lng)
+            
             # Obtener las 3 mejores rutas usando OSRM (rutas reales por calles)
+            # snap_destination=False porque ya lo hicimos manualmente arriba
             osrm_routes = await get_osrm_routes(
                 start_point["lat"], 
                 start_point["lng"],
-                end_point["lat"], 
-                end_point["lng"],
-                alternatives=2  # Obtener 2 alternativas + la principal = 3 rutas
+                snapped_end_lat, 
+                snapped_end_lng,
+                alternatives=2,  # Obtener 2 alternativas + la principal = 3 rutas
+                snap_destination=False  # Ya lo hicimos manualmente
             )
             
             if osrm_routes and len(osrm_routes) > 0:
                 # Construir respuesta con las 3 mejores rutas
+                # Usar las coordenadas ajustadas para el punto de destino
                 result = {
                     "routes": osrm_routes,
                     "points_info": [
@@ -481,8 +538,10 @@ async def optimize_route(
                             "name": end_point["name"],
                             "address": end_point.get("address"),
                             "display_name": end_point.get("display_name"),
-                            "lat": end_point["lat"],
-                            "lng": end_point["lng"]
+                            "lat": snapped_end_lat,  # Usar coordenadas ajustadas a la calle
+                            "lng": snapped_end_lng,  # Usar coordenadas ajustadas a la calle
+                            "original_lat": original_end_lat,  # Guardar coordenadas originales por referencia
+                            "original_lng": original_end_lng
                         }
                     ],
                     "algorithm": "OSRM (Rutas reales por calles)",
