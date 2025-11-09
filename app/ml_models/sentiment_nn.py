@@ -350,6 +350,7 @@ class SentimentNeuralNetwork:
         sys.stdout.flush()
         
         fit_start = time.time()
+        history = None
         try:
             # Entrenamiento con verbose para ver accuracy
             fit_kwargs['verbose'] = 1  # Mostrar progress para ver si está aprendiendo
@@ -392,15 +393,6 @@ class SentimentNeuralNetwork:
         
         print(f"✅ Entrenamiento completado (sin validación)")
         
-        # Limpiar memoria después de entrenar (CRÍTICO para Render 512 MB)
-        print("🔍 [DEBUG] Limpiando memoria después de entrenar...")
-        import tensorflow as tf
-        # NO limpiar la sesión aquí porque necesitamos el modelo para predicciones
-        # Solo limpiar variables temporales
-        del history  # Eliminar historial que ocupa memoria
-        gc.collect()  # Recolectar basura de Python
-        print("✅ [DEBUG] Memoria limpiada (modelo preservado)")
-        
         # Validar que el modelo esté correctamente entrenado
         print("🔍 [DEBUG] Validando modelo después del entrenamiento...")
         if self.model is None:
@@ -417,7 +409,15 @@ class SentimentNeuralNetwork:
         # El modelo ya está entrenado y validado por el accuracy del entrenamiento
         print("🔍 [DEBUG] Prueba rápida omitida para ahorrar memoria")
         
-        return history
+        # Limpiar memoria después de validar (CRÍTICO para Render 512 MB)
+        print("🔍 [DEBUG] Limpiando memoria después de entrenar...")
+        # NO eliminar history aquí porque se necesita devolver
+        # Solo limpiar otras variables temporales
+        gc.collect()  # Recolectar basura de Python
+        print("✅ [DEBUG] Memoria limpiada (modelo preservado)")
+        
+        # Devolver history si existe, sino devolver None
+        return history if history is not None else None
     
     def predict(self, texts: List[str]) -> List[Dict]:
         """Predecir sentimiento usando red neuronal LSTM"""
@@ -500,7 +500,14 @@ class SentimentNeuralNetwork:
             predicted_classes = np.argmax(predictions, axis=1)
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
             confidence = np.max(predictions, axis=1)
-            print(f"🔍 [DEBUG] Predicción: {predicted_labels[0] if len(predicted_labels) > 0 else 'N/A'}, confianza: {confidence[0]:.3f if len(confidence) > 0 else 0}")
+            
+            # Formatear confianza correctamente
+            if len(confidence) > 0 and len(predicted_labels) > 0:
+                conf_value = confidence[0]
+                label_value = predicted_labels[0]
+                print(f"🔍 [DEBUG] Predicción: {label_value}, confianza: {conf_value:.3f}")
+            else:
+                print(f"🔍 [DEBUG] Predicción: N/A, confianza: 0.000")
             
             results = []
             for i, text in enumerate(texts):
@@ -644,6 +651,7 @@ class SentimentNeuralNetwork:
             if downloaded_count < len(missing_files):
                 print(f"⚠️ Solo se descargaron {downloaded_count}/{len(missing_files)} archivos.")
                 print("🔄 Se entrenará el modelo desde cero (esto tomará más tiempo)...")
+                print("💡 NOTA: Esto solo debería pasar si las URLs de GitHub Releases no están disponibles")
                 # Limpiar archivos parcialmente descargados
                 for name, url, filepath in missing_files:
                     if os.path.exists(filepath):
@@ -652,7 +660,8 @@ class SentimentNeuralNetwork:
                         except:
                             pass
             else:
-                print("✅ Todos los archivos del modelo se descargaron correctamente")
+                print("✅ Todos los archivos del modelo se descargaron correctamente desde GitHub Releases")
+                print("✅ El modelo NO se entrenará, se usará el modelo pre-entrenado")
         
         # Intentar cargar modelo existente (local o descargado)
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
@@ -730,8 +739,13 @@ class SentimentNeuralNetwork:
                     pass
         
         # Si no existe o falló cargar, crear y entrenar modelo (FALLBACK)
+        print("=" * 60)
+        print("⚠️ MODO FALLBACK: ENTRENANDO MODELO DESDE CERO")
+        print("=" * 60)
         print("🔄 Creando y entrenando modelo de red neuronal (versión rápida, ~30-60 segundos)...")
         print("⚠️ NOTA: Esto se ejecuta solo si no se pudo descargar el modelo pre-entrenado")
+        print("💡 RECOMENDACIÓN: Sube los archivos a GitHub Releases para evitar este entrenamiento")
+        print("📋 Ver train_model_local.py para instrucciones")
         print("🔍 [DEBUG] Iniciando _create_pretrained_model()...")
         try:
             self._create_pretrained_model()

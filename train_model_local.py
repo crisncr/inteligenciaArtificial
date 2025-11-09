@@ -25,9 +25,12 @@ def main():
     model = SentimentNeuralNetwork()
     
     print("🔄 Entrenando modelo (esto puede tomar 30-60 segundos)...")
+    print("⚠️ NOTA: Este script entrena el modelo localmente y NO descarga desde GitHub")
+    print()
     try:
-        # Esto entrenará el modelo y lo guardará
-        model.load_model()
+        # Entrenar el modelo directamente usando el método interno
+        # Esto NO intentará descargar, solo entrenará con los datos predefinidos
+        model._create_pretrained_model()
         
         print()
         print("=" * 60)
@@ -66,10 +69,18 @@ def main():
             print("✅ Todos los archivos se crearon correctamente")
             print()
             print("📤 Ahora sube estos archivos a GitHub Releases:")
-            print("   1. Ve a tu repositorio en GitHub")
-            print("   2. Crea un nuevo Release (v1.0.0)")
-            print("   3. Sube los 3 archivos")
-            print("   4. Copia las URLs de descarga directa")
+            print()
+            print("   📋 PASOS EN GITHUB:")
+            print("   1. Ve a: https://github.com/crisncr/inteligenciaArtificial/releases")
+            print("   2. Clic en 'Create a new release' (botón verde)")
+            print("   3. Tag: v1.0.0 | Title: Modelo Pre-entrenado v1.0")
+            print("   4. Arrastra los 3 archivos a 'Attach binaries'")
+            print("   5. Clic en 'Publish release'")
+            print("   6. Clic derecho en cada archivo → 'Copy link address'")
+            print()
+            print("   ✅ Las URLs ya están configuradas en el código por defecto")
+            print("   📖 Ver GUIA_GITHUB_RELEASES.md para instrucciones detalladas")
+            print("   📖 Ver PASOS_GITHUB_RELEASES_SIMPLE.md para pasos rápidos")
         else:
             print()
             print("⚠️ Algunos archivos no se crearon. Revisa los errores arriba.")
