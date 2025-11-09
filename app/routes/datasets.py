@@ -41,45 +41,54 @@ async def upload_dataset(
         except:
             raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser CSV o JSON")
     
-    # Buscar columna de texto (case-insensitive y normalizar espacios)
-    text_column = None
+    # Buscar columnas de texto de forma flexible
+    # No requiere nombres específicos, solo busca columnas que contengan texto
+    text_columns = []
     
-    # Guardar nombres originales de columnas para el mensaje de error
+    # Guardar nombres originales de columnas
     original_columns = df.columns.tolist()
     
-    # Crear mapeo entre nombres normalizados y originales
-    column_mapping = {col.strip().lower(): col for col in original_columns}
+    # Buscar todas las columnas que contengan texto (tipo object/string)
+    for col in original_columns:
+        if df[col].dtype == 'object':  # Tipo string/object
+            # Verificar que realmente contenga texto (no solo números o vacíos)
+            sample_values = df[col].dropna().head(10)
+            if len(sample_values) > 0:
+                # Si al menos el 50% de los valores no vacíos son strings con más de 2 caracteres
+                text_count = sum(1 for val in sample_values if isinstance(val, str) and len(str(val).strip()) > 2)
+                if text_count > len(sample_values) * 0.3:  # Al menos 30% son textos
+                    text_columns.append(col)
     
-    # Lista de nombres posibles (en minúsculas)
-    possible_names = ['texto', 'text', 'comment', 'comentario', 'review', 'reseña', 'mensaje', 'message', 'opinion', 'opinión', 'contenido', 'content', 'descripcion', 'description', 'comentarios']
-    
-    # Buscar columna por nombre normalizado
-    for normalized_name in possible_names:
-        if normalized_name in column_mapping:
-            text_column = column_mapping[normalized_name]  # Usar nombre original
-            break
-    
-    # Si no se encontró, intentar usar la primera columna de tipo string
-    if text_column is None:
+    # Si no se encontraron columnas de texto, usar todas las columnas de tipo object
+    if not text_columns:
         for col in original_columns:
-            if df[col].dtype == 'object':  # Tipo string/object
-                text_column = col
-                break
+            if df[col].dtype == 'object':
+                text_columns.append(col)
     
-    # Si aún no se encontró, usar la primera columna disponible
-    if text_column is None and len(original_columns) > 0:
-        text_column = original_columns[0]
+    # Si aún no hay columnas, usar todas las columnas disponibles
+    if not text_columns:
+        text_columns = original_columns
     
-    if text_column is None:
+    if not text_columns:
         raise HTTPException(
             status_code=400, 
-            detail=f"El archivo debe contener una columna de texto. Columnas encontradas: {', '.join(original_columns)}. "
-                   f"Por favor, asegúrate de que el archivo tenga una columna con texto (por ejemplo: 'texto', 'text', 'comment', 'review', etc.)"
+            detail=f"El archivo no contiene columnas con texto. Columnas encontradas: {', '.join(original_columns)}"
         )
     
-    print(f"✅ Columna de texto detectada: '{text_column}'")
+    # Usar la primera columna de texto encontrada (o combinar todas si hay múltiples)
+    # Por simplicidad, usamos la primera columna con más datos
+    text_column = text_columns[0]
+    if len(text_columns) > 1:
+        # Si hay múltiples columnas de texto, usar la que tiene más datos no vacíos
+        text_column = max(text_columns, key=lambda col: df[col].notna().sum())
     
-    texts = df[text_column].dropna().astype(str).tolist()[:max_rows]
+    print(f"✅ Columna de texto detectada: '{text_column}' (de {len(text_columns)} columnas de texto encontradas)")
+    
+    # Extraer textos, eliminar valores vacíos y limitar
+    texts = df[text_column].dropna().astype(str).tolist()
+    # Filtrar textos vacíos o muy cortos (menos de 2 caracteres)
+    texts = [t.strip() for t in texts if t.strip() and len(t.strip()) >= 2]
+    texts = texts[:max_rows]
     
     return {
         "total": len(texts),
