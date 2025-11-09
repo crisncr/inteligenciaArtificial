@@ -73,7 +73,7 @@ def _get_or_create_model():
     # Si el modelo se está entrenando, esperar un poco (pero no bloquear mucho)
     if _model_lock:
         import time
-        max_wait = 60  # Esperar máximo 60 segundos
+        max_wait = 30  # Esperar máximo 30 segundos (entrenamiento optimizado debería ser más rápido)
         waited = 0
         print("⏳ [DEBUG] Esperando que el modelo termine de cargarse...")
         while _model_lock and waited < max_wait:
@@ -99,7 +99,7 @@ def _get_or_create_model():
         _training_thread.start()
         print("🚀 [DEBUG] Thread de entrenamiento iniciado")
         raise Exception(
-            "El modelo se está cargando por primera vez. Esto tomará 15-30 segundos. "
+            "El modelo se está cargando por primera vez. Esto tomará 10-15 segundos. "
             "Por favor, espera unos momentos e intenta de nuevo."
         )
     
