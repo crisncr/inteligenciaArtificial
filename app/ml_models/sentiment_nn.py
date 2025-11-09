@@ -889,4 +889,8 @@ class SentimentNeuralNetwork:
             pickle.dump(self.tokenizer, f)
         with open(label_encoder_path, 'wb') as f:
             pickle.dump(self.label_encoder, f)
+        
+        print(f"✅ Modelo guardado en: {model_path}")
+        print(f"✅ Tokenizer guardado en: {tokenizer_path}")
+        print(f"✅ Label encoder guardado en: {label_encoder_path}")
 
