@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap, Polyline } from 'react-leaflet'
 import L from 'leaflet'
 import { routeOptimizationAPI } from '../utils/api'
 import 'leaflet/dist/leaflet.css'
@@ -12,12 +12,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-// Componente para actualizar el centro del mapa
-function MapUpdater({ center, zoom }) {
+// Componente para actualizar el centro del mapa y ajustar bounds
+function MapUpdater({ center, zoom, bounds }) {
   const map = useMap()
   useEffect(() => {
-    map.setView(center, zoom)
-  }, [map, center, zoom])
+    if (bounds && bounds.length > 0) {
+      // Si hay bounds (rutas), ajustar la vista para mostrar toda la ruta
+      const latLngBounds = L.latLngBounds(bounds)
+      map.fitBounds(latLngBounds, { padding: [50, 50] })
+    } else {
+      // Si no hay bounds, usar center y zoom
+      map.setView(center, zoom)
+    }
+  }, [map, center, zoom, bounds])
   return null
 }
 
@@ -41,6 +48,8 @@ function RouteOptimization({ user }) {
   const [algorithm, setAlgorithm] = useState('astar')
   const [routeResult, setRouteResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [applyingAddress, setApplyingAddress] = useState(null) // 'start' o 'end' o null
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0) // Índice de la ruta seleccionada (0 = mejor)
   const [savedRoutes, setSavedRoutes] = useState([])
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [saveRouteName, setSaveRouteName] = useState('')
@@ -219,6 +228,125 @@ function RouteOptimization({ user }) {
     setShowEndSuggestions(false)
   }
 
+  // Aplicar dirección (geocodificar y mostrar marcador)
+  const handleApplyAddress = async (pointType) => {
+    const address = pointType === 'start' ? startAddress.trim() : endAddress.trim()
+    
+    if (!address || address.length < 2) {
+      alert('Por favor ingresa una dirección válida')
+      return
+    }
+    
+    setApplyingAddress(pointType)
+    setLoading(true)
+    
+    try {
+      const result = await routeOptimizationAPI.applyAddress(address)
+      
+      if (result.success) {
+        const place = {
+          address: result.display_name || address,
+          lat: result.lat,
+          lng: result.lng
+        }
+        
+        if (pointType === 'start') {
+          setStartPlace(place)
+          setStartAddress(result.display_name || address)
+        } else {
+          setEndPlace(place)
+          setEndAddress(result.display_name || address)
+        }
+        
+        // Limpiar resultado anterior
+        setRouteResult(null)
+      }
+    } catch (err) {
+      console.error('Error al aplicar dirección:', err)
+      alert(`Error: ${err.message || 'No se pudo geocodificar la dirección'}`)
+    } finally {
+      setLoading(false)
+      setApplyingAddress(null)
+    }
+  }
+  
+  // Calcular rutas automáticamente cuando hay inicio y fin (con debounce para evitar múltiples llamadas)
+  const calculateRoutesRef = useRef(null)
+  const lastCalculatedRef = useRef(null) // Para evitar recalcular si no cambió nada
+  
+  useEffect(() => {
+    if (calculateRoutesRef.current) {
+      clearTimeout(calculateRoutesRef.current)
+    }
+    
+    if (startPlace && endPlace && !loading) {
+      const currentKey = `${startPlace.lat},${startPlace.lng},${endPlace.lat},${endPlace.lng}`
+      
+      // Solo calcular si cambió algo
+      if (lastCalculatedRef.current !== currentKey) {
+        // Esperar 800ms antes de calcular (debounce)
+        calculateRoutesRef.current = setTimeout(() => {
+          calculateRoutesAutomatically()
+          lastCalculatedRef.current = currentKey
+        }, 800)
+      }
+    }
+    
+    return () => {
+      if (calculateRoutesRef.current) {
+        clearTimeout(calculateRoutesRef.current)
+      }
+    }
+  }, [startPlace?.lat, startPlace?.lng, endPlace?.lat, endPlace?.lng])
+  
+  const calculateRoutesAutomatically = async () => {
+    if (!startPlace || !endPlace || loading) return
+    
+    setLoading(true)
+    setRouteResult(null)
+    
+    try {
+      const points = [
+        { name: 'Punto de Inicio', address: startPlace.address, lat: startPlace.lat, lng: startPlace.lng },
+        { name: 'Punto de Destino', address: endPlace.address, lat: endPlace.lat, lng: endPlace.lng }
+      ]
+      
+      const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
+      setRouteResult(result)
+      setSelectedRouteIndex(0) // Seleccionar la mejor ruta por defecto
+    } catch (err) {
+      console.error('Error al calcular rutas:', err)
+      // No mostrar error, solo loguear
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  // Función para obtener coordenadas de todas las rutas para ajustar bounds
+  const getRoutesBounds = () => {
+    if (!routeResult || !routeResult.routes || routeResult.routes.length === 0) {
+      return []
+    }
+    
+    const allCoordinates = []
+    routeResult.routes.forEach(route => {
+      if (route.coordinates && route.coordinates.length > 0) {
+        allCoordinates.push(...route.coordinates)
+      }
+    })
+    
+    // Agregar puntos de inicio y fin
+    if (routeResult.points_info) {
+      routeResult.points_info.forEach(point => {
+        if (point.lat && point.lng) {
+          allCoordinates.push([point.lat, point.lng])
+        }
+      })
+    }
+    
+    return allCoordinates
+  }
+
   // Geocodificar reversa cuando se hace click en el mapa
   const handleMapClick = async (lat, lng) => {
     // Limpiar resultado si cambia la selección
@@ -233,7 +361,7 @@ function RouteOptimization({ user }) {
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=es`,
         {
           headers: {
-            'User-Agent': 'RouteOptimizationApp/1.0'
+            'User-Agent': 'RouteOptimizationApp/2.0'
           }
         }
       )
@@ -553,6 +681,18 @@ function RouteOptimization({ user }) {
             </div>
             <button
               type="button"
+              className="btn"
+              onClick={() => handleApplyAddress('start')}
+              disabled={!startAddress.trim() || applyingAddress === 'start' || loading}
+              style={{ 
+                whiteSpace: 'nowrap',
+                minWidth: '100px'
+              }}
+            >
+              {applyingAddress === 'start' ? 'Aplicando...' : 'Aplicar'}
+            </button>
+            <button
+              type="button"
               className="btn btn--ghost"
               onClick={() => setSelectingPoint(selectingPoint === 'start' ? null : 'start')}
               style={{ 
@@ -561,12 +701,17 @@ function RouteOptimization({ user }) {
                 color: selectingPoint === 'start' ? 'white' : 'var(--primary)'
               }}
             >
-              {selectingPoint === 'start' ? '✓ Seleccionando...' : '📍 Seleccionar en mapa'}
+              {selectingPoint === 'start' ? '✓ Seleccionando...' : '📍 Mapa'}
             </button>
           </div>
           {selectingPoint === 'start' && (
             <small style={{ color: 'var(--primary)', display: 'block', marginTop: '5px', fontWeight: 'bold' }}>
               👆 Haz click en el mapa para seleccionar el punto de inicio
+            </small>
+          )}
+          {startPlace && (
+            <small style={{ color: 'var(--success)', display: 'block', marginTop: '5px' }}>
+              ✓ Dirección aplicada: {startPlace.address}
             </small>
           )}
         </div>
@@ -653,6 +798,18 @@ function RouteOptimization({ user }) {
             </div>
             <button
               type="button"
+              className="btn"
+              onClick={() => handleApplyAddress('end')}
+              disabled={!endAddress.trim() || applyingAddress === 'end' || loading}
+              style={{ 
+                whiteSpace: 'nowrap',
+                minWidth: '100px'
+              }}
+            >
+              {applyingAddress === 'end' ? 'Aplicando...' : 'Aplicar'}
+            </button>
+            <button
+              type="button"
               className="btn btn--ghost"
               onClick={() => setSelectingPoint(selectingPoint === 'end' ? null : 'end')}
               style={{ 
@@ -661,12 +818,17 @@ function RouteOptimization({ user }) {
                 color: selectingPoint === 'end' ? 'white' : 'var(--primary)'
               }}
             >
-              {selectingPoint === 'end' ? '✓ Seleccionando...' : '📍 Seleccionar en mapa'}
+              {selectingPoint === 'end' ? '✓ Seleccionando...' : '📍 Mapa'}
             </button>
           </div>
           {selectingPoint === 'end' && (
             <small style={{ color: 'var(--primary)', display: 'block', marginTop: '5px', fontWeight: 'bold' }}>
               👆 Haz click en el mapa para seleccionar el punto de destino
+            </small>
+          )}
+          {endPlace && (
+            <small style={{ color: 'var(--success)', display: 'block', marginTop: '5px' }}>
+              ✓ Dirección aplicada: {endPlace.address}
             </small>
           )}
         </div>
@@ -697,8 +859,33 @@ function RouteOptimization({ user }) {
                 updateWhenIdle={true}
                 keepBuffer={2}
               />
-              <MapUpdater center={mapCenter} zoom={mapZoom} />
+              <MapUpdater center={mapCenter} zoom={mapZoom} bounds={getRoutesBounds()} />
               <MapClickHandler onMapClick={handleMapClick} selectingPoint={selectingPoint} />
+              
+              {/* Mostrar las 3 rutas en el mapa */}
+              {routeResult && routeResult.routes && routeResult.routes.map((route, idx) => {
+                const isSelected = idx === selectedRouteIndex
+                const colors = ['#6e8bff', '#20c997', '#f8c22b'] // Azul, Verde, Amarillo
+                const routeColor = colors[idx] || '#6e8bff'
+                
+                return (
+                  <Polyline
+                    key={`route-${idx}`}
+                    positions={route.coordinates}
+                    pathOptions={{
+                      color: routeColor,
+                      weight: isSelected ? 6 : 4,
+                      opacity: isSelected ? 0.9 : 0.6,
+                      dashArray: isSelected ? null : '10, 5'
+                    }}
+                    eventHandlers={{
+                      click: () => setSelectedRouteIndex(idx)
+                    }}
+                  />
+                )
+              })}
+              
+              {/* Marcadores de inicio y fin */}
               {startPlace && (
                 <Marker position={[startPlace.lat, startPlace.lng]} icon={startIcon}>
                   <Popup>🚩 Punto de Inicio<br />{startPlace.address}</Popup>
@@ -712,32 +899,55 @@ function RouteOptimization({ user }) {
             </MapContainer>
           </div>
           <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-            Escribe una dirección en los campos de arriba o haz click en el mapa para seleccionar puntos. Mapas actualizados 2025 - CartoDB Voyager.
+            Escribe una dirección y presiona "Aplicar" para añadirla al mapa. Las rutas se calculan automáticamente. Mapas actualizados 2025 - CartoDB Voyager.
           </small>
         </div>
 
-        <div className="form-field" style={{ marginBottom: '20px' }}>
-          <label htmlFor="algorithm">Algoritmo</label>
-          <select
-            id="algorithm"
-            value={algorithm}
-            onChange={(e) => setAlgorithm(e.target.value)}
-            className="form-input"
-          >
-            <option value="astar">A* (Recomendado)</option>
-            <option value="dijkstra">Dijkstra</option>
-            <option value="tsp">TSP (Traveling Salesman)</option>
-          </select>
-        </div>
-
-        <button 
-          className="btn" 
-          onClick={handleCalculateRoute} 
-          disabled={!startAddress.trim() || !endAddress.trim() || loading}
-          style={{ width: '100%' }}
-        >
-          {loading ? 'Calculando ruta...' : 'Calcular Ruta Directa'}
-        </button>
+        {/* Leyenda de colores de rutas */}
+        {routeResult && routeResult.routes && routeResult.routes.length > 0 && (
+          <div className="message" style={{ marginBottom: '20px', background: 'rgba(110, 139, 255, 0.1)', padding: '15px', borderRadius: '8px' }}>
+            <h4 style={{ marginTop: 0, marginBottom: '10px' }}>Leyenda de Rutas:</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {routeResult.routes.map((route, idx) => {
+                const colors = ['#6e8bff', '#20c997', '#f8c22b']
+                const routeColor = colors[idx] || '#6e8bff'
+                const isSelected = idx === selectedRouteIndex
+                const labels = ['🥇 Mejor Ruta (Más Corta)', '🥈 Ruta Alternativa 1', '🥉 Ruta Alternativa 2']
+                
+                return (
+                  <div 
+                    key={idx}
+                    onClick={() => setSelectedRouteIndex(idx)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      backgroundColor: isSelected ? 'rgba(110, 139, 255, 0.2)' : 'transparent',
+                      border: isSelected ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div style={{
+                      width: '30px',
+                      height: '4px',
+                      backgroundColor: routeColor,
+                      borderRadius: '2px'
+                    }} />
+                    <span style={{ fontWeight: isSelected ? '600' : '400' }}>
+                      {labels[idx] || `Ruta ${idx + 1}`}: {route.distance_km} km, {route.duration_minutes} min
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            <small style={{ display: 'block', marginTop: '10px', color: 'var(--text-secondary)' }}>
+              Haz click en una ruta de la leyenda para resaltarla en el mapa
+            </small>
+          </div>
+        )}
       </div>
 
       {/* Diálogo para guardar ruta */}
@@ -769,7 +979,7 @@ function RouteOptimization({ user }) {
         </div>
       )}
 
-      {routeResult && routeResult.route && routeResult.route.length > 0 && (
+      {routeResult && routeResult.route && routeResult.route.length > 0 && !routeResult.has_osrm_routes && (
         <div className="stats-panel" style={{ marginTop: '30px' }}>
           <h3>Ruta Óptima</h3>
           <div className="stats-grid">

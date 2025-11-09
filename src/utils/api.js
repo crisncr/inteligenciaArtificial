@@ -282,6 +282,13 @@ export const routeOptimizationAPI = {
     })
   },
 
+  applyAddress: async (address) => {
+    return apiRequest('/api/route-optimization/apply-address', {
+      method: 'POST',
+      body: JSON.stringify({ address }),
+    })
+  },
+
   getRoutes: async () => {
     return apiRequest('/api/route-optimization')
   },
@@ -297,7 +304,7 @@ export const routeOptimizationAPI = {
   },
 
   autocomplete: async (query) => {
-    if (!query || query.length < 3) {
+    if (!query || query.length < 2) {
       return []
     }
     return apiRequest(`/api/route-optimization/autocomplete/search?query=${encodeURIComponent(query)}`)
