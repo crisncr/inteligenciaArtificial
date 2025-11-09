@@ -149,9 +149,9 @@ class SentimentNeuralNetwork:
             metrics=['accuracy']
         )
         
-        # Contar parámetros del modelo
-        total_params = model.count_params()
-        print(f"🔍 [DEBUG] Modelo compilado - Total de parámetros: {total_params:,}")
+        # NO contar parámetros aquí - el modelo aún no está "built"
+        # Los parámetros se contarán después del primer fit() cuando el modelo se construya automáticamente
+        print(f"🔍 [DEBUG] Modelo compilado correctamente")
         
         return model
     
@@ -225,6 +225,13 @@ class SentimentNeuralNetwork:
                 fit_time = time.time() - fit_start
                 print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
                 
+                # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
+                try:
+                    total_params = self.model.count_params()
+                    print(f"📊 [DEBUG] Modelo entrenado - Total de parámetros: {total_params:,}")
+                except Exception as e:
+                    print(f"⚠️ [DEBUG] No se pudo contar parámetros: {e}")
+                
                 # Evaluar modelo
                 print("🔍 [DEBUG] Evaluando modelo...")
                 eval_start = time.time()
@@ -240,6 +247,14 @@ class SentimentNeuralNetwork:
                 history = self.model.fit(X_train, y_train, **fit_kwargs)
                 fit_time = time.time() - fit_start
                 print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                
+                # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
+                try:
+                    total_params = self.model.count_params()
+                    print(f"📊 [DEBUG] Modelo entrenado - Total de parámetros: {total_params:,}")
+                except Exception as e:
+                    print(f"⚠️ [DEBUG] No se pudo contar parámetros: {e}")
+                
                 print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
         except Exception as e:
             print(f"❌ [DEBUG] ERROR durante model.fit(): {str(e)}")
