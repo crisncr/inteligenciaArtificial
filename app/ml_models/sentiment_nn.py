@@ -167,14 +167,14 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM optimizada para entrenamiento RÁPIDO pero efectivo
-        # Modelo balanceado: suficientemente grande para aprender, pero pequeño para entrenar rápido
+        # Red neuronal LSTM ULTRA-PEQUEÑA para entrenamiento INSTANTÁNEO
+        # Modelo mínimo pero funcional para entrenar en segundos
         from tensorflow.keras.initializers import GlorotUniform
         
         model = Sequential([
-            Embedding(vocab_size + 1, 8, embeddings_initializer=GlorotUniform()),  # 8 dimensiones (balance entre velocidad y capacidad)
-            LSTM(4, dropout=0.1, kernel_initializer=GlorotUniform()),        # 4 unidades (rápido pero efectivo)
-            Dense(4, activation='relu', kernel_initializer=GlorotUniform()),   # 4 unidades
+            Embedding(vocab_size + 1, 4, embeddings_initializer=GlorotUniform()),  # 4 dimensiones (mínimo para velocidad)
+            LSTM(2, dropout=0.0, kernel_initializer=GlorotUniform()),        # 2 unidades (mínimo para velocidad)
+            Dense(3, activation='relu', kernel_initializer=GlorotUniform()),   # 3 unidades (mínimo)
             Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida
         ])
         
@@ -210,9 +210,9 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # NO reducir datos - usar TODOS para mejor aprendizaje
-        # Con modelo más pequeño y menos épocas, podemos usar más datos sin tardar mucho
-        max_samples = 1000  # Usar todos los datos disponibles (no reducir)
+        # Reducir datos para entrenamiento ULTRA-RÁPIDO (modelo pequeño puede aprender con menos datos)
+        # Priorizar velocidad sobre cantidad de datos
+        max_samples = 30  # Reducir a 30 muestras para entrenamiento instantáneo (10-15 segundos)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
             
@@ -278,14 +278,12 @@ class SentimentNeuralNetwork:
             for label_name, count in zip(label_names_reduced, counts_reduced):
                 print(f"   - {label_name}: {count} muestras")
         
-        # Si hay pocos datos, usar todos para entrenamiento (sin validación)
-        if len(X) < 50:
-            X_train, y_train = X, y
-            X_val, y_val = X, y
-            use_validation = False
-        else:
-            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-            use_validation = True
+        # SIEMPRE entrenar sin validación para máxima velocidad
+        # Con pocos datos, la validación no es necesaria y solo ralentiza
+        X_train, y_train = X, y
+        X_val, y_val = X, y
+        use_validation = False
+        print(f"🔍 [DEBUG] Entrenando SIN validación para máxima velocidad")
         
         vocab_size = len(self.tokenizer.word_index)
         num_classes = len(self.label_encoder.classes_)
@@ -316,122 +314,62 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # Optimizar épocas: suficiente para aprender, pero rápido
-        actual_epochs = min(epochs, 2)  # Solo 2 épocas para entrenamiento rápido (con más datos y mejor LR)
-        # Batch size debe ser menor o igual al número de muestras
-        # Si hay 15 muestras, usar batch_size=15 (entrenar todas a la vez es más rápido)
-        actual_batch_size = min(batch_size, len(X_train))  # No puede ser mayor que las muestras disponibles
-        if actual_batch_size > len(X_train):
-            actual_batch_size = len(X_train)  # Usar todas las muestras en un solo batch
-        print(f"🔍 [DEBUG] Batch size ajustado: {actual_batch_size} (muestras disponibles: {len(X_train)})")
+        # OPTIMIZACIÓN MÁXIMA: Solo 1 época, batch size = número de muestras (entrenamiento ultra-rápido)
+        actual_epochs = 1  # Solo 1 época para entrenamiento ULTRA-RÁPIDO
+        # Usar batch size igual al número de muestras (entrenar todo en un solo paso)
+        actual_batch_size = len(X_train)  # Entrenar todas las muestras a la vez (más rápido)
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (todas las muestras en 1 batch)")
+        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (entrenamiento ultra-rápido)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
         print(f"📊 Shape de X_train: {X_train.shape}, Shape de y_train: {y_train.shape}")
         
-        # Crear callback de progreso
-        progress_callback = TrainingProgressCallback()
-        
-        # Entrenar con batch size más grande para más velocidad
-        # run_eagerly ya está configurado en compile() para evitar bloqueos
+        # NO usar callback para máxima velocidad (los callbacks pueden ralentizar)
+        # Entrenamiento ultra-rápido sin callbacks
         fit_kwargs = {
             'epochs': actual_epochs,
             'batch_size': actual_batch_size,
-            'verbose': 0,  # Sin logs de TensorFlow (usamos nuestro callback)
-            'callbacks': [progress_callback]  # Agregar callback de progreso
+            'verbose': 1,  # Logs mínimos de TensorFlow (solo para ver progreso)
+            'callbacks': []  # Sin callbacks para máxima velocidad
         }
         
+        # Entrenamiento SIMPLIFICADO - sin validación, sin callbacks, máximo velocidad
+        print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
+        print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+        print(f"🔍 [DEBUG] Parámetros: epochs={actual_epochs}, batch_size={actual_batch_size}, samples={len(X_train)}")
+        
+        # Flush stdout para asegurar que los logs se muestren
+        import sys
+        sys.stdout.flush()
+        
+        print("🚀 [DEBUG] INICIANDO model.fit() - entrenamiento ultra-rápido...")
+        sys.stdout.flush()
+        
+        fit_start = time.time()
         try:
-            if use_validation:
-                fit_kwargs['validation_data'] = (X_val, y_val)
-                print("🔍 [DEBUG] Llamando a model.fit() con validación...")
-                print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
-                print(f"🔍 [DEBUG] X_val shape: {X_val.shape}, y_val shape: {y_val.shape}")
-                print(f"🔍 [DEBUG] Callback creado: {progress_callback}")
-                print(f"🔍 [DEBUG] fit_kwargs: {fit_kwargs}")
-                
-                # Flush stdout para asegurar que los logs se muestren
-                import sys
-                sys.stdout.flush()
-                
-                print("🚀 [DEBUG] INICIANDO model.fit() CON VALIDACIÓN AHORA...")
-                sys.stdout.flush()
-                
-                fit_start = time.time()
-                try:
-                    history = self.model.fit(X_train, y_train, **fit_kwargs)
-                    fit_time = time.time() - fit_start
-                    print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
-                except Exception as fit_error:
-                    fit_time = time.time() - fit_start
-                    print(f"❌ [DEBUG] ERROR en model.fit() después de {fit_time:.2f}s: {str(fit_error)}")
-                    import traceback
-                    traceback.print_exc()
-                    raise
-                
-                # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
-                try:
-                    total_params = self.model.count_params()
-                    print(f"📊 [DEBUG] Modelo entrenado - Total de parámetros: {total_params:,}")
-                except Exception as e:
-                    print(f"⚠️ [DEBUG] No se pudo contar parámetros: {e}")
-                
-                # Evaluar modelo
-                print("🔍 [DEBUG] Evaluando modelo...")
-                eval_start = time.time()
-                val_loss, val_accuracy = self.model.evaluate(X_val, y_val, verbose=0)
-                eval_time = time.time() - eval_start
-                print(f"✅ [DEBUG] Evaluación completada en {eval_time:.2f}s")
-                print(f"✅ Entrenamiento completado - Precisión validación: {val_accuracy:.2%}")
-            else:
-                print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
-                print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
-                print(f"🔍 [DEBUG] Callback creado: {progress_callback}")
-                print(f"🔍 [DEBUG] fit_kwargs: {fit_kwargs}")
-                print(f"🔍 [DEBUG] Modelo antes de fit: {self.model}")
-                print(f"🔍 [DEBUG] Verificando que el modelo esté compilado...")
-                print(f"🔍 [DEBUG] Optimizer: {self.model.optimizer}")
-                
-                # Flush stdout para asegurar que los logs se muestren
-                import sys
-                sys.stdout.flush()
-                
-                print("🚀 [DEBUG] INICIANDO model.fit() AHORA...")
-                print(f"🔍 [DEBUG] Parámetros: epochs={actual_epochs}, batch_size={actual_batch_size}, samples={len(X_train)}")
-                sys.stdout.flush()
-                
-                fit_start = time.time()
-                try:
-                    # Agregar logging periódico durante el entrenamiento
-                    print(f"🔍 [DEBUG] Llamando a model.fit() - esto puede tomar 10-30 segundos...")
-                    sys.stdout.flush()
-                    
-                    history = self.model.fit(X_train, y_train, **fit_kwargs)
-                    fit_time = time.time() - fit_start
-                    print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
-                    sys.stdout.flush()
-                except Exception as fit_error:
-                    fit_time = time.time() - fit_start
-                    print(f"❌ [DEBUG] ERROR en model.fit() después de {fit_time:.2f}s: {str(fit_error)}")
-                    print(f"🔍 [DEBUG] Tipo de error: {type(fit_error).__name__}")
-                    import traceback
-                    traceback.print_exc()
-                    sys.stdout.flush()
-                    raise
-                
-                # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
-                try:
-                    total_params = self.model.count_params()
-                    print(f"📊 [DEBUG] Modelo entrenado - Total de parámetros: {total_params:,}")
-                except Exception as e:
-                    print(f"⚠️ [DEBUG] No se pudo contar parámetros: {e}")
-                
-                print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
-        except Exception as e:
-            print(f"❌ [DEBUG] ERROR durante model.fit(): {str(e)}")
+            # Entrenamiento directo sin callbacks para máxima velocidad
+            history = self.model.fit(X_train, y_train, **fit_kwargs)
+            fit_time = time.time() - fit_start
+            print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+            sys.stdout.flush()
+        except Exception as fit_error:
+            fit_time = time.time() - fit_start
+            print(f"❌ [DEBUG] ERROR en model.fit() después de {fit_time:.2f}s: {str(fit_error)}")
+            print(f"🔍 [DEBUG] Tipo de error: {type(fit_error).__name__}")
             import traceback
             traceback.print_exc()
+            sys.stdout.flush()
             raise
+        
+        # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
+        try:
+            total_params = self.model.count_params()
+            print(f"📊 [DEBUG] Modelo entrenado - Total de parámetros: {total_params:,}")
+        except Exception as e:
+            print(f"⚠️ [DEBUG] No se pudo contar parámetros: {e}")
+        
+        print(f"✅ Entrenamiento completado (sin validación, ultra-rápido)")
         
         # Limpiar memoria después de entrenar
         print("🔍 [DEBUG] Limpiando memoria después de entrenar...")
@@ -799,8 +737,8 @@ class SentimentNeuralNetwork:
         # Entrenamiento con más épocas para mejor aprendizaje
         print("🔍 [DEBUG] Iniciando entrenamiento...")
         try:
-            # Entrenamiento rápido pero efectivo: 2 épocas con más datos
-            history = self.train(texts, labels, epochs=2, batch_size=32)  # 2 épocas, batch más grande para velocidad
+            # Entrenamiento ULTRA-RÁPIDO: 1 época, batch_size automático (todas las muestras)
+            history = self.train(texts, labels, epochs=1, batch_size=1000)  # 1 época, batch grande (se ajustará automáticamente)
             print("✅ [DEBUG] Método train() completado")
             
             # Validar que el modelo está entrenado
