@@ -235,30 +235,25 @@ app.include_router(datasets_router.router)
 app.include_router(route_optimization_router.router)
 app.include_router(sales_prediction_router.router)
 
-# Precargar el modelo de red neuronal al inicio (en background)
-# Esto evita que el primer request tenga que esperar el entrenamiento
+# Configurar TensorFlow para que no bloquee el servidor durante el entrenamiento
 @app.on_event("startup")
 async def startup_event():
-    """Precargar modelo de red neuronal al iniciar la aplicación"""
-    import threading
-    print("🚀 Iniciando precarga del modelo de red neuronal en background...")
-    
-    def load_model():
-        """Cargar modelo en thread separado para no bloquear el startup"""
-        try:
-            from app.sentiment import _get_or_create_model
-            print("🔄 Precargando modelo de red neuronal...")
-            model = _get_or_create_model()
-            print("✅ Modelo de red neuronal precargado correctamente")
-        except Exception as e:
-            print(f"⚠️ Error al precargar modelo (se cargará en el primer request): {e}")
-            import traceback
-            traceback.print_exc()
-    
-    # Ejecutar en thread separado (daemon=True para que no bloquee el cierre)
-    thread = threading.Thread(target=load_model, daemon=True, name="ModelLoader")
-    thread.start()
-    print("✅ Thread de precarga de modelo iniciado")
+    """Configurar TensorFlow para modo no bloqueante"""
+    import os
+    # Configurar TensorFlow para usar solo los threads necesarios y no bloquear
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reducir logs de TensorFlow
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    # Configurar TensorFlow para que no reserve toda la memoria GPU/CPU
+    try:
+        import tensorflow as tf
+        # Limitar el número de threads de TensorFlow para no bloquear el servidor
+        tf.config.threading.set_inter_op_parallelism_threads(1)
+        tf.config.threading.set_intra_op_parallelism_threads(1)
+        # Deshabilitar optimizaciones que pueden bloquear
+        tf.config.optimizer.set_jit(False)
+        print("✅ TensorFlow configurado para modo no bloqueante")
+    except Exception as e:
+        print(f"⚠️ No se pudo configurar TensorFlow (se usará configuración por defecto): {e}")
 
 
 # Endpoint público para análisis (sin autenticación, límite de 3)

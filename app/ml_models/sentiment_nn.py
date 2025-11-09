@@ -96,7 +96,9 @@ class SentimentNeuralNetwork:
         return model
     
     def train(self, texts: List[str], labels: List[str], epochs=10, batch_size=32):
-        """Entrenar modelo"""
+        """Entrenar modelo - Versión optimizada para no bloquear el servidor"""
+        import tensorflow as tf
+        
         print(f"📊 Preparando datos: {len(texts)} textos, {len(set(labels))} clases")
         X, y = self.prepare_data(texts, labels)
         
@@ -116,27 +118,26 @@ class SentimentNeuralNetwork:
         
         self.model = self.build_model(vocab_size, num_classes)
         
+        # Configurar TensorFlow para entrenamiento rápido y no bloqueante
+        # Usar menos recursos y más rápido
         print(f"🚀 Iniciando entrenamiento: {epochs} épocas, batch_size={batch_size}")
+        
         # Entrenar con o sin validación según los datos disponibles
+        # Configurar para entrenamiento rápido y no bloqueante
+        fit_kwargs = {
+            'epochs': epochs,
+            'batch_size': batch_size,
+            'verbose': 0,  # Sin logs para acelerar
+        }
+        
         if use_validation:
-            history = self.model.fit(
-                X_train, y_train,
-                epochs=epochs,
-                batch_size=batch_size,
-                validation_data=(X_val, y_val),
-                verbose=1
-            )
+            fit_kwargs['validation_data'] = (X_val, y_val)
+            history = self.model.fit(X_train, y_train, **fit_kwargs)
             # Evaluar modelo
             val_loss, val_accuracy = self.model.evaluate(X_val, y_val, verbose=0)
             print(f"✅ Entrenamiento completado - Precisión validación: {val_accuracy:.2%}")
         else:
-            # Sin validación, solo entrenar
-            history = self.model.fit(
-                X_train, y_train,
-                epochs=epochs,
-                batch_size=batch_size,
-                verbose=1
-            )
+            history = self.model.fit(X_train, y_train, **fit_kwargs)
             print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
         
         self.is_trained = True

@@ -81,6 +81,15 @@ def analyze_sentiment(text: str) -> Dict[str, object]:
         raise Exception("El texto a analizar no puede estar vacío")
     
     try:
+        # Verificar si el modelo se está cargando/entrenando
+        global _model_lock
+        if _model_lock:
+            raise Exception(
+                "El modelo de red neuronal se está cargando o entrenando. "
+                "Esto solo ocurre la primera vez que se inicia la aplicación y puede tomar 10-20 segundos. "
+                "Por favor, espera unos momentos e intenta de nuevo."
+            )
+        
         # Usar modelo global para evitar reentrenarlo
         model = _get_or_create_model()
         
@@ -88,7 +97,10 @@ def analyze_sentiment(text: str) -> Dict[str, object]:
             raise Exception("No se pudo cargar el modelo de red neuronal")
         
         if not model.is_trained:
-            raise Exception("El modelo no está entrenado correctamente. Por favor, espera unos momentos mientras se entrena el modelo.")
+            raise Exception(
+                "El modelo no está entrenado correctamente. "
+                "El modelo se está entrenando por primera vez. Por favor, espera unos momentos e intenta de nuevo."
+            )
         
         result = model.predict_single(text)
         # Marcar que se usó red neuronal
