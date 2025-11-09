@@ -36,11 +36,16 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
       if (user) {
         // Usuario autenticado: usar API real que guarda en BD
         // analyze_sentiment() ahora SOLO usa red neuronal LSTM
-        const analysis = await analysesAPI.create(text)
-        data = {
-          sentiment: analysis.sentiment,
-          score: analysis.score,
-          emoji: analysis.emoji
+        try {
+          const analysis = await analysesAPI.create(text)
+          data = {
+            sentiment: analysis.sentiment,
+            score: analysis.score,
+            emoji: analysis.emoji
+          }
+        } catch (apiErr) {
+          // Si la API devuelve un error, propagarlo
+          throw new Error(apiErr.message || 'Error al analizar el texto')
         }
       } else {
         // Usuario no autenticado: usar endpoint público
@@ -52,8 +57,17 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
           body: JSON.stringify({ text }),
         })
 
-        if (!res.ok) throw new Error(`Error ${res.status}`)
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`)
+        }
+        
         data = await res.json()
+        
+        // Verificar si hay error en la respuesta
+        if (data.error) {
+          throw new Error(data.error)
+        }
       }
       
       setTimeout(() => {
@@ -65,10 +79,13 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
       }, 300)
     } catch (err) {
       console.error('Error:', err)
+      // Mostrar el mensaje de error real del backend
+      const errorMessage = err.message || 'Error desconocido al analizar la frase'
       setResult({
-        sentiment: 'Error analizando la frase',
+        sentiment: 'Error',
         score: 0,
         emoji: '⚠️',
+        error: errorMessage
       })
       setLoading(false)
     }
@@ -168,7 +185,13 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
           <div className="badge">{result.emoji}</div>
           <div className="result-content">
             <div className="sentiment">{result.sentiment}</div>
-            <div className="score">Score: {result.score}</div>
+            {result.error ? (
+              <div className="error-message" style={{ color: 'var(--error)', marginTop: '10px', fontSize: '0.9em' }}>
+                {result.error}
+              </div>
+            ) : (
+              <div className="score">Score: {result.score}</div>
+            )}
             <div className="result-actions">
               <button 
                 type="button" 

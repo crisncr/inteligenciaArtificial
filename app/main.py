@@ -235,6 +235,31 @@ app.include_router(datasets_router.router)
 app.include_router(route_optimization_router.router)
 app.include_router(sales_prediction_router.router)
 
+# Precargar el modelo de red neuronal al inicio (en background)
+# Esto evita que el primer request tenga que esperar el entrenamiento
+@app.on_event("startup")
+async def startup_event():
+    """Precargar modelo de red neuronal al iniciar la aplicación"""
+    import threading
+    print("🚀 Iniciando precarga del modelo de red neuronal en background...")
+    
+    def load_model():
+        """Cargar modelo en thread separado para no bloquear el startup"""
+        try:
+            from app.sentiment import _get_or_create_model
+            print("🔄 Precargando modelo de red neuronal...")
+            model = _get_or_create_model()
+            print("✅ Modelo de red neuronal precargado correctamente")
+        except Exception as e:
+            print(f"⚠️ Error al precargar modelo (se cargará en el primer request): {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Ejecutar en thread separado (daemon=True para que no bloquee el cierre)
+    thread = threading.Thread(target=load_model, daemon=True, name="ModelLoader")
+    thread.start()
+    print("✅ Thread de precarga de modelo iniciado")
+
 
 # Endpoint público para análisis (sin autenticación, límite de 3)
 @app.post("/analyze")

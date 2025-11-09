@@ -20,20 +20,28 @@ def _get_or_create_model():
     if _global_model is not None and _global_model.is_trained:
         return _global_model
     
-    # Si otro proceso está cargando el modelo, esperar (con timeout)
+    # Si otro proceso está cargando el modelo, esperar (con timeout más corto)
     if _model_lock:
         import time
-        max_wait = 300  # 5 minutos máximo
+        max_wait = 180  # 3 minutos máximo (reducido de 5)
         waited = 0
+        print("⏳ Esperando que el modelo termine de cargarse...")
         while _model_lock and waited < max_wait:
-            time.sleep(1)
-            waited += 1
+            time.sleep(2)  # Esperar 2 segundos entre checks
+            waited += 2
             if _global_model is not None and _global_model.is_trained:
+                print("✅ Modelo listo después de esperar")
                 return _global_model
+            if waited % 30 == 0:  # Log cada 30 segundos
+                print(f"⏳ Todavía cargando modelo... ({waited}s / {max_wait}s)")
         
         # Si aún no está listo después del timeout, lanzar error
         if _global_model is None or not _global_model.is_trained:
-            raise Exception("El modelo está tardando demasiado en cargarse. Por favor, intenta de nuevo en unos momentos.")
+            raise Exception(
+                "El modelo está tardando demasiado en cargarse. "
+                "Por favor, espera unos minutos e intenta de nuevo. "
+                "El modelo se está entrenando por primera vez y esto puede tomar 2-3 minutos."
+            )
     
     try:
         _model_lock = True
@@ -41,10 +49,12 @@ def _get_or_create_model():
         print("🔄 Inicializando modelo de red neuronal...")
         _global_model = SentimentNeuralNetwork()
         _global_model.load_model()
-        print("✅ Modelo de red neuronal listo")
+        print("✅ Modelo de red neuronal listo y entrenado")
         return _global_model
     except Exception as e:
         print(f"❌ Error al cargar modelo: {str(e)}")
+        import traceback
+        traceback.print_exc()
         _global_model = None
         raise
     finally:

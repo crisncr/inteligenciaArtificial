@@ -12,7 +12,10 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=5000, max_len=200):
+    def __init__(self, max_words=3000, max_len=100):
+        # Reducir parámetros para entrenar más rápido
+        # max_words: 5000 -> 3000 (menos palabras en vocabulario)
+        # max_len: 200 -> 100 (secuencias más cortas = más rápido)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -73,18 +76,17 @@ class SentimentNeuralNetwork:
         return padded_sequences
     
     def build_model(self, vocab_size: int, num_classes: int):
-        """Construir modelo de red neuronal"""
-        # input_length está deprecado en Keras, se infiere automáticamente
+        """Construir modelo de red neuronal - Versión simplificada y rápida"""
+        # Modelo más simple: una sola capa LSTM con menos neuronas para entrenar más rápido
         model = Sequential([
-            Embedding(vocab_size + 1, 128),
-            LSTM(64, return_sequences=True),
-            Dropout(0.5),
-            LSTM(32),
-            Dropout(0.5),
+            Embedding(vocab_size + 1, 64),  # Reducido de 128 a 64
+            LSTM(32, dropout=0.3),  # Una sola LSTM, más pequeña, dropout integrado
             Dense(16, activation='relu'),
+            Dropout(0.3),
             Dense(num_classes, activation='softmax')
         ])
         
+        # Usar optimizador más rápido
         model.compile(
             optimizer='adam',
             loss='sparse_categorical_crossentropy',
@@ -95,20 +97,47 @@ class SentimentNeuralNetwork:
     
     def train(self, texts: List[str], labels: List[str], epochs=10, batch_size=32):
         """Entrenar modelo"""
+        print(f"📊 Preparando datos: {len(texts)} textos, {len(set(labels))} clases")
         X, y = self.prepare_data(texts, labels)
-        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Si hay pocos datos, usar todos para entrenamiento (sin validación)
+        if len(X) < 50:
+            X_train, y_train = X, y
+            X_val, y_val = X, y
+            use_validation = False
+        else:
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+            use_validation = True
         
         vocab_size = len(self.tokenizer.word_index)
         num_classes = len(self.label_encoder.classes_)
+        print(f"📊 Vocabulario: {vocab_size} palabras, Clases: {num_classes}")
+        print(f"📊 Datos entrenamiento: {len(X_train)}, Validación: {len(X_val) if use_validation else 'N/A'}")
+        
         self.model = self.build_model(vocab_size, num_classes)
         
-        history = self.model.fit(
-            X_train, y_train,
-            epochs=epochs,
-            batch_size=batch_size,
-            validation_data=(X_val, y_val),
-            verbose=1
-        )
+        print(f"🚀 Iniciando entrenamiento: {epochs} épocas, batch_size={batch_size}")
+        # Entrenar con o sin validación según los datos disponibles
+        if use_validation:
+            history = self.model.fit(
+                X_train, y_train,
+                epochs=epochs,
+                batch_size=batch_size,
+                validation_data=(X_val, y_val),
+                verbose=1
+            )
+            # Evaluar modelo
+            val_loss, val_accuracy = self.model.evaluate(X_val, y_val, verbose=0)
+            print(f"✅ Entrenamiento completado - Precisión validación: {val_accuracy:.2%}")
+        else:
+            # Sin validación, solo entrenar
+            history = self.model.fit(
+                X_train, y_train,
+                epochs=epochs,
+                batch_size=batch_size,
+                verbose=1
+            )
+            print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
         
         self.is_trained = True
         return history
@@ -197,26 +226,57 @@ class SentimentNeuralNetwork:
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
             try:
                 print("🔄 Cargando modelo de red neuronal pre-entrenado...")
-                self.model = load_model(model_path, compile=False)
-                # Recompilar el modelo
-                self.model.compile(
-                    optimizer='adam',
-                    loss='sparse_categorical_crossentropy',
-                    metrics=['accuracy']
-                )
+                # Intentar cargar con compile=True primero (más seguro)
+                try:
+                    self.model = load_model(model_path)
+                    print("✅ Modelo cargado con compilación automática")
+                except Exception as compile_error:
+                    print(f"⚠️ Error al cargar con compilación automática: {compile_error}")
+                    print("🔄 Intentando cargar sin compilación y recompilando manualmente...")
+                    self.model = load_model(model_path, compile=False)
+                    # Recompilar el modelo
+                    self.model.compile(
+                        optimizer='adam',
+                        loss='sparse_categorical_crossentropy',
+                        metrics=['accuracy']
+                    )
+                    print("✅ Modelo recompilado correctamente")
+                
+                # Cargar tokenizer y label encoder
                 with open(tokenizer_path, 'rb') as f:
                     self.tokenizer = pickle.load(f)
                 with open(label_encoder_path, 'rb') as f:
                     self.label_encoder = pickle.load(f)
+                
+                # Verificar que el modelo está correctamente cargado
+                if self.model is None:
+                    raise ValueError("El modelo no se cargó correctamente")
+                if not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
+                    raise ValueError("El tokenizer no se cargó correctamente")
+                if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
+                    raise ValueError("El label encoder no se cargó correctamente")
+                
                 self.is_trained = True
-                print("✅ Modelo de red neuronal cargado correctamente")
+                print("✅ Modelo de red neuronal cargado y verificado correctamente")
                 return
             except Exception as e:
                 print(f"⚠️ Error al cargar modelo pre-entrenado: {e}")
+                import traceback
+                traceback.print_exc()
                 print("🔄 Se creará un nuevo modelo...")
+                # Limpiar archivos corruptos si existen
+                try:
+                    if os.path.exists(model_path):
+                        os.remove(model_path)
+                    if os.path.exists(tokenizer_path):
+                        os.remove(tokenizer_path)
+                    if os.path.exists(label_encoder_path):
+                        os.remove(label_encoder_path)
+                except:
+                    pass
         
         # Si no existe o falló cargar, crear y entrenar modelo
-        print("🔄 Creando y entrenando modelo de red neuronal (esto puede tomar unos minutos)...")
+        print("🔄 Creando y entrenando modelo de red neuronal (versión rápida, ~10-20 segundos)...")
         try:
             self._create_pretrained_model()
             print("✅ Modelo de red neuronal entrenado y guardado correctamente")
@@ -227,69 +287,40 @@ class SentimentNeuralNetwork:
             raise
     
     def _create_pretrained_model(self):
-        """Crear modelo pre-entrenado con datos de ejemplo"""
+        """Crear modelo pre-entrenado con datos de ejemplo - Versión ultra-rápida"""
+        # Datos de entrenamiento balanceados pero suficientes para un modelo rápido
         positive_texts = [
-            "excelente producto muy bueno",
-            "me encanta este servicio",
-            "muy satisfecho con la compra",
-            "recomiendo totalmente",
-            "calidad superior",
-            "atención perfecta",
-            "rápido y eficiente",
-            "super contento",
-            "vale la pena",
-            "muy recomendado",
-            "increíble experiencia",
-            "servicio de primera",
-            "muy buena calidad",
-            "excelente atención",
-            "producto genial",
-            "muy bien hecho",
-            "súper recomendable",
-            "calidad excelente",
-            "muy profesional",
-            "servicio impecable"
-        ] * 5  # Multiplicar para tener más datos
+            "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho con la compra",
+            "recomiendo totalmente", "calidad superior", "atención perfecta", "rápido y eficiente",
+            "super contento", "vale la pena", "muy recomendado", "increíble experiencia", "servicio de primera",
+            "muy buena calidad", "excelente atención", "producto genial", "muy bien hecho",
+            "súper recomendable", "calidad excelente", "muy profesional", "servicio impecable",
+            "excelente servicio al cliente", "muy buena experiencia", "producto de calidad",
+            "muy satisfecho", "recomiendo este producto", "muy bueno", "excelente calidad",
+            "muy rápido", "muy eficiente", "muy bien", "excelente", "genial", "perfecto",
+            "muy buena opción", "muy recomendable", "vale totalmente la pena", "super recomendado",
+            "me gusta mucho", "estoy contento", "muy buena compra", "recomiendo", "buen servicio"
+        ] * 5  # Datos suficientes pero no excesivos
         
         negative_texts = [
-            "pésimo servicio muy malo",
-            "no recomiendo para nada",
-            "calidad terrible",
-            "muy decepcionado",
-            "atención horrible",
-            "lento e ineficiente",
-            "no vale la pena",
-            "muy insatisfecho",
-            "problema grave",
-            "no cumplió expectativas",
-            "servicio pésimo",
-            "muy mala calidad",
-            "no funciona bien",
-            "muy decepcionante",
-            "producto defectuoso",
-            "atención pésima",
-            "muy caro para lo que es",
-            "no lo recomiendo",
-            "muy mal servicio",
-            "problemas constantes"
+            "pésimo servicio muy malo", "no recomiendo para nada", "calidad terrible",
+            "muy decepcionado", "atención horrible", "lento e ineficiente", "no vale la pena",
+            "muy insatisfecho", "problema grave", "no cumplió expectativas", "servicio pésimo",
+            "muy mala calidad", "no funciona bien", "muy decepcionante", "producto defectuoso",
+            "atención pésima", "muy caro para lo que es", "no lo recomiendo", "muy mal servicio",
+            "problemas constantes", "muy malo", "terrible", "pésimo", "horrible", "decepcionante",
+            "no funciona", "defectuoso", "mala calidad", "mal servicio", "no recomiendo",
+            "insatisfecho", "problemas", "muy mal", "no vale", "terrible experiencia",
+            "no me gusta", "estoy decepcionado", "muy mala compra", "no lo recomiendo", "mal servicio"
         ] * 5
         
         neutral_texts = [
-            "producto regular",
-            "ni bueno ni malo",
-            "aceptable",
-            "normal",
-            "sin comentarios",
-            "básico",
-            "estándar",
-            "cumple su función",
-            "nada especial",
-            "producto común",
-            "servicio estándar",
-            "normal como cualquier otro",
-            "ni destacable ni malo",
-            "producto promedio",
-            "servicio básico"
+            "producto regular", "ni bueno ni malo", "aceptable", "normal", "sin comentarios",
+            "básico", "estándar", "cumple su función", "nada especial", "producto común",
+            "servicio estándar", "normal como cualquier otro", "ni destacable ni malo",
+            "producto promedio", "servicio básico", "regular", "aceptable", "normal",
+            "estándar", "básico", "promedio", "común", "sin destacar",
+            "ok", "normal", "regular", "estándar", "básico"
         ] * 5
         
         texts = positive_texts + negative_texts + neutral_texts
@@ -297,10 +328,13 @@ class SentimentNeuralNetwork:
                  ['negativo'] * len(negative_texts) + 
                  ['neutral'] * len(neutral_texts))
         
-        print("Entrenando modelo de red neuronal con datos de ejemplo...")
-        self.train(texts, labels, epochs=20, batch_size=8)
+        print("🔄 Entrenando modelo de red neuronal con datos de ejemplo (versión ultra-rápida)...")
+        print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
+        # Entrenamiento ultra-rápido: 2 épocas con modelo simplificado y batch grande
+        # Esto reduce el tiempo de entrenamiento a ~10-20 segundos en CPU
+        self.train(texts, labels, epochs=2, batch_size=128)  # 2 épocas, batch muy grande = muy rápido
         self.save_model()
-        print("Modelo entrenado y guardado correctamente")
+        print("✅ Modelo entrenado y guardado correctamente")
     
     def save_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
         """Guardar modelo"""
