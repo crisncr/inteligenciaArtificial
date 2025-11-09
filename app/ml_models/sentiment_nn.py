@@ -12,10 +12,10 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=500, max_len=30):
-        # Versión EXTREMA-LIGERA para Render (512 MB limit)
-        # max_words: 1000 -> 500 (vocabulario mínimo pero funcional)
-        # max_len: 50 -> 30 (secuencias muy cortas = mínima memoria)
+    def __init__(self, max_words=800, max_len=35):
+        # Red neuronal LSTM basada en texto - Soporta comentarios de hasta 25 palabras
+        # max_words: 800 (vocabulario suficiente para comentarios)
+        # max_len: 35 (soporta cómodamente hasta 25 palabras)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -76,21 +76,20 @@ class SentimentNeuralNetwork:
         return padded_sequences
     
     def build_model(self, vocab_size: int, num_classes: int):
-        """Construir modelo EXTREMA-LIGERO para Render (512 MB) - Mantiene funcionalidad completa"""
-        # Modelo mínimo pero completamente funcional: red neuronal LSTM
-        # Aunque es muy pequeño, sigue siendo una red neuronal LSTM funcional
+        """Construir red neuronal LSTM basada en texto para comentarios de hasta 25 palabras"""
+        # Red neuronal LSTM real - suficiente capacidad para aprender patrones de texto
         model = Sequential([
-            Embedding(vocab_size + 1, 16),  # Reducido a 16 dimensiones (mínimo funcional)
-            LSTM(8, dropout=0.1),  # Reducido a 8 neuronas LSTM
-            Dense(4, activation='relu'),  # Reducido a 4 neuronas
-            Dropout(0.1),
-            Dense(num_classes, activation='softmax')
+            Embedding(vocab_size + 1, 24),  # Embedding layer (vectores de palabras)
+            LSTM(16, dropout=0.2),        # LSTM layer (16 neuronas - aprende patrones de texto)
+            Dense(8, activation='relu'),   # Dense layer (red neuronal)
+            Dropout(0.2),
+            Dense(num_classes, activation='softmax')  # Salida (probabilidades: positivo/negativo/neutral)
         ])
         
-        # Usar optimizador eficiente en memoria
+        # Compilar modelo neuronal
         model.compile(
-            optimizer='adam',
-            loss='sparse_categorical_crossentropy',
+            optimizer='adam',  # Optimizador de red neuronal
+            loss='sparse_categorical_crossentropy',  # Función de pérdida
             metrics=['accuracy']
         )
         
@@ -105,7 +104,7 @@ class SentimentNeuralNetwork:
         X, y = self.prepare_data(texts, labels)
         
         # Limitar tamaño de datos si es muy grande (para ahorrar memoria)
-        max_samples = 100  # Máximo 100 muestras para entrenamiento (mínimo para funcionalidad)
+        max_samples = 150  # Máximo 150 muestras para entrenamiento (suficiente para comentarios)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
             X = X[:max_samples]
@@ -300,44 +299,77 @@ class SentimentNeuralNetwork:
             raise
     
     def _create_pretrained_model(self):
-        """Crear modelo pre-entrenado - Versión EXTREMA-LIGERA para Render (512 MB) pero FUNCIONAL"""
-        # Datos de entrenamiento mínimos pero balanceados para ahorrar memoria máxima
-        # Mantenemos variedad suficiente para que el modelo aprenda correctamente
+        """Entrenar red neuronal LSTM con comentarios de hasta 25 palabras"""
+        # Datos de entrenamiento con comentarios completos (hasta 25 palabras)
+        # Incluir frases cortas Y comentarios completos para mejor aprendizaje
+        
+        # Comentarios POSITIVOS (hasta 25 palabras)
         positive_texts = [
+            # Frases cortas
             "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho",
             "recomiendo totalmente", "calidad superior", "atención perfecta",
             "super contento", "vale la pena", "muy recomendado", "increíble experiencia",
-            "muy buena calidad", "excelente atención", "producto genial", "muy bien hecho",
-            "súper recomendable", "calidad excelente", "muy profesional", "servicio impecable"
-        ] * 1  # Solo 1 vez (mínimo para funcionalidad)
+            "excelente servicio", "muy buena calidad", "excelente atención", 
+            "producto genial", "muy bien hecho", "súper recomendable",
+            
+            # Comentarios completos (10-25 palabras)
+            "excelente servicio al cliente muy atento y profesional la atención fue rápida y eficiente",
+            "me encantó este producto la calidad es superior y el precio es muy razonable lo recomiendo totalmente",
+            "muy buena experiencia de compra el producto llegó rápido y en perfecto estado estoy muy satisfecho",
+            "servicio impecable desde el primer contacto hasta la entrega todo fue perfecto muy recomendado",
+            "calidad excelente el producto superó mis expectativas y el servicio fue muy profesional y amable",
+            "increíble experiencia el producto es de muy buena calidad y la atención al cliente fue excepcional",
+            "muy contento con la compra el servicio fue rápido y el producto es de excelente calidad",
+            "recomiendo totalmente este producto la calidad es superior y el precio es muy justo",
+        ]
         
+        # Comentarios NEGATIVOS (hasta 25 palabras)
         negative_texts = [
+            # Frases cortas
             "pésimo servicio muy malo", "no recomiendo para nada", "calidad terrible",
             "muy decepcionado", "atención horrible", "lento e ineficiente", "no vale la pena",
             "muy insatisfecho", "problema grave", "no cumplió expectativas", "servicio pésimo",
-            "muy mala calidad", "no funciona bien", "muy decepcionante", "producto defectuoso",
-            "atención pésima", "muy caro para lo que es", "no lo recomiendo", "muy mal servicio"
-        ] * 1  # Solo 1 vez
+            "mal servicio", "muy mala calidad", "no funciona bien", "muy decepcionante",
+            
+            # Comentarios completos (10-25 palabras)
+            "pésimo servicio al cliente muy lento y desatento la atención fue horrible y no resolvieron mi problema",
+            "muy decepcionado con este producto la calidad es terrible y no funciona como se esperaba no lo recomiendo",
+            "servicio muy malo el producto llegó tarde y en mal estado estoy muy insatisfecho con la compra",
+            "no recomiendo para nada este producto tiene muchos defectos y el servicio al cliente es pésimo",
+            "muy mala experiencia el producto no cumple con lo prometido y la atención fue horrible",
+            "calidad terrible el producto se rompió al poco tiempo y el servicio no respondió a mis quejas",
+            "problema grave con este producto no funciona correctamente y el servicio al cliente fue ineficiente",
+            "muy insatisfecho con la compra el producto es de mala calidad y el servicio fue pésimo",
+        ]
         
+        # Comentarios NEUTRALES (hasta 25 palabras)
         neutral_texts = [
+            # Frases cortas
             "producto regular", "ni bueno ni malo", "aceptable", "normal", "sin comentarios",
             "básico", "estándar", "cumple su función", "nada especial", "producto común",
             "servicio estándar", "normal como cualquier otro", "ni destacable ni malo",
-            "producto promedio", "servicio básico"
-        ] * 1  # Solo 1 vez
+            "producto promedio", "servicio básico",
+            
+            # Comentarios completos (10-25 palabras)
+            "producto regular que cumple su función básica nada especial pero tampoco tiene problemas mayores",
+            "servicio estándar normal como cualquier otro no destacó ni positivo ni negativo simplemente aceptable",
+            "producto promedio que funciona como se espera sin nada que destacar pero tampoco con problemas",
+            "experiencia normal el producto es básico y cumple su función sin sorpresas positivas ni negativas",
+            "servicio básico que funciona correctamente sin problemas pero tampoco con características especiales",
+            "producto común que cumple con lo mínimo esperado ni bueno ni malo simplemente aceptable",
+        ]
         
         texts = positive_texts + negative_texts + neutral_texts
         labels = (['positivo'] * len(positive_texts) + 
                  ['negativo'] * len(negative_texts) + 
                  ['neutral'] * len(neutral_texts))
         
-        print("🔄 Entrenando modelo EXTREMA-LIGERO (512 MB, pero completamente funcional)...")
+        print("🔄 Entrenando red neuronal LSTM para comentarios de hasta 25 palabras...")
         print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
-        # Entrenamiento con batch muy pequeño y menos épocas para mínima memoria
-        # Aunque es muy pequeño, el modelo sigue siendo una red neuronal LSTM completamente funcional
-        self.train(texts, labels, epochs=2, batch_size=8)  # 2 épocas, batch muy pequeño = mínima memoria
+        # Entrenamiento con más épocas para mejor aprendizaje de comentarios completos
+        self.train(texts, labels, epochs=5, batch_size=12)  # 5 épocas para mejor aprendizaje
         self.save_model()
-        print("✅ Modelo entrenado y guardado correctamente (red neuronal LSTM funcional)")
+        print("✅ Red neuronal LSTM entrenada correctamente (soporta comentarios de hasta 25 palabras)")
     
     def save_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
         """Guardar modelo"""

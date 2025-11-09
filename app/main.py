@@ -273,10 +273,22 @@ async def startup_event():
     except Exception as e:
         print(f"⚠️ No se pudo configurar TensorFlow: {e}")
     
-    # NO precargar modelo en startup para ahorrar memoria
-    # El modelo se cargará lazy (solo cuando se necesite)
-    # Esto ahorra memoria durante el startup
-    print("✅ TensorFlow configurado - Modelo se cargará lazy (solo cuando se necesite)")
+    # Precargar modelo en thread separado (no bloquea startup)
+    def precargar_modelo():
+        try:
+            from app.sentiment import _train_model_async
+            print("🚀 Precargando red neuronal LSTM en background...")
+            _train_model_async()
+            print("✅ Red neuronal LSTM precargada correctamente")
+        except Exception as e:
+            print(f"⚠️ Error al precargar modelo: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # Iniciar precarga en thread separado
+    thread = threading.Thread(target=precargar_modelo, daemon=True, name="ModelPreloader")
+    thread.start()
+    print("✅ Precarga de red neuronal LSTM iniciada")
 
 
 # Endpoint público para análisis (sin autenticación, límite de 3)

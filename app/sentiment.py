@@ -35,37 +35,45 @@ def _train_model_async():
         _model_lock = False
 
 def _get_or_create_model():
-    """Obtener o crear instancia global del modelo - NO BLOQUEANTE"""
+    """Obtener o crear instancia global del modelo - Espera razonable si se está entrenando"""
     global _global_model, _model_lock, _training_thread
     
     # Si el modelo ya está entrenado, devolverlo inmediatamente
     if _global_model is not None and _global_model.is_trained:
         return _global_model
     
-    # Si el modelo se está entrenando, NO ESPERAR - lanzar error inmediatamente
+    # Si el modelo se está entrenando, esperar un poco (pero no bloquear mucho)
     if _model_lock:
+        import time
+        max_wait = 60  # Esperar máximo 60 segundos
+        waited = 0
+        print("⏳ Esperando que el modelo termine de cargarse...")
+        while _model_lock and waited < max_wait:
+            time.sleep(1)
+            waited += 1
+            if _global_model is not None and _global_model.is_trained:
+                print("✅ Modelo listo después de esperar")
+                return _global_model
+        
+        # Si después de esperar no está listo, lanzar error
         raise Exception(
-            "El modelo de red neuronal se está cargando o entrenando. "
-            "Esto solo ocurre la primera vez que se inicia la aplicación y puede tomar 10-20 segundos. "
-            "Por favor, espera unos momentos e intenta de nuevo."
+            "El modelo se está cargando. Por favor, espera unos segundos e intenta de nuevo."
         )
     
-    # Si el modelo no existe y no se está entrenando, iniciar entrenamiento en thread separado
+    # Si el modelo no existe, iniciar entrenamiento
     if _global_model is None:
-        print("🚀 Iniciando entrenamiento del modelo en thread separado (no bloqueante)...")
+        print("🚀 Iniciando entrenamiento del modelo en thread separado...")
         _training_thread = threading.Thread(target=_train_model_async, daemon=True, name="ModelTrainer")
         _training_thread.start()
-        # NO ESPERAR - lanzar error inmediatamente para que la request no se bloquee
         raise Exception(
-            "El modelo de red neuronal se está cargando por primera vez. "
-            "Esto puede tomar 10-20 segundos. Por favor, espera unos momentos e intenta de nuevo."
+            "El modelo se está cargando por primera vez. Esto tomará 15-30 segundos. "
+            "Por favor, espera unos momentos e intenta de nuevo."
         )
     
-    # Si el modelo existe pero no está entrenado, también lanzar error
+    # Si el modelo existe pero no está entrenado
     if not _global_model.is_trained:
         raise Exception(
-            "El modelo de red neuronal aún se está entrenando. "
-            "Por favor, espera unos momentos e intenta de nuevo."
+            "El modelo aún se está entrenando. Por favor, espera unos momentos."
         )
     
     return _global_model
