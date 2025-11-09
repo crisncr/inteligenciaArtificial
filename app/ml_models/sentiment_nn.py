@@ -130,7 +130,13 @@ class SentimentNeuralNetwork:
         if labels:
             print("🔍 [DEBUG] Codificando etiquetas...")
             encoded_labels = self.label_encoder.fit_transform(labels)
-            print(f"🔍 [DEBUG] Etiquetas codificadas: {encoded_labels[:5]}")
+            # Mostrar distribución completa de etiquetas codificadas
+            unique_encoded, counts_encoded = np.unique(encoded_labels, return_counts=True)
+            label_names_encoded = self.label_encoder.inverse_transform(unique_encoded)
+            print(f"🔍 [DEBUG] Distribución de etiquetas codificadas:")
+            for label_name, label_code, count in zip(label_names_encoded, unique_encoded, counts_encoded):
+                print(f"   - {label_name} (código {label_code}): {count} muestras")
+            print(f"🔍 [DEBUG] Primeras 10 etiquetas codificadas: {encoded_labels[:10]}")
             return padded_sequences, encoded_labels
         
         return padded_sequences
@@ -143,7 +149,7 @@ class SentimentNeuralNetwork:
         # Red neuronal LSTM ULTRA-PEQUEÑA para entrenar MUY RÁPIDO en Render (512 MB limit)
         # Modelo reducido al mínimo para evitar bloqueos y completar entrenamiento rápido
         model = Sequential([
-            Embedding(vocab_size + 1, 4, input_length=self.max_len),  # Reducido a 4, con input_length explícito
+            Embedding(vocab_size + 1, 4),  # Reducido a 4, SIN input_length (deprecated, se construye automáticamente)
             LSTM(2, dropout=0.0),        # Reducido a 2 unidades, sin dropout para más velocidad
             Dense(2, activation='relu'),   # Reducido a 2 unidades
             Dense(num_classes, activation='softmax')  # Salida (probabilidades: positivo/negativo/neutral)
@@ -172,12 +178,79 @@ class SentimentNeuralNetwork:
         print(f"📊 Preparando datos: {len(texts)} textos, {len(set(labels))} clases")
         X, y = self.prepare_data(texts, labels)
         
+        # Mostrar distribución de etiquetas ANTES de reducir
+        unique_labels, counts = np.unique(y, return_counts=True)
+        label_names = self.label_encoder.inverse_transform(unique_labels)
+        print(f"🔍 [DEBUG] Distribución de etiquetas ANTES de reducir:")
+        for label_name, count in zip(label_names, counts):
+            print(f"   - {label_name}: {count} muestras")
+        
         # Limitar tamaño de datos si es muy grande (para ahorrar memoria y velocidad)
         max_samples = 15  # REDUCIDO A 15 para entrenar ULTRA-RÁPIDO y evitar bloqueos
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
-            X = X[:max_samples]
-            y = y[:max_samples]
+            
+            # CRÍTICO: Mezclar datos ANTES de reducir para mantener balance de clases
+            # Esto asegura que no tomemos solo los primeros elementos que pueden ser de la misma clase
+            indices = np.arange(len(X))
+            np.random.seed(42)  # Semilla fija para reproducibilidad
+            np.random.shuffle(indices)
+            X_shuffled = X[indices]
+            y_shuffled = y[indices]
+            
+            # Intentar mantener balance de clases al reducir
+            # Asegurar que haya al menos algunas muestras de cada clase
+            unique_labels_all = np.unique(y_shuffled)
+            num_classes_available = len(unique_labels_all)
+            samples_per_class = max_samples // num_classes_available
+            min_samples_per_class = max(1, samples_per_class - 1)  # Al menos 1 por clase
+            
+            print(f"🔍 [DEBUG] Intentando balancear: {min_samples_per_class} muestras mínimas por clase de {num_classes_available} clases")
+            
+            # Recopilar muestras balanceadas
+            X_balanced = []
+            y_balanced = []
+            samples_taken_per_class = {int(label): 0 for label in unique_labels_all}
+            used_indices = set()
+            
+            # Primero, tomar al menos min_samples_per_class de cada clase
+            for label in unique_labels_all:
+                label_int = int(label)
+                label_indices = np.where(y_shuffled == label)[0]
+                np.random.shuffle(label_indices)
+                
+                for idx in label_indices[:min_samples_per_class]:
+                    if len(X_balanced) >= max_samples:
+                        break
+                    if idx not in used_indices:
+                        X_balanced.append(X_shuffled[idx])
+                        y_balanced.append(y_shuffled[idx])
+                        used_indices.add(idx)
+                        samples_taken_per_class[label_int] += 1
+                
+                if len(X_balanced) >= max_samples:
+                    break
+            
+            # Si aún hay espacio, tomar muestras adicionales de manera aleatoria
+            remaining_indices = [i for i in range(len(X_shuffled)) if i not in used_indices]
+            np.random.shuffle(remaining_indices)
+            
+            for idx in remaining_indices:
+                if len(X_balanced) >= max_samples:
+                    break
+                X_balanced.append(X_shuffled[idx])
+                y_balanced.append(y_shuffled[idx])
+                used_indices.add(idx)
+            
+            X = np.array(X_balanced)
+            y = np.array(y_balanced)
+            
+            # Validar balance de clases DESPUÉS de reducir
+            unique_labels_reduced, counts_reduced = np.unique(y, return_counts=True)
+            label_names_reduced = self.label_encoder.inverse_transform(unique_labels_reduced)
+            print(f"🔍 [DEBUG] Distribución de etiquetas DESPUÉS de reducir (balanceado):")
+            for label_name, count in zip(label_names_reduced, counts_reduced):
+                print(f"   - {label_name}: {count} muestras")
         
         # Si hay pocos datos, usar todos para entrenamiento (sin validación)
         if len(X) < 50:
@@ -192,6 +265,20 @@ class SentimentNeuralNetwork:
         num_classes = len(self.label_encoder.classes_)
         print(f"📊 Vocabulario: {vocab_size} palabras, Clases: {num_classes}")
         print(f"📊 Datos entrenamiento: {len(X_train)}, Validación: {len(X_val) if use_validation else 'N/A'}")
+        
+        # Validar balance de clases en datos de entrenamiento
+        unique_labels_train, counts_train = np.unique(y_train, return_counts=True)
+        label_names_train = self.label_encoder.inverse_transform(unique_labels_train)
+        print(f"🔍 [DEBUG] Distribución de etiquetas en datos de ENTRENAMIENTO:")
+        for label_name, count in zip(label_names_train, counts_train):
+            print(f"   - {label_name}: {count} muestras")
+        
+        # Verificar que haya al menos una muestra de cada clase en entrenamiento
+        if len(unique_labels_train) < num_classes:
+            print(f"⚠️ [DEBUG] ADVERTENCIA: Solo hay {len(unique_labels_train)} clases en entrenamiento, esperadas {num_classes}")
+            print(f"⚠️ [DEBUG] Esto puede afectar la precisión del modelo")
+        else:
+            print(f"✅ [DEBUG] Todas las clases ({num_classes}) están representadas en los datos de entrenamiento")
         
         # Limpiar memoria antes de construir modelo
         print("🔍 [DEBUG] Limpiando memoria antes de construir modelo...")
