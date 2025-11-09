@@ -50,6 +50,8 @@ NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 
 # Constante de OSRM (OpenStreetMap Routing Machine) - Rutas reales por calles
+# Formato: https://router.project-osrm.org/route/v1/{profile}/{coordinates}
+# coordinates: lng1,lat1;lng2,lat2
 OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving"
 
 async def geocode_address(address: str) -> Dict:
@@ -255,29 +257,34 @@ async def autocomplete_address(query: str) -> List[Dict]:
 async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, alternatives: int = 2) -> List[Dict]:
     """Obtener rutas reales por calles usando OSRM (OpenStreetMap Routing Machine)"""
     try:
-        print(f"Obteniendo rutas de OSRM desde ({lat1}, {lng1}) hasta ({lat2}, {lng2})")
+        print(f"🔵 OSRM: Obteniendo rutas desde ({lat1}, {lng1}) hasta ({lat2}, {lng2})")
         
         async with httpx.AsyncClient() as client:
-            # OSRM usa formato: lng,lat (longitud primero)
+            # OSRM usa formato: lng,lat (longitud primero) y las coordenadas van en la URL
             coordinates = f"{lng1},{lat1};{lng2},{lat2}"
+            # URL correcta: https://router.project-osrm.org/route/v1/driving/{coordinates}?alternatives=2&steps=true&geometries=geojson&overview=full
+            url = f"{OSRM_ROUTE_URL}/{coordinates}"
+            
+            print(f"🔵 OSRM URL completa: {url}")
+            print(f"🔵 Parámetros: alternatives={alternatives}, steps=true, geometries=geojson, overview=full")
             
             response = await client.get(
-                OSRM_ROUTE_URL,
+                url,
                 params={
-                    "coordinates": coordinates,
                     "alternatives": alternatives,  # Obtener rutas alternativas
                     "steps": "true",  # Incluir pasos detallados
                     "geometries": "geojson",  # Formato GeoJSON
                     "overview": "full",  # Vista completa de la ruta
                     "annotations": "true"  # Incluir distancia y tiempo
                 },
-                timeout=15.0
+                timeout=20.0
             )
             
-            print(f"OSRM Response Status: {response.status_code}")
+            print(f"🔵 OSRM Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
+                print(f"🔵 OSRM Response Data: {data.get('code', 'No code')}, Routes: {len(data.get('routes', []))}")
                 
                 if data.get("code") == "Ok" and data.get("routes"):
                     routes = []
@@ -289,6 +296,8 @@ async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, al
                         
                         geometry = route.get("geometry", {})
                         coordinates_list = geometry.get("coordinates", [])
+                        
+                        print(f"🔵 Ruta {idx + 1}: {len(coordinates_list)} coordenadas, {distance_km:.2f} km, {duration_minutes:.2f} min")
                         
                         # Convertir coordenadas de [lng, lat] a [lat, lng] para Leaflet
                         route_coordinates = [[coord[1], coord[0]] for coord in coordinates_list]
@@ -313,17 +322,19 @@ async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, al
                     for idx, route in enumerate(routes):
                         route["route_number"] = idx + 1
                     
-                    print(f"OSRM: Se obtuvieron {len(routes)} rutas")
+                    print(f"✅ OSRM: Se obtuvieron {len(routes)} rutas")
                     return routes
                 else:
-                    print(f"OSRM: Error en respuesta - {data.get('code', 'Unknown')}")
+                    error_msg = data.get('message', 'Unknown error')
+                    print(f"❌ OSRM: Error en respuesta - Code: {data.get('code', 'Unknown')}, Message: {error_msg}")
                     return []
             else:
-                print(f"OSRM: Error HTTP {response.status_code}")
+                error_text = response.text[:200] if hasattr(response, 'text') else 'No error text'
+                print(f"❌ OSRM: Error HTTP {response.status_code}: {error_text}")
                 return []
                 
     except Exception as e:
-        print(f"Error al obtener rutas de OSRM: {str(e)}")
+        print(f"❌ Error al obtener rutas de OSRM: {str(e)}")
         import traceback
         traceback.print_exc()
         return []

@@ -228,6 +228,11 @@ function RouteOptimization({ user }) {
     setShowEndSuggestions(false)
   }
 
+  // Refs para control de cálculo automático
+  const calculateRoutesRef = useRef(null)
+  const lastCalculatedRef = useRef(null)
+  const isCalculatingRef = useRef(false) // Para evitar cálculos simultáneos
+  
   // Aplicar dirección (geocodificar y mostrar marcador)
   const handleApplyAddress = async (pointType) => {
     const address = pointType === 'start' ? startAddress.trim() : endAddress.trim()
@@ -250,6 +255,9 @@ function RouteOptimization({ user }) {
           lng: result.lng
         }
         
+        console.log(`✅ Dirección aplicada (${pointType}):`, place)
+        
+        // Actualizar el estado correspondiente
         if (pointType === 'start') {
           setStartPlace(place)
           setStartAddress(result.display_name || address)
@@ -258,49 +266,40 @@ function RouteOptimization({ user }) {
           setEndAddress(result.display_name || address)
         }
         
-        // Limpiar resultado anterior
+        // Limpiar resultado anterior y resetear lastCalculatedRef para forzar recálculo
         setRouteResult(null)
+        lastCalculatedRef.current = null
+        
+        console.log(`📍 Estado actualizado. startPlace:`, pointType === 'start' ? place : startPlace)
+        console.log(`📍 Estado actualizado. endPlace:`, pointType === 'end' ? place : endPlace)
       }
     } catch (err) {
       console.error('Error al aplicar dirección:', err)
       alert(`Error: ${err.message || 'No se pudo geocodificar la dirección'}`)
     } finally {
-      setLoading(false)
       setApplyingAddress(null)
+      setLoading(false)
     }
   }
   
-  // Calcular rutas automáticamente cuando hay inicio y fin (con debounce para evitar múltiples llamadas)
-  const calculateRoutesRef = useRef(null)
-  const lastCalculatedRef = useRef(null) // Para evitar recalcular si no cambió nada
-  
-  useEffect(() => {
-    if (calculateRoutesRef.current) {
-      clearTimeout(calculateRoutesRef.current)
-    }
-    
-    if (startPlace && endPlace && !loading) {
-      const currentKey = `${startPlace.lat},${startPlace.lng},${endPlace.lat},${endPlace.lng}`
-      
-      // Solo calcular si cambió algo
-      if (lastCalculatedRef.current !== currentKey) {
-        // Esperar 800ms antes de calcular (debounce)
-        calculateRoutesRef.current = setTimeout(() => {
-          calculateRoutesAutomatically()
-          lastCalculatedRef.current = currentKey
-        }, 800)
-      }
-    }
-    
-    return () => {
-      if (calculateRoutesRef.current) {
-        clearTimeout(calculateRoutesRef.current)
-      }
-    }
-  }, [startPlace?.lat, startPlace?.lng, endPlace?.lat, endPlace?.lng])
-  
+  // Función para calcular rutas automáticamente (definida después de los refs)
   const calculateRoutesAutomatically = async () => {
-    if (!startPlace || !endPlace || loading) return
+    // Evitar cálculos simultáneos
+    if (isCalculatingRef.current) {
+      console.log('⏸️ Ya hay un cálculo en curso, omitiendo...')
+      return
+    }
+    
+    if (!startPlace || !endPlace) {
+      console.log('⏸️ No se pueden calcular rutas: faltan puntos', { startPlace, endPlace })
+      return
+    }
+    
+    isCalculatingRef.current = true
+    console.log('🚀 Calculando rutas automáticamente...', {
+      start: { lat: startPlace.lat, lng: startPlace.lng, address: startPlace.address },
+      end: { lat: endPlace.lat, lng: endPlace.lng, address: endPlace.address }
+    })
     
     setLoading(true)
     setRouteResult(null)
@@ -311,16 +310,152 @@ function RouteOptimization({ user }) {
         { name: 'Punto de Destino', address: endPlace.address, lat: endPlace.lat, lng: endPlace.lng }
       ]
       
+      console.log('📤 Enviando puntos a API:', points)
       const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
-      setRouteResult(result)
-      setSelectedRouteIndex(0) // Seleccionar la mejor ruta por defecto
+      console.log('📥 Resultado de la API:', result)
+      
+      if (result && result.routes && result.routes.length > 0) {
+        console.log(`✅ Se obtuvieron ${result.routes.length} rutas de OSRM`)
+        console.log('Rutas:', result.routes.map(r => ({
+          number: r.route_number,
+          distance: r.distance_km,
+          duration: r.duration_minutes,
+          coords: r.coordinates?.length || 0
+        })))
+        setRouteResult(result)
+        setSelectedRouteIndex(0) // Seleccionar la mejor ruta por defecto
+      } else {
+        console.warn('⚠️ No se obtuvieron rutas de OSRM')
+        alert('No se pudieron calcular rutas. Verifica que las direcciones sean válidas y estén en una zona con datos de calles disponibles.')
+      }
     } catch (err) {
-      console.error('Error al calcular rutas:', err)
-      // No mostrar error, solo loguear
+      console.error('❌ Error al calcular rutas:', err)
+      alert(`Error al calcular rutas: ${err.message || 'Por favor, intenta nuevamente'}`)
     } finally {
       setLoading(false)
+      isCalculatingRef.current = false
     }
   }
+  
+  // Calcular rutas automáticamente cuando hay inicio y fin
+  useEffect(() => {
+    console.log('🔄 useEffect ejecutado:', {
+      startPlace: startPlace ? { lat: startPlace.lat, lng: startPlace.lng } : null,
+      endPlace: endPlace ? { lat: endPlace.lat, lng: endPlace.lng } : null,
+      isCalculating: isCalculatingRef.current,
+      lastCalculated: lastCalculatedRef.current
+    })
+    
+    // Función interna para calcular rutas
+    const calculateRoutes = async () => {
+      // Evitar cálculos simultáneos
+      if (isCalculatingRef.current) {
+        console.log('⏸️ Ya hay un cálculo en curso, omitiendo...')
+        return
+      }
+      
+      // Usar los valores actuales del estado
+      const currentStart = startPlace
+      const currentEnd = endPlace
+      
+      if (!currentStart || !currentEnd) {
+        console.log('⏸️ No se pueden calcular rutas: faltan puntos', { currentStart, currentEnd })
+        return
+      }
+      
+      isCalculatingRef.current = true
+      console.log('🚀 Calculando rutas automáticamente...', {
+        start: { lat: currentStart.lat, lng: currentStart.lng, address: currentStart.address },
+        end: { lat: currentEnd.lat, lng: currentEnd.lng, address: currentEnd.address }
+      })
+      
+      setLoading(true)
+      setRouteResult(null)
+      
+      try {
+        const points = [
+          { name: 'Punto de Inicio', address: currentStart.address, lat: currentStart.lat, lng: currentStart.lng },
+          { name: 'Punto de Destino', address: currentEnd.address, lat: currentEnd.lat, lng: currentEnd.lng }
+        ]
+        
+        console.log('📤 Enviando puntos a API:', points)
+        const result = await routeOptimizationAPI.optimize(points, algorithm, 0, false, null)
+        console.log('📥 Resultado completo de la API:', JSON.stringify(result, null, 2))
+        
+        if (result && result.routes && result.routes.length > 0) {
+          console.log(`✅ Se obtuvieron ${result.routes.length} rutas de OSRM`)
+          result.routes.forEach((r, i) => {
+            console.log(`  Ruta ${i + 1}:`, {
+              number: r.route_number,
+              distance: r.distance_km,
+              duration: r.duration_minutes,
+              coords_count: r.coordinates?.length || 0,
+              first_coord: r.coordinates?.[0],
+              last_coord: r.coordinates?.[r.coordinates?.length - 1]
+            })
+          })
+          setRouteResult(result)
+          setSelectedRouteIndex(0) // Seleccionar la mejor ruta por defecto
+        } else {
+          console.warn('⚠️ No se obtuvieron rutas de OSRM. Resultado:', result)
+          if (result && !result.routes) {
+            console.warn('⚠️ El resultado no tiene la propiedad "routes"')
+          }
+          alert('No se pudieron calcular rutas. Verifica que las direcciones sean válidas y estén en una zona con datos de calles disponibles.')
+        }
+      } catch (err) {
+        console.error('❌ Error al calcular rutas:', err)
+        console.error('❌ Stack trace:', err.stack)
+        alert(`Error al calcular rutas: ${err.message || 'Por favor, intenta nuevamente'}`)
+      } finally {
+        setLoading(false)
+        isCalculatingRef.current = false
+      }
+    }
+    
+    // Limpiar timeout anterior
+    if (calculateRoutesRef.current) {
+      clearTimeout(calculateRoutesRef.current)
+      calculateRoutesRef.current = null
+    }
+    
+    // Si tenemos ambos puntos, calcular rutas
+    if (startPlace && endPlace) {
+      const currentKey = `${startPlace.lat},${startPlace.lng},${endPlace.lat},${endPlace.lng}`
+      
+      console.log('🔍 Verificando si debe calcular:', {
+        currentKey,
+        lastCalculated: lastCalculatedRef.current,
+        isCalculating: isCalculatingRef.current,
+        shouldCalculate: lastCalculatedRef.current !== currentKey && !isCalculatingRef.current
+      })
+      
+      // Solo calcular si cambió algo o si es la primera vez
+      if (lastCalculatedRef.current !== currentKey && !isCalculatingRef.current) {
+        console.log('🔄 Coordenadas cambiaron, programando cálculo de rutas en 800ms...', currentKey)
+        // Esperar 800ms antes de calcular (debounce)
+        calculateRoutesRef.current = setTimeout(() => {
+          console.log('⏰ Timeout ejecutado, iniciando cálculo...')
+          calculateRoutes()
+          lastCalculatedRef.current = currentKey
+        }, 800)
+      } else {
+        console.log('⏭️ Omitiendo cálculo:', {
+          reason: lastCalculatedRef.current === currentKey ? 'coordenadas no cambiaron' : 'cálculo en curso'
+        })
+      }
+    } else {
+      console.log('⏸️ No hay suficientes puntos para calcular:', { startPlace: !!startPlace, endPlace: !!endPlace })
+    }
+    
+    return () => {
+      if (calculateRoutesRef.current) {
+        console.log('🧹 Limpiando timeout...')
+        clearTimeout(calculateRoutesRef.current)
+        calculateRoutesRef.current = null
+      }
+    }
+  }, [startPlace?.lat, startPlace?.lng, endPlace?.lat, endPlace?.lng, algorithm])
   
   // Función para obtener coordenadas de todas las rutas para ajustar bounds
   const getRoutesBounds = () => {
@@ -862,11 +997,22 @@ function RouteOptimization({ user }) {
               <MapUpdater center={mapCenter} zoom={mapZoom} bounds={getRoutesBounds()} />
               <MapClickHandler onMapClick={handleMapClick} selectingPoint={selectingPoint} />
               
-              {/* Mostrar las 3 rutas en el mapa */}
-              {routeResult && routeResult.routes && routeResult.routes.map((route, idx) => {
+              {/* Mostrar las 3 rutas en el mapa - La mejor ruta (índice 0) se destaca */}
+              {routeResult && routeResult.routes && routeResult.routes.length > 0 && routeResult.routes.map((route, idx) => {
+                if (!route.coordinates || route.coordinates.length === 0) {
+                  console.warn(`⚠️ Ruta ${idx + 1} no tiene coordenadas`)
+                  return null
+                }
+                
                 const isSelected = idx === selectedRouteIndex
-                const colors = ['#6e8bff', '#20c997', '#f8c22b'] // Azul, Verde, Amarillo
+                const isBestRoute = idx === 0 // La primera ruta es siempre la mejor (más corta)
+                const colors = ['#6e8bff', '#20c997', '#f8c22b'] // Azul (mejor), Verde, Amarillo
                 const routeColor = colors[idx] || '#6e8bff'
+                
+                // La mejor ruta (índice 0) siempre se muestra más destacada
+                const weight = isBestRoute ? 7 : (isSelected ? 5 : 3)
+                const opacity = isBestRoute ? 1.0 : (isSelected ? 0.8 : 0.5)
+                const dashArray = isBestRoute ? null : (isSelected ? null : '15, 10')
                 
                 return (
                   <Polyline
@@ -874,16 +1020,38 @@ function RouteOptimization({ user }) {
                     positions={route.coordinates}
                     pathOptions={{
                       color: routeColor,
-                      weight: isSelected ? 6 : 4,
-                      opacity: isSelected ? 0.9 : 0.6,
-                      dashArray: isSelected ? null : '10, 5'
+                      weight: weight,
+                      opacity: opacity,
+                      dashArray: dashArray
                     }}
                     eventHandlers={{
-                      click: () => setSelectedRouteIndex(idx)
+                      click: () => {
+                        console.log(`📍 Ruta ${idx + 1} seleccionada`)
+                        setSelectedRouteIndex(idx)
+                      }
                     }}
                   />
                 )
               })}
+              
+              {/* Indicador de carga */}
+              {loading && (
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  color: 'white',
+                  padding: '15px 25px',
+                  borderRadius: '8px',
+                  zIndex: 1000,
+                  fontSize: '16px',
+                  fontWeight: 'bold'
+                }}>
+                  Calculando rutas...
+                </div>
+              )}
               
               {/* Marcadores de inicio y fin */}
               {startPlace && (
@@ -903,15 +1071,21 @@ function RouteOptimization({ user }) {
           </small>
         </div>
 
-        {/* Leyenda de colores de rutas */}
+        {/* Leyenda de colores de rutas - Mostrar las 3 mejores rutas */}
         {routeResult && routeResult.routes && routeResult.routes.length > 0 && (
-          <div className="message" style={{ marginBottom: '20px', background: 'rgba(110, 139, 255, 0.1)', padding: '15px', borderRadius: '8px' }}>
-            <h4 style={{ marginTop: 0, marginBottom: '10px' }}>Leyenda de Rutas:</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="message" style={{ marginBottom: '20px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px', border: '2px solid var(--primary)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--primary)' }}>
+              🗺️ {routeResult.routes.length} Mejores Rutas Calculadas
+            </h3>
+            <p style={{ marginBottom: '15px', color: 'var(--text-secondary)', fontSize: '0.9em' }}>
+              Las rutas se muestran en el mapa siguiendo las calles reales. La ruta destacada en <strong style={{ color: '#6e8bff' }}>azul</strong> es la más corta.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {routeResult.routes.map((route, idx) => {
                 const colors = ['#6e8bff', '#20c997', '#f8c22b']
                 const routeColor = colors[idx] || '#6e8bff'
                 const isSelected = idx === selectedRouteIndex
+                const isBestRoute = idx === 0
                 const labels = ['🥇 Mejor Ruta (Más Corta)', '🥈 Ruta Alternativa 1', '🥉 Ruta Alternativa 2']
                 
                 return (
@@ -921,31 +1095,72 @@ function RouteOptimization({ user }) {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px',
-                      borderRadius: '6px',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      backgroundColor: isSelected ? 'rgba(110, 139, 255, 0.2)' : 'transparent',
-                      border: isSelected ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
-                      transition: 'all 0.2s'
+                      backgroundColor: isBestRoute 
+                        ? 'rgba(110, 139, 255, 0.25)' 
+                        : (isSelected ? 'rgba(110, 139, 255, 0.15)' : 'rgba(255,255,255,0.05)'),
+                      border: isBestRoute 
+                        ? '2px solid #6e8bff' 
+                        : (isSelected ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)'),
+                      transition: 'all 0.2s',
+                      transform: isBestRoute ? 'scale(1.02)' : 'scale(1)'
                     }}
                   >
                     <div style={{
-                      width: '30px',
-                      height: '4px',
+                      width: '40px',
+                      height: '5px',
                       backgroundColor: routeColor,
-                      borderRadius: '2px'
+                      borderRadius: '3px',
+                      boxShadow: isBestRoute ? `0 0 8px ${routeColor}` : 'none'
                     }} />
-                    <span style={{ fontWeight: isSelected ? '600' : '400' }}>
-                      {labels[idx] || `Ruta ${idx + 1}`}: {route.distance_km} km, {route.duration_minutes} min
-                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ 
+                        fontWeight: isBestRoute ? '700' : (isSelected ? '600' : '400'),
+                        fontSize: isBestRoute ? '1.05em' : '1em',
+                        color: isBestRoute ? '#6e8bff' : 'var(--text)',
+                        marginBottom: '4px'
+                      }}>
+                        {labels[idx] || `Ruta ${idx + 1}`}
+                      </div>
+                      <div style={{ 
+                        fontSize: '0.9em', 
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        gap: '15px'
+                      }}>
+                        <span>📏 <strong>{route.distance_km}</strong> km</span>
+                        <span>⏱️ <strong>{route.duration_minutes}</strong> min</span>
+                      </div>
+                    </div>
+                    {isBestRoute && (
+                      <span style={{ 
+                        fontSize: '1.5em',
+                        filter: 'drop-shadow(0 2px 4px rgba(110, 139, 255, 0.5))'
+                      }}>
+                        ⭐
+                      </span>
+                    )}
                   </div>
                 )
               })}
             </div>
-            <small style={{ display: 'block', marginTop: '10px', color: 'var(--text-secondary)' }}>
-              Haz click en una ruta de la leyenda para resaltarla en el mapa
+            <small style={{ display: 'block', marginTop: '15px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              💡 Haz click en una ruta de la leyenda para resaltarla en el mapa. La ruta azul es la más corta y se muestra destacada.
             </small>
+          </div>
+        )}
+        
+        {/* Mensaje de carga mientras se calculan las rutas */}
+        {loading && startPlace && endPlace && (
+          <div className="message" style={{ marginBottom: '20px', background: 'rgba(110, 139, 255, 0.1)', padding: '20px', borderRadius: '8px', textAlign: 'center' }}>
+            <div style={{ fontSize: '2em', marginBottom: '10px' }}>🔄</div>
+            <h4 style={{ marginTop: 0, marginBottom: '10px' }}>Calculando las mejores rutas...</h4>
+            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+              Obteniendo rutas reales por calles usando OSRM. Esto puede tomar unos segundos.
+            </p>
           </div>
         )}
       </div>
