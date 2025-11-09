@@ -38,7 +38,7 @@ def main():
         print("=" * 60)
         print()
         print("📁 Archivos guardados en:")
-        print(f"   - {model_dir}/sentiment_model.h5")
+        print(f"   - {model_dir}/sentiment_model.keras")
         print(f"   - {model_dir}/tokenizer.pkl")
         print(f"   - {model_dir}/label_encoder.pkl")
         print()
@@ -50,7 +50,7 @@ def main():
         
         # Verificar que los archivos existen
         files = [
-            f'{model_dir}/sentiment_model.h5',
+            f'{model_dir}/sentiment_model.keras',
             f'{model_dir}/tokenizer.pkl',
             f'{model_dir}/label_encoder.pkl'
         ]

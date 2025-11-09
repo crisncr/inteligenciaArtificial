@@ -574,7 +574,7 @@ class SentimentNeuralNetwork:
             traceback.print_exc()
             raise
     
-    def load_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
+    def load_model(self, model_path: str = 'app/ml_models/sentiment_model.keras'):
         """Cargar modelo pre-entrenado - Descarga automática desde GitHub Releases si no existe"""
         # Asegurar que el directorio existe
         model_dir = os.path.dirname(model_path)
@@ -588,7 +588,7 @@ class SentimentNeuralNetwork:
         # ACTUALIZA ESTAS URLs con las URLs reales después de subir a GitHub Releases
         MODEL_URL = os.getenv(
             'MODEL_URL', 
-            'https://github.com/crisncr/inteligenciaArtificial/releases/download/v1.0.0/sentiment_model.h5'
+            'https://github.com/crisncr/inteligenciaArtificial/releases/download/v1.0.0/sentiment_model.keras'
         )
         TOKENIZER_URL = os.getenv(
             'TOKENIZER_URL',
@@ -667,21 +667,27 @@ class SentimentNeuralNetwork:
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
             try:
                 print("🔄 Cargando modelo de red neuronal pre-entrenado...")
-                # Intentar cargar con compile=True primero (más seguro)
+                # Cargar modelo en formato .keras (compatible con Keras 3.x)
                 try:
+                    # Intentar cargar directamente (formato .keras es más compatible)
                     self.model = load_model(model_path)
-                    print("✅ Modelo cargado con compilación automática")
-                except Exception as compile_error:
-                    print(f"⚠️ Error al cargar con compilación automática: {compile_error}")
-                    print("🔄 Intentando cargar sin compilación y recompilando manualmente...")
-                    self.model = load_model(model_path, compile=False)
-                    # Recompilar el modelo
-                    self.model.compile(
-                        optimizer='adam',
-                        loss='sparse_categorical_crossentropy',
-                        metrics=['accuracy']
-                    )
-                    print("✅ Modelo recompilado correctamente")
+                    print("✅ Modelo cargado correctamente")
+                except Exception as load_error:
+                    print(f"⚠️ Error al cargar modelo: {load_error}")
+                    # Si falla, intentar cargar sin compilación
+                    try:
+                        self.model = load_model(model_path, compile=False)
+                        # Recompilar el modelo
+                        from tensorflow.keras.optimizers import Adam
+                        self.model.compile(
+                            optimizer=Adam(learning_rate=0.001),
+                            loss='sparse_categorical_crossentropy',
+                            metrics=['accuracy']
+                        )
+                        print("✅ Modelo cargado y recompilado correctamente")
+                    except Exception as compile_error:
+                        print(f"❌ Error al recompilar modelo: {compile_error}")
+                        raise
                 
                 # Cargar tokenizer y label encoder
                 with open(tokenizer_path, 'rb') as f:
@@ -888,13 +894,16 @@ class SentimentNeuralNetwork:
         
         print("✅ Red neuronal LSTM entrenada correctamente (soporta comentarios de hasta 25 palabras)")
     
-    def save_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
-        """Guardar modelo"""
+    def save_model(self, model_path: str = 'app/ml_models/sentiment_model.keras'):
+        """Guardar modelo en formato .keras (compatible con Keras 3.x)"""
         model_dir = os.path.dirname(model_path)
         os.makedirs(model_dir, exist_ok=True)
         
         if self.model:
+            # Guardar en formato .keras (más compatible con Keras 3.x)
+            # Keras 3.x infiere automáticamente el formato desde la extensión .keras
             self.model.save(model_path)
+            print(f"✅ Modelo guardado en formato .keras: {model_path}")
         
         tokenizer_path = os.path.join(model_dir, 'tokenizer.pkl')
         label_encoder_path = os.path.join(model_dir, 'label_encoder.pkl')
@@ -904,7 +913,6 @@ class SentimentNeuralNetwork:
         with open(label_encoder_path, 'wb') as f:
             pickle.dump(self.label_encoder, f)
         
-        print(f"✅ Modelo guardado en: {model_path}")
         print(f"✅ Tokenizer guardado en: {tokenizer_path}")
         print(f"✅ Label encoder guardado en: {label_encoder_path}")
 
