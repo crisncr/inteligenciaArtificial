@@ -238,8 +238,10 @@ app.include_router(sales_prediction_router.router)
 # Configurar TensorFlow para que no bloquee el servidor durante el entrenamiento
 @app.on_event("startup")
 async def startup_event():
-    """Configurar TensorFlow para modo no bloqueante"""
+    """Configurar TensorFlow para modo no bloqueante y precargar modelo en background"""
     import os
+    import threading
+    
     # Configurar TensorFlow para usar solo los threads necesarios y no bloquear
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reducir logs de TensorFlow
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
@@ -254,6 +256,21 @@ async def startup_event():
         print("✅ TensorFlow configurado para modo no bloqueante")
     except Exception as e:
         print(f"⚠️ No se pudo configurar TensorFlow (se usará configuración por defecto): {e}")
+    
+    # Precargar modelo en thread separado (no bloquea el startup)
+    def precargar_modelo():
+        try:
+            from app.sentiment import _train_model_async
+            print("🚀 Iniciando precarga del modelo en background...")
+            _train_model_async()
+            print("✅ Modelo precargado correctamente")
+        except Exception as e:
+            print(f"⚠️ Error al precargar modelo (se cargará en el primer request): {e}")
+    
+    # Iniciar thread de precarga (daemon=True para que no bloquee el cierre)
+    thread = threading.Thread(target=precargar_modelo, daemon=True, name="ModelPreloader")
+    thread.start()
+    print("✅ Thread de precarga de modelo iniciado (no bloquea el servidor)")
 
 
 # Endpoint público para análisis (sin autenticación, límite de 3)
