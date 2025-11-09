@@ -157,18 +157,27 @@ class SentimentNeuralNetwork:
         
         if use_validation:
             fit_kwargs['validation_data'] = (X_val, y_val)
+            print("🔍 [DEBUG] Llamando a model.fit() con validación...")
             history = self.model.fit(X_train, y_train, **fit_kwargs)
+            print("🔍 [DEBUG] model.fit() completado")
             # Evaluar modelo
+            print("🔍 [DEBUG] Evaluando modelo...")
             val_loss, val_accuracy = self.model.evaluate(X_val, y_val, verbose=0)
             print(f"✅ Entrenamiento completado - Precisión validación: {val_accuracy:.2%}")
         else:
+            print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
             history = self.model.fit(X_train, y_train, **fit_kwargs)
+            print("🔍 [DEBUG] model.fit() completado")
             print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
         
         # Limpiar memoria después de entrenar
+        print("🔍 [DEBUG] Limpiando memoria...")
         gc.collect()
         
+        print("🔍 [DEBUG] Marcando modelo como entrenado...")
         self.is_trained = True
+        print(f"✅ [DEBUG] Modelo marcado como entrenado: is_trained={self.is_trained}")
+        print(f"🔍 [DEBUG] Modelo existe: {self.model is not None}")
         return history
     
     def predict(self, texts: List[str]) -> List[Dict]:
@@ -502,10 +511,16 @@ class SentimentNeuralNetwork:
         # Entrenamiento con más épocas para mejor aprendizaje de comentarios completos
         print("🔍 [DEBUG] Iniciando entrenamiento...")
         try:
-            self.train(texts, labels, epochs=5, batch_size=12)  # 5 épocas para mejor aprendizaje
-            print("✅ [DEBUG] Entrenamiento completado")
+            history = self.train(texts, labels, epochs=5, batch_size=12)  # 5 épocas para mejor aprendizaje
+            print("✅ [DEBUG] Método train() completado")
             
             # Validar que el modelo está entrenado
+            print(f"🔍 [DEBUG] Verificando estado del modelo después del entrenamiento...")
+            print(f"🔍 [DEBUG] is_trained: {self.is_trained}")
+            print(f"🔍 [DEBUG] model existe: {self.model is not None}")
+            print(f"🔍 [DEBUG] tokenizer tiene word_index: {hasattr(self.tokenizer, 'word_index') and self.tokenizer.word_index is not None}")
+            print(f"🔍 [DEBUG] label_encoder tiene classes: {hasattr(self.label_encoder, 'classes_') and len(self.label_encoder.classes_) > 0}")
+            
             if not self.is_trained:
                 raise ValueError("El modelo no se marcó como entrenado después del entrenamiento")
             if not self.model:
@@ -518,7 +533,7 @@ class SentimentNeuralNetwork:
             # Validación final: hacer una predicción de prueba
             print("🔍 [DEBUG] Haciendo predicción de prueba después del entrenamiento...")
             test_result = self.predict_single("excelente servicio")
-            print(f"🔍 [DEBUG] Predicción de prueba: {test_result}")
+            print(f"✅ [DEBUG] Predicción de prueba exitosa: sentiment={test_result.get('sentiment')}, score={test_result.get('score')}")
             
         except Exception as e:
             print(f"❌ [DEBUG] Error en _create_pretrained_model: {str(e)}")

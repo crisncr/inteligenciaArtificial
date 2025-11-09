@@ -30,6 +30,9 @@ def _train_model_async():
         print("🔄 [Thread] Cargando modelo...")
         _global_model.load_model()
         print(f"🔍 [DEBUG] [Thread] Modelo cargado: is_trained={_global_model.is_trained}")
+        print(f"🔍 [DEBUG] [Thread] Modelo existe: {_global_model.model is not None}")
+        print(f"🔍 [DEBUG] [Thread] Tokenizer tiene word_index: {hasattr(_global_model.tokenizer, 'word_index') and _global_model.tokenizer.word_index is not None}")
+        print(f"🔍 [DEBUG] [Thread] Label encoder tiene classes: {hasattr(_global_model.label_encoder, 'classes_') and len(_global_model.label_encoder.classes_) > 0}")
         
         # Validación adicional
         if not _global_model.is_trained:
@@ -37,15 +40,23 @@ def _train_model_async():
         if not _global_model.model:
             raise Exception("El modelo no tiene el atributo model después de load_model()")
         
+        # Hacer una predicción de prueba para asegurar que funciona
+        print("🔍 [DEBUG] [Thread] Haciendo predicción de prueba...")
+        test_result = _global_model.predict_single("excelente servicio")
+        print(f"🔍 [DEBUG] [Thread] Predicción de prueba exitosa: {test_result}")
+        
         print("✅ [Thread] Modelo de red neuronal listo y entrenado")
     except Exception as e:
         print(f"❌ [Thread] Error al cargar modelo: {str(e)}")
         import traceback
         traceback.print_exc()
         _global_model = None
-    finally:
         _model_lock = False
-        print("🔍 [DEBUG] [Thread] _model_lock = False")
+        print("🔍 [DEBUG] [Thread] _model_lock = False (por error)")
+    finally:
+        if _model_lock:  # Solo cambiar si aún está bloqueado (no hubo error antes)
+            _model_lock = False
+            print("🔍 [DEBUG] [Thread] _model_lock = False")
 
 def _get_or_create_model():
     """Obtener o crear instancia global del modelo - Espera razonable si se está entrenando"""

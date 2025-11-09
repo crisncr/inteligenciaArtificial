@@ -42,9 +42,18 @@ export const apiRequest = async (endpoint, options = {}) => {
     try {
       errorData = await response.json()
     } catch {
-      errorData = { detail: `Error ${response.status}` }
+      errorData = { detail: `Error ${response.status}`, error: `Error ${response.status}` }
     }
-    const error = new Error(errorData.detail || errorData.message || `Error ${response.status}`)
+    
+    // Si es un error 503 (Service Unavailable), el modelo está cargando
+    if (response.status === 503) {
+      const errorMsg = errorData.error || errorData.detail || 'El modelo se está cargando. Por favor, espera 15-30 segundos e intenta de nuevo.'
+      const error = new Error(errorMsg)
+      error.response = { data: errorData, status: response.status }
+      throw error
+    }
+    
+    const error = new Error(errorData.detail || errorData.message || errorData.error || `Error ${response.status}`)
     error.response = { data: errorData, status: response.status }
     throw error
   }

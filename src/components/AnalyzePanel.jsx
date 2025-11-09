@@ -59,7 +59,12 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}))
-          throw new Error(errorData.error || `Error ${res.status}: ${res.statusText}`)
+          const errorMsg = errorData.error || `Error ${res.status}: ${res.statusText}`
+          // Si es un error 503 (Service Unavailable), el modelo está cargando
+          if (res.status === 503) {
+            throw new Error('El modelo se está cargando. Por favor, espera 15-30 segundos e intenta de nuevo.')
+          }
+          throw new Error(errorMsg)
         }
         
         data = await res.json()
@@ -80,7 +85,15 @@ function AnalyzePanel({ onAnalyze, reanalyzeText, user, freeAnalysesLeft, onLimi
     } catch (err) {
       console.error('Error:', err)
       // Mostrar el mensaje de error real del backend
-      const errorMessage = err.message || 'Error desconocido al analizar la frase'
+      let errorMessage = err.message || 'Error desconocido al analizar la frase'
+      
+      // Si es un error de red o de servicio no disponible, mostrar mensaje más claro
+      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+        errorMessage = 'Error de conexión. Por favor, verifica tu conexión a internet.'
+      } else if (err.message && (err.message.includes('503') || err.message.includes('Service Unavailable'))) {
+        errorMessage = 'El modelo se está cargando. Por favor, espera unos momentos e intenta de nuevo.'
+      }
+      
       setResult({
         sentiment: 'Error',
         score: 0,

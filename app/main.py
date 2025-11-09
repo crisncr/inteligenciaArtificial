@@ -316,6 +316,10 @@ async def analyze_public(payload: dict = Body(...)):
         print(f"❌ [DEBUG] Error en /analyze: {error_msg}")
         import traceback
         traceback.print_exc()
+        # Determinar código de estado según el tipo de error
+        status_code = 500
+        if "cargando" in error_msg.lower() or "entrenando" in error_msg.lower() or "espera" in error_msg.lower():
+            status_code = 503  # Service Unavailable - el servicio está temporalmente no disponible
         # Retornar error en formato JSON
         return JSONResponse(
             {
@@ -324,7 +328,7 @@ async def analyze_public(payload: dict = Body(...)):
                 "score": 0.0,
                 "emoji": "⚠️"
             },
-            status_code=500
+            status_code=status_code
         )
 
 
