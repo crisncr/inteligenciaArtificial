@@ -167,21 +167,20 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM PEQUEÑA pero capaz de aprender
-        # Modelo pequeño pero con suficiente capacidad para diferenciar sentimientos
+        # Red neuronal LSTM con suficiente capacidad para aprender
         from tensorflow.keras.initializers import GlorotUniform
         
         model = Sequential([
-            Embedding(vocab_size + 1, 8, embeddings_initializer=GlorotUniform()),  # 8 dimensiones (suficiente para aprender)
-            LSTM(4, dropout=0.1, kernel_initializer=GlorotUniform()),        # 4 unidades (suficiente para aprender)
-            Dense(8, activation='relu', kernel_initializer=GlorotUniform()),   # 8 unidades (capaz de aprender patrones)
+            Embedding(vocab_size + 1, 16, embeddings_initializer=GlorotUniform()),  # 16 dimensiones (aumentado de 8)
+            LSTM(8, dropout=0.2, kernel_initializer=GlorotUniform()),        # 8 unidades (aumentado de 4)
+            Dense(16, activation='relu', kernel_initializer=GlorotUniform()),   # 16 unidades (aumentado de 8)
             Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida
         ])
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
-        # Compilar modelo neuronal con learning rate optimizado
+        # Compilar modelo neuronal con learning rate más alto para mejor aprendizaje
         from tensorflow.keras.optimizers import Adam
-        optimizer = Adam(learning_rate=0.005)  # Learning rate balanceado (0.005) para aprender bien sin overshooting
+        optimizer = Adam(learning_rate=0.02)  # Aumentado de 0.005 a 0.02 para aprendizaje más rápido
         model.compile(
             optimizer=optimizer,  # Optimizador con learning rate configurado
             loss='sparse_categorical_crossentropy',  # Función de pérdida
@@ -210,11 +209,11 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # Reducir datos para entrenamiento ULTRA-RÁPIDO (modelo pequeño puede aprender con menos datos)
-        # Priorizar velocidad sobre cantidad de datos
-        max_samples = 30  # Reducir a 30 muestras para entrenamiento instantáneo (10-15 segundos)
+        # Reducir datos para entrenamiento RÁPIDO pero con suficientes muestras para aprender
+        # Aumentar a 120 muestras para mejor aprendizaje (4x más que antes)
+        max_samples = 120  # Aumentado de 30 a 120 para mejor aprendizaje
         if len(X) > max_samples:
-            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
+            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para balance entre velocidad y aprendizaje...")
             
             # CRÍTICO: Mezclar datos ANTES de reducir para mantener balance de clases
             # Esto asegura que no tomemos solo los primeros elementos que pueden ser de la misma clase
@@ -314,12 +313,12 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: 3 épocas para que aprenda, batch size pequeño para mejor aprendizaje
-        actual_epochs = 3  # 3 épocas para que el modelo realmente aprenda (sigue siendo rápido)
-        # Batch size pequeño (4-8) para mejor aprendizaje con gradient descent
-        actual_batch_size = min(8, len(X_train))  # Batch pequeño para mejor aprendizaje
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch pequeño para mejor aprendizaje)")
-        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (suficiente para aprender)")
+        # OPTIMIZACIÓN: Más épocas y mejor batch size para que aprenda correctamente
+        actual_epochs = 10  # Aumentado de 3 a 10 épocas para mejor aprendizaje
+        # Batch size más grande para mejor estabilidad
+        actual_batch_size = min(16, len(X_train))  # Aumentado de 8 a 16
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch más grande para estabilidad)")
+        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (suficiente para aprender correctamente)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
@@ -353,7 +352,7 @@ class SentimentNeuralNetwork:
         import sys
         sys.stdout.flush()
         
-        print("🚀 [DEBUG] INICIANDO model.fit() - entrenamiento con 3 épocas...")
+        print(f"🚀 [DEBUG] INICIANDO model.fit() - entrenamiento con {actual_epochs} épocas...")
         sys.stdout.flush()
         
         fit_start = time.time()
@@ -367,11 +366,16 @@ class SentimentNeuralNetwork:
             # Verificar accuracy final
             if hasattr(history, 'history') and 'accuracy' in history.history:
                 final_accuracy = history.history['accuracy'][-1]
+                final_loss = history.history['loss'][-1] if 'loss' in history.history else None
                 print(f"📊 [DEBUG] Accuracy final del entrenamiento: {final_accuracy:.4f}")
-                if final_accuracy < 0.5:
-                    print(f"⚠️ [DEBUG] ADVERTENCIA: Accuracy muy baja ({final_accuracy:.4f}), el modelo podría no estar aprendiendo bien")
+                if final_loss:
+                    print(f"📊 [DEBUG] Loss final del entrenamiento: {final_loss:.4f}")
+                if final_accuracy < 0.6:
+                    print(f"⚠️ [DEBUG] ADVERTENCIA: Accuracy baja ({final_accuracy:.4f}), el modelo podría no estar aprendiendo bien")
+                elif final_accuracy < 0.8:
+                    print(f"✅ [DEBUG] Accuracy aceptable: {final_accuracy:.4f} (mejorable pero funcional)")
                 else:
-                    print(f"✅ [DEBUG] Accuracy aceptable: {final_accuracy:.4f}")
+                    print(f"✅ [DEBUG] Accuracy excelente: {final_accuracy:.4f}")
             else:
                 print(f"⚠️ [DEBUG] No se pudo obtener accuracy del historial")
             
