@@ -20,20 +20,33 @@ def _get_or_create_model():
     if _global_model is not None and _global_model.is_trained:
         return _global_model
     
-    # Si otro proceso está cargando el modelo, esperar
+    # Si otro proceso está cargando el modelo, esperar (con timeout)
     if _model_lock:
         import time
-        while _model_lock:
-            time.sleep(0.1)
-        if _global_model is not None and _global_model.is_trained:
-            return _global_model
+        max_wait = 300  # 5 minutos máximo
+        waited = 0
+        while _model_lock and waited < max_wait:
+            time.sleep(1)
+            waited += 1
+            if _global_model is not None and _global_model.is_trained:
+                return _global_model
+        
+        # Si aún no está listo después del timeout, lanzar error
+        if _global_model is None or not _global_model.is_trained:
+            raise Exception("El modelo está tardando demasiado en cargarse. Por favor, intenta de nuevo en unos momentos.")
     
     try:
         _model_lock = True
         from app.ml_models.sentiment_nn import SentimentNeuralNetwork
+        print("🔄 Inicializando modelo de red neuronal...")
         _global_model = SentimentNeuralNetwork()
         _global_model.load_model()
+        print("✅ Modelo de red neuronal listo")
         return _global_model
+    except Exception as e:
+        print(f"❌ Error al cargar modelo: {str(e)}")
+        _global_model = None
+        raise
     finally:
         _model_lock = False
 
@@ -54,12 +67,18 @@ def analyze_sentiment(text: str) -> Dict[str, object]:
     Raises:
         Exception: Si no se puede cargar o usar el modelo de red neuronal
     """
+    if not text or not text.strip():
+        raise Exception("El texto a analizar no puede estar vacío")
+    
     try:
         # Usar modelo global para evitar reentrenarlo
         model = _get_or_create_model()
         
-        if not model or not model.is_trained:
-            raise Exception("El modelo no está entrenado correctamente")
+        if not model:
+            raise Exception("No se pudo cargar el modelo de red neuronal")
+        
+        if not model.is_trained:
+            raise Exception("El modelo no está entrenado correctamente. Por favor, espera unos momentos mientras se entrena el modelo.")
         
         result = model.predict_single(text)
         # Marcar que se usó red neuronal
@@ -71,13 +90,24 @@ def analyze_sentiment(text: str) -> Dict[str, object]:
             "Asegúrate de que TensorFlow esté instalado correctamente. "
             f"Detalle: {str(e)}"
         )
+    except ValueError as e:
+        # Errores de validación del modelo
+        error_msg = str(e)
+        if "no está entrenado" in error_msg.lower():
+            raise Exception(
+                "El modelo de red neuronal está cargándose. Por favor, espera unos momentos e intenta de nuevo."
+            )
+        raise Exception(f"Error en el modelo: {error_msg}")
     except Exception as e:
         error_msg = str(e)
         # Mejorar mensajes de error
-        if "El modelo no está entrenado" in error_msg:
+        if "no está entrenado" in error_msg.lower() or "no está disponible" in error_msg.lower():
             raise Exception(
-                "Error: El modelo de red neuronal no está disponible. "
-                "Por favor, intenta de nuevo en unos momentos mientras se carga el modelo."
+                "El modelo de red neuronal está cargándose. Por favor, espera unos momentos e intenta de nuevo."
+            )
+        if "tardando demasiado" in error_msg.lower():
+            raise Exception(
+                "El modelo está tardando en cargarse. Por favor, intenta de nuevo en unos momentos."
             )
         raise Exception(
             f"Error al analizar sentimiento: {error_msg}"

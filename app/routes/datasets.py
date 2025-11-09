@@ -41,15 +41,43 @@ async def upload_dataset(
         except:
             raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser CSV o JSON")
     
-    # Buscar columna de texto
+    # Buscar columna de texto (case-insensitive y normalizar espacios)
     text_column = None
-    for col in ['texto', 'text', 'comment', 'comentario', 'review', 'reseña']:
-        if col in df.columns:
-            text_column = col
+    
+    # Guardar nombres originales de columnas para el mensaje de error
+    original_columns = df.columns.tolist()
+    
+    # Crear mapeo entre nombres normalizados y originales
+    column_mapping = {col.strip().lower(): col for col in original_columns}
+    
+    # Lista de nombres posibles (en minúsculas)
+    possible_names = ['texto', 'text', 'comment', 'comentario', 'review', 'reseña', 'mensaje', 'message', 'opinion', 'opinión', 'contenido', 'content', 'descripcion', 'description', 'comentarios']
+    
+    # Buscar columna por nombre normalizado
+    for normalized_name in possible_names:
+        if normalized_name in column_mapping:
+            text_column = column_mapping[normalized_name]  # Usar nombre original
             break
     
+    # Si no se encontró, intentar usar la primera columna de tipo string
     if text_column is None:
-        raise HTTPException(status_code=400, detail="El archivo debe contener una columna 'texto', 'text', 'comment', 'comentario', 'review' o 'reseña'")
+        for col in original_columns:
+            if df[col].dtype == 'object':  # Tipo string/object
+                text_column = col
+                break
+    
+    # Si aún no se encontró, usar la primera columna disponible
+    if text_column is None and len(original_columns) > 0:
+        text_column = original_columns[0]
+    
+    if text_column is None:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"El archivo debe contener una columna de texto. Columnas encontradas: {', '.join(original_columns)}. "
+                   f"Por favor, asegúrate de que el archivo tenga una columna con texto (por ejemplo: 'texto', 'text', 'comment', 'review', etc.)"
+        )
+    
+    print(f"✅ Columna de texto detectada: '{text_column}'")
     
     texts = df[text_column].dropna().astype(str).tolist()[:max_rows]
     
@@ -73,8 +101,12 @@ async def analyze_batch(
         raise HTTPException(status_code=400, detail="No hay textos para analizar")
     
     try:
-        model = SentimentNeuralNetwork()
-        model.load_model()
+        # Usar el modelo global desde sentiment.py para evitar reentrenarlo
+        from app.sentiment import _get_or_create_model
+        model = _get_or_create_model()
+        
+        if not model or not model.is_trained:
+            raise HTTPException(status_code=500, detail="El modelo de red neuronal no está disponible. Por favor, intenta de nuevo en unos momentos.")
         
         results = model.predict(texts)
         
