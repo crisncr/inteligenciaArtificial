@@ -18,14 +18,22 @@ class TrainingProgressCallback(Callback):
     def __init__(self):
         self.start_time = None
         self.epoch_times = []
+        import sys
+        self.stdout = sys.stdout
+    
+    def _print_and_flush(self, message):
+        """Imprimir y hacer flush inmediatamente"""
+        print(message)
+        self.stdout.flush()
     
     def on_train_begin(self, logs=None):
         self.start_time = time.time()
-        print(f"⏱️ [DEBUG] Entrenamiento comenzó a las {time.strftime('%H:%M:%S')}")
+        self._print_and_flush(f"⏱️ [DEBUG] Entrenamiento comenzó a las {time.strftime('%H:%M:%S')}")
+        self._print_and_flush(f"🔍 [DEBUG] Callback on_train_begin ejecutado correctamente")
     
     def on_epoch_begin(self, epoch, logs=None):
         epoch_start = time.time()
-        print(f"🔄 [DEBUG] Época {epoch + 1} comenzando...")
+        self._print_and_flush(f"🔄 [DEBUG] Época {epoch + 1} comenzando...")
         self.current_epoch_start = epoch_start
     
     def on_epoch_end(self, epoch, logs=None):
@@ -35,16 +43,16 @@ class TrainingProgressCallback(Callback):
         accuracy = logs.get('accuracy', 'N/A')
         val_loss = logs.get('val_loss', 'N/A')
         val_accuracy = logs.get('val_accuracy', 'N/A')
-        print(f"✅ [DEBUG] Época {epoch + 1} completada en {epoch_time:.2f}s - loss: {loss:.4f}, accuracy: {accuracy:.4f}, val_loss: {val_loss}, val_accuracy: {val_accuracy}")
+        self._print_and_flush(f"✅ [DEBUG] Época {epoch + 1} completada en {epoch_time:.2f}s - loss: {loss:.4f}, accuracy: {accuracy:.4f}, val_loss: {val_loss}, val_accuracy: {val_accuracy}")
     
     def on_train_end(self, logs=None):
         total_time = time.time() - self.start_time
-        print(f"⏱️ [DEBUG] Entrenamiento terminado en {total_time:.2f}s total")
+        self._print_and_flush(f"⏱️ [DEBUG] Entrenamiento terminado en {total_time:.2f}s total")
         if self.epoch_times:
             avg_time = sum(self.epoch_times) / len(self.epoch_times)
-            print(f"📊 [DEBUG] Tiempo promedio por época: {avg_time:.2f}s")
+            self._print_and_flush(f"📊 [DEBUG] Tiempo promedio por época: {avg_time:.2f}s")
         else:
-            print(f"⚠️ [DEBUG] No se registraron épocas completadas")
+            self._print_and_flush(f"⚠️ [DEBUG] No se registraron épocas completadas")
 
 class SentimentNeuralNetwork:
     def __init__(self, max_words=800, max_len=35):
@@ -132,12 +140,12 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM MÁS PEQUEÑA para entrenar MÁS RÁPIDO en Render (512 MB limit)
-        # Modelo reducido para que termine el entrenamiento rápido
+        # Red neuronal LSTM ULTRA-PEQUEÑA para entrenar MUY RÁPIDO en Render (512 MB limit)
+        # Modelo reducido al mínimo para evitar bloqueos y completar entrenamiento rápido
         model = Sequential([
-            Embedding(vocab_size + 1, 8),  # Reducido de 24 a 8, SIN input_length (más flexible)
-            LSTM(4, dropout=0.0),        # Reducido de 16 a 4, sin dropout para más velocidad
-            Dense(3, activation='relu'),   # Reducido de 8 a 3
+            Embedding(vocab_size + 1, 4, input_length=self.max_len),  # Reducido a 4, con input_length explícito
+            LSTM(2, dropout=0.0),        # Reducido a 2 unidades, sin dropout para más velocidad
+            Dense(2, activation='relu'),   # Reducido a 2 unidades
             Dense(num_classes, activation='softmax')  # Salida (probabilidades: positivo/negativo/neutral)
         ])
         
@@ -146,12 +154,13 @@ class SentimentNeuralNetwork:
         model.compile(
             optimizer='adam',  # Optimizador de red neuronal
             loss='sparse_categorical_crossentropy',  # Función de pérdida
-            metrics=['accuracy']
+            metrics=['accuracy'],
+            run_eagerly=True  # Ejecutar en modo eager para evitar bloqueos durante compilación
         )
         
         # NO contar parámetros aquí - el modelo aún no está "built"
         # Los parámetros se contarán después del primer fit() cuando el modelo se construya automáticamente
-        print(f"🔍 [DEBUG] Modelo compilado correctamente")
+        print(f"🔍 [DEBUG] Modelo compilado correctamente (run_eagerly=True)")
         
         return model
     
@@ -164,7 +173,7 @@ class SentimentNeuralNetwork:
         X, y = self.prepare_data(texts, labels)
         
         # Limitar tamaño de datos si es muy grande (para ahorrar memoria y velocidad)
-        max_samples = 30  # REDUCIDO A 30 para entrenar MUY RÁPIDO
+        max_samples = 15  # REDUCIDO A 15 para entrenar ULTRA-RÁPIDO y evitar bloqueos
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
             X = X[:max_samples]
@@ -206,6 +215,7 @@ class SentimentNeuralNetwork:
         progress_callback = TrainingProgressCallback()
         
         # Entrenar con batch size más grande para más velocidad
+        # run_eagerly ya está configurado en compile() para evitar bloqueos
         fit_kwargs = {
             'epochs': actual_epochs,
             'batch_size': actual_batch_size,
@@ -219,11 +229,27 @@ class SentimentNeuralNetwork:
                 print("🔍 [DEBUG] Llamando a model.fit() con validación...")
                 print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
                 print(f"🔍 [DEBUG] X_val shape: {X_val.shape}, y_val shape: {y_val.shape}")
+                print(f"🔍 [DEBUG] Callback creado: {progress_callback}")
+                print(f"🔍 [DEBUG] fit_kwargs: {fit_kwargs}")
+                
+                # Flush stdout para asegurar que los logs se muestren
+                import sys
+                sys.stdout.flush()
+                
+                print("🚀 [DEBUG] INICIANDO model.fit() CON VALIDACIÓN AHORA...")
+                sys.stdout.flush()
                 
                 fit_start = time.time()
-                history = self.model.fit(X_train, y_train, **fit_kwargs)
-                fit_time = time.time() - fit_start
-                print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                try:
+                    history = self.model.fit(X_train, y_train, **fit_kwargs)
+                    fit_time = time.time() - fit_start
+                    print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                except Exception as fit_error:
+                    fit_time = time.time() - fit_start
+                    print(f"❌ [DEBUG] ERROR en model.fit() después de {fit_time:.2f}s: {str(fit_error)}")
+                    import traceback
+                    traceback.print_exc()
+                    raise
                 
                 # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
                 try:
@@ -242,11 +268,30 @@ class SentimentNeuralNetwork:
             else:
                 print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
                 print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+                print(f"🔍 [DEBUG] Callback creado: {progress_callback}")
+                print(f"🔍 [DEBUG] fit_kwargs: {fit_kwargs}")
+                print(f"🔍 [DEBUG] Modelo antes de fit: {self.model}")
+                print(f"🔍 [DEBUG] Verificando que el modelo esté compilado...")
+                print(f"🔍 [DEBUG] Optimizer: {self.model.optimizer}")
+                
+                # Flush stdout para asegurar que los logs se muestren
+                import sys
+                sys.stdout.flush()
+                
+                print("🚀 [DEBUG] INICIANDO model.fit() AHORA...")
+                sys.stdout.flush()
                 
                 fit_start = time.time()
-                history = self.model.fit(X_train, y_train, **fit_kwargs)
-                fit_time = time.time() - fit_start
-                print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                try:
+                    history = self.model.fit(X_train, y_train, **fit_kwargs)
+                    fit_time = time.time() - fit_start
+                    print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                except Exception as fit_error:
+                    fit_time = time.time() - fit_start
+                    print(f"❌ [DEBUG] ERROR en model.fit() después de {fit_time:.2f}s: {str(fit_error)}")
+                    import traceback
+                    traceback.print_exc()
+                    raise
                 
                 # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
                 try:

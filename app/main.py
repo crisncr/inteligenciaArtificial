@@ -253,11 +253,16 @@ async def startup_event():
     
     try:
         import tensorflow as tf
-        # Limitar threads para usar menos memoria
+        print(f"🔍 [DEBUG] TensorFlow version: {tf.__version__}")
+        
+        # Limitar threads para usar menos memoria y evitar bloqueos
         tf.config.threading.set_inter_op_parallelism_threads(1)
         tf.config.threading.set_intra_op_parallelism_threads(1)
+        print(f"🔍 [DEBUG] Threads configurados: inter_op=1, intra_op=1")
+        
         # Deshabilitar optimizaciones que usan más memoria
         tf.config.optimizer.set_jit(False)
+        print(f"🔍 [DEBUG] JIT deshabilitado")
         
         # Configurar límite de memoria para GPU (si existe)
         gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -266,12 +271,21 @@ async def startup_event():
                 # Limitar crecimiento de memoria GPU
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
+                print(f"🔍 [DEBUG] GPU configurada: {len(gpus)} dispositivo(s)")
             except RuntimeError as e:
                 print(f"⚠️ No se pudo configurar GPU: {e}")
+        else:
+            print(f"🔍 [DEBUG] No se detectaron GPUs, usando CPU")
+        
+        # Habilitar modo eager por defecto para evitar bloqueos
+        # Esto se puede hacer a nivel global, pero es mejor hacerlo en cada modelo
+        print(f"🔍 [DEBUG] TensorFlow configurado - modo eager se habilitará en cada modelo")
         
         print("✅ TensorFlow configurado para modo ULTRA-LIGERO (512 MB limit)")
     except Exception as e:
         print(f"⚠️ No se pudo configurar TensorFlow: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Precargar modelo en thread separado (no bloquea startup)
     def precargar_modelo():
