@@ -171,9 +171,9 @@ class SentimentNeuralNetwork:
         from tensorflow.keras.initializers import GlorotUniform
         
         model = Sequential([
-            Embedding(vocab_size + 1, 32, mask_zero=True),  # 32 dimensiones, mask_zero=True para ignorar padding
-            LSTM(16, dropout=0.0, recurrent_dropout=0.0),  # 16 unidades, sin dropout para que aprenda
-            Dense(32, activation='relu'),   # 32 unidades
+            Embedding(vocab_size + 1, 16, mask_zero=True),  # 16 dimensiones (reducido para memoria), mask_zero=True para ignorar padding
+            LSTM(8, dropout=0.0, recurrent_dropout=0.0),  # 8 unidades (reducido para memoria), sin dropout para que aprenda
+            Dense(16, activation='relu'),   # 16 unidades (reducido para memoria)
             Dense(num_classes, activation='softmax')  # Salida
         ])
         
@@ -209,25 +209,87 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # USAR TODOS LOS DATOS disponibles para mejor aprendizaje
-        # No reducir datos - usar todos los datos disponibles para que el modelo aprenda mejor
-        print(f"✅ [DEBUG] Usando TODOS los datos disponibles: {len(X)} muestras")
+        # USAR la mayoría de los datos pero limitar para evitar problemas de memoria
+        # Balance entre aprendizaje y memoria (512 MB límite en Render)
+        max_samples = 100  # Usar 100 muestras (balance entre aprendizaje y memoria)
+        if len(X) > max_samples:
+            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
+            
+            # MEZCLAR datos ANTES de reducir para mantener balance de clases
+            indices = np.arange(len(X))
+            np.random.seed(42)  # Semilla fija para reproducibilidad
+            np.random.shuffle(indices)
+            X_shuffled = X[indices]
+            y_shuffled = y[indices]
+            
+            # Asegurar balance de clases al reducir
+            unique_labels_all = np.unique(y_shuffled)
+            num_classes_available = len(unique_labels_all)
+            samples_per_class = max_samples // num_classes_available
+            min_samples_per_class = max(1, samples_per_class - 2)  # Al menos samples_per_class-2 por clase
+            
+            print(f"🔍 [DEBUG] Intentando balancear: ~{samples_per_class} muestras por clase de {num_classes_available} clases")
+            
+            # Recopilar muestras balanceadas
+            X_balanced = []
+            y_balanced = []
+            samples_taken_per_class = {int(label): 0 for label in unique_labels_all}
+            used_indices = set()
+            
+            # Primero, tomar muestras balanceadas de cada clase
+            for label in unique_labels_all:
+                label_int = int(label)
+                label_indices = np.where(y_shuffled == label)[0]
+                np.random.shuffle(label_indices)
+                
+                for idx in label_indices[:min_samples_per_class]:
+                    if len(X_balanced) >= max_samples:
+                        break
+                    if idx not in used_indices:
+                        X_balanced.append(X_shuffled[idx])
+                        y_balanced.append(y_shuffled[idx])
+                        used_indices.add(idx)
+                        samples_taken_per_class[label_int] += 1
+                
+                if len(X_balanced) >= max_samples:
+                    break
+            
+            # Si aún hay espacio, tomar muestras adicionales de manera aleatoria
+            remaining_indices = [i for i in range(len(X_shuffled)) if i not in used_indices]
+            np.random.shuffle(remaining_indices)
+            
+            for idx in remaining_indices:
+                if len(X_balanced) >= max_samples:
+                    break
+                X_balanced.append(X_shuffled[idx])
+                y_balanced.append(y_shuffled[idx])
+                used_indices.add(idx)
+            
+            X = np.array(X_balanced)
+            y = np.array(y_balanced)
+            
+            # Validar balance de clases DESPUÉS de reducir
+            unique_labels_reduced, counts_reduced = np.unique(y, return_counts=True)
+            label_names_reduced = self.label_encoder.inverse_transform(unique_labels_reduced)
+            print(f"🔍 [DEBUG] Distribución de etiquetas DESPUÉS de reducir (balanceado):")
+            for label_name, count in zip(label_names_reduced, counts_reduced):
+                print(f"   - {label_name}: {count} muestras")
+        else:
+            # MEZCLAR datos antes de entrenar para mejor aprendizaje
+            print("🔍 [DEBUG] Mezclando datos antes de entrenar...")
+            indices = np.arange(len(X))
+            np.random.seed(42)  # Semilla fija para reproducibilidad
+            np.random.shuffle(indices)
+            X = X[indices]
+            y = y[indices]
+            print(f"✅ [DEBUG] Datos mezclados: {len(X)} muestras")
         
-        # MEZCLAR datos antes de entrenar para mejor aprendizaje
-        print("🔍 [DEBUG] Mezclando datos antes de entrenar...")
-        indices = np.arange(len(X))
-        np.random.seed(42)  # Semilla fija para reproducibilidad
-        np.random.shuffle(indices)
-        X_shuffled = X[indices]
-        y_shuffled = y[indices]
-        print(f"✅ [DEBUG] Datos mezclados: {len(X_shuffled)} muestras")
-        
-        # SIEMPRE entrenar sin validación para máxima velocidad
+        # SIEMPRE entrenar sin validación para máxima velocidad y menor uso de memoria
         # Con pocos datos, la validación no es necesaria y solo ralentiza
-        X_train, y_train = X_shuffled, y_shuffled
-        X_val, y_val = X_shuffled, y_shuffled
+        X_train, y_train = X, y
+        X_val, y_val = X, y
         use_validation = False
-        print(f"🔍 [DEBUG] Entrenando SIN validación para máxima velocidad")
+        print(f"🔍 [DEBUG] Entrenando SIN validación para máxima velocidad y menor memoria")
         
         vocab_size = len(self.tokenizer.word_index)
         num_classes = len(self.label_encoder.classes_)
@@ -258,12 +320,12 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: Más épocas con early stopping implícito si converge
-        actual_epochs = 20  # Aumentar a 20 épocas para dar más oportunidades de aprender
-        # Batch size más pequeño para mejor aprendizaje con gradient descent
-        actual_batch_size = min(8, len(X_train))  # Batch pequeño (8) para mejor aprendizaje
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch pequeño para mejor aprendizaje)")
-        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (más épocas para converger)")
+        # OPTIMIZACIÓN: Balance entre épocas y memoria
+        actual_epochs = 15  # 15 épocas (balance entre aprendizaje y tiempo/memoria)
+        # Batch size pequeño para mejor aprendizaje y menor uso de memoria
+        actual_batch_size = min(8, len(X_train))  # Batch pequeño (8) para mejor aprendizaje y menor memoria
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch pequeño para aprendizaje y memoria)")
+        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (balance entre aprendizaje y memoria)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
@@ -341,11 +403,14 @@ class SentimentNeuralNetwork:
         except Exception as e:
             print(f"⚠️ [DEBUG] No se pudo contar parámetros: {e}")
         
-        print(f"✅ Entrenamiento completado (sin validación, ultra-rápido)")
+        print(f"✅ Entrenamiento completado (sin validación)")
         
-        # Limpiar memoria después de entrenar
+        # Limpiar memoria después de entrenar (CRÍTICO para Render 512 MB)
         print("🔍 [DEBUG] Limpiando memoria después de entrenar...")
-        gc.collect()
+        import tensorflow as tf
+        tf.keras.backend.clear_session()  # Limpiar sesión de Keras
+        gc.collect()  # Recolectar basura de Python
+        print("✅ [DEBUG] Memoria limpiada")
         
         # Validar que el modelo esté correctamente entrenado
         print("🔍 [DEBUG] Validando modelo después del entrenamiento...")
