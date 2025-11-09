@@ -33,8 +33,20 @@ class TrainingProgressCallback(Callback):
     
     def on_epoch_begin(self, epoch, logs=None):
         epoch_start = time.time()
-        self._print_and_flush(f"🔄 [DEBUG] Época {epoch + 1} comenzando...")
+        self._print_and_flush(f"🔄 [DEBUG] Época {epoch + 1} comenzando a las {time.strftime('%H:%M:%S')}...")
         self.current_epoch_start = epoch_start
+    
+    def on_batch_begin(self, batch, logs=None):
+        # Log cada 5 batches para no saturar, pero ver progreso
+        if batch % 5 == 0 or batch == 0:
+            self._print_and_flush(f"🔍 [DEBUG] Batch {batch} comenzando...")
+    
+    def on_batch_end(self, batch, logs=None):
+        # Log cada 5 batches para no saturar, pero ver progreso
+        if batch % 5 == 0 or batch == 0:
+            loss = logs.get('loss', 'N/A')
+            acc = logs.get('accuracy', 'N/A')
+            self._print_and_flush(f"🔍 [DEBUG] Batch {batch} completado - loss: {loss}, accuracy: {acc}")
     
     def on_epoch_end(self, epoch, logs=None):
         epoch_time = time.time() - self.current_epoch_start
@@ -290,9 +302,14 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # REDUCIR ÉPOCAS Y AUMENTAR BATCH SIZE para entrenar MÁS RÁPIDO
-        actual_epochs = min(epochs, 2)  # Máximo 2 épocas
-        actual_batch_size = max(batch_size, min(16, len(X_train)))  # Batch size más grande
+        # REDUCIR ÉPOCAS Y AJUSTAR BATCH SIZE para entrenar MÁS RÁPIDO
+        actual_epochs = min(epochs, 1)  # Solo 1 época para velocidad
+        # Batch size debe ser menor o igual al número de muestras
+        # Si hay 15 muestras, usar batch_size=15 (entrenar todas a la vez es más rápido)
+        actual_batch_size = min(batch_size, len(X_train))  # No puede ser mayor que las muestras disponibles
+        if actual_batch_size > len(X_train):
+            actual_batch_size = len(X_train)  # Usar todas las muestras en un solo batch
+        print(f"🔍 [DEBUG] Batch size ajustado: {actual_batch_size} (muestras disponibles: {len(X_train)})")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
@@ -366,18 +383,26 @@ class SentimentNeuralNetwork:
                 sys.stdout.flush()
                 
                 print("🚀 [DEBUG] INICIANDO model.fit() AHORA...")
+                print(f"🔍 [DEBUG] Parámetros: epochs={actual_epochs}, batch_size={actual_batch_size}, samples={len(X_train)}")
                 sys.stdout.flush()
                 
                 fit_start = time.time()
                 try:
+                    # Agregar logging periódico durante el entrenamiento
+                    print(f"🔍 [DEBUG] Llamando a model.fit() - esto puede tomar 10-30 segundos...")
+                    sys.stdout.flush()
+                    
                     history = self.model.fit(X_train, y_train, **fit_kwargs)
                     fit_time = time.time() - fit_start
                     print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
+                    sys.stdout.flush()
                 except Exception as fit_error:
                     fit_time = time.time() - fit_start
                     print(f"❌ [DEBUG] ERROR en model.fit() después de {fit_time:.2f}s: {str(fit_error)}")
+                    print(f"🔍 [DEBUG] Tipo de error: {type(fit_error).__name__}")
                     import traceback
                     traceback.print_exc()
+                    sys.stdout.flush()
                     raise
                 
                 # Ahora sí podemos contar los parámetros (el modelo ya está "built" después del fit)
