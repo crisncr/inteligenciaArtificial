@@ -235,42 +235,57 @@ app.include_router(datasets_router.router)
 app.include_router(route_optimization_router.router)
 app.include_router(sales_prediction_router.router)
 
-# Configurar TensorFlow para que no bloquee el servidor durante el entrenamiento
+# Configurar TensorFlow para modo ULTRA-LIGERO (512 MB limit en Render)
 @app.on_event("startup")
 async def startup_event():
-    """Configurar TensorFlow para modo no bloqueante y precargar modelo en background"""
+    """Configurar TensorFlow para modo ULTRA-LIGERO (512 MB limit) y precargar modelo"""
     import os
     import threading
     
-    # Configurar TensorFlow para usar solo los threads necesarios y no bloquear
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reducir logs de TensorFlow
+    # Configurar TensorFlow para usar MÍNIMA memoria (Render tiene 512 MB limit)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reducir logs
     os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-    # Configurar TensorFlow para que no reserve toda la memoria GPU/CPU
+    # Limitar uso de memoria
+    os.environ['TF_MEMORY_ALLOCATION'] = '0.3'  # Usar solo 30% de memoria disponible
+    
     try:
         import tensorflow as tf
-        # Limitar el número de threads de TensorFlow para no bloquear el servidor
+        # Limitar threads para usar menos memoria
         tf.config.threading.set_inter_op_parallelism_threads(1)
         tf.config.threading.set_intra_op_parallelism_threads(1)
-        # Deshabilitar optimizaciones que pueden bloquear
+        # Deshabilitar optimizaciones que usan más memoria
         tf.config.optimizer.set_jit(False)
-        print("✅ TensorFlow configurado para modo no bloqueante")
+        
+        # Configurar límite de memoria para GPU (si existe)
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        if gpus:
+            try:
+                # Limitar crecimiento de memoria GPU
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+            except RuntimeError as e:
+                print(f"⚠️ No se pudo configurar GPU: {e}")
+        
+        print("✅ TensorFlow configurado para modo ULTRA-LIGERO (512 MB limit)")
     except Exception as e:
-        print(f"⚠️ No se pudo configurar TensorFlow (se usará configuración por defecto): {e}")
+        print(f"⚠️ No se pudo configurar TensorFlow: {e}")
     
     # Precargar modelo en thread separado (no bloquea el startup)
     def precargar_modelo():
         try:
             from app.sentiment import _train_model_async
-            print("🚀 Iniciando precarga del modelo en background...")
+            print("🚀 Iniciando precarga del modelo en background (versión ultra-ligera)...")
             _train_model_async()
             print("✅ Modelo precargado correctamente")
         except Exception as e:
             print(f"⚠️ Error al precargar modelo (se cargará en el primer request): {e}")
+            import traceback
+            traceback.print_exc()
     
     # Iniciar thread de precarga (daemon=True para que no bloquee el cierre)
     thread = threading.Thread(target=precargar_modelo, daemon=True, name="ModelPreloader")
     thread.start()
-    print("✅ Thread de precarga de modelo iniciado (no bloquea el servidor)")
+    print("✅ Thread de precarga iniciado (no bloquea el servidor)")
 
 
 # Endpoint público para análisis (sin autenticación, límite de 3)

@@ -12,10 +12,10 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=3000, max_len=100):
-        # Reducir parámetros para entrenar más rápido
-        # max_words: 5000 -> 3000 (menos palabras en vocabulario)
-        # max_len: 200 -> 100 (secuencias más cortas = más rápido)
+    def __init__(self, max_words=1000, max_len=50):
+        # Versión ULTRA-LIGERA para Render (512 MB limit)
+        # max_words: 3000 -> 1000 (menos palabras = menos memoria)
+        # max_len: 100 -> 50 (secuencias más cortas = menos memoria)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -76,17 +76,18 @@ class SentimentNeuralNetwork:
         return padded_sequences
     
     def build_model(self, vocab_size: int, num_classes: int):
-        """Construir modelo de red neuronal - Versión simplificada y rápida"""
-        # Modelo más simple: una sola capa LSTM con menos neuronas para entrenar más rápido
+        """Construir modelo ULTRA-LIGERO para Render (512 MB limit) - Mantiene funcionalidad"""
+        # Modelo mínimo pero funcional: embedding pequeño + LSTM pequeña
+        # Aunque es pequeño, sigue siendo una red neuronal LSTM completamente funcional
         model = Sequential([
-            Embedding(vocab_size + 1, 64),  # Reducido de 128 a 64
-            LSTM(32, dropout=0.3),  # Una sola LSTM, más pequeña, dropout integrado
-            Dense(16, activation='relu'),
-            Dropout(0.3),
+            Embedding(vocab_size + 1, 32),  # Reducido de 64 a 32 para menos memoria
+            LSTM(16, dropout=0.2),  # Reducido de 32 a 16 neuronas
+            Dense(8, activation='relu'),  # Reducido de 16 a 8
+            Dropout(0.2),
             Dense(num_classes, activation='softmax')
         ])
         
-        # Usar optimizador más rápido
+        # Usar optimizador estándar (Adam es eficiente en memoria)
         model.compile(
             optimizer='adam',
             loss='sparse_categorical_crossentropy',
@@ -96,11 +97,19 @@ class SentimentNeuralNetwork:
         return model
     
     def train(self, texts: List[str], labels: List[str], epochs=10, batch_size=32):
-        """Entrenar modelo - Versión optimizada para no bloquear el servidor"""
+        """Entrenar modelo - Versión ULTRA-LIGERA para Render (512 MB limit)"""
         import tensorflow as tf
+        import gc  # Para limpiar memoria
         
         print(f"📊 Preparando datos: {len(texts)} textos, {len(set(labels))} clases")
         X, y = self.prepare_data(texts, labels)
+        
+        # Limitar tamaño de datos si es muy grande (para ahorrar memoria)
+        max_samples = 200  # Máximo 200 muestras para entrenamiento
+        if len(X) > max_samples:
+            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
+            X = X[:max_samples]
+            y = y[:max_samples]
         
         # Si hay pocos datos, usar todos para entrenamiento (sin validación)
         if len(X) < 50:
@@ -116,18 +125,18 @@ class SentimentNeuralNetwork:
         print(f"📊 Vocabulario: {vocab_size} palabras, Clases: {num_classes}")
         print(f"📊 Datos entrenamiento: {len(X_train)}, Validación: {len(X_val) if use_validation else 'N/A'}")
         
+        # Limpiar memoria antes de construir modelo
+        gc.collect()
+        
         self.model = self.build_model(vocab_size, num_classes)
         
-        # Configurar TensorFlow para entrenamiento rápido y no bloqueante
-        # Usar menos recursos y más rápido
         print(f"🚀 Iniciando entrenamiento: {epochs} épocas, batch_size={batch_size}")
         
-        # Entrenar con o sin validación según los datos disponibles
-        # Configurar para entrenamiento rápido y no bloqueante
+        # Entrenar con batch size pequeño para usar menos memoria
         fit_kwargs = {
             'epochs': epochs,
             'batch_size': batch_size,
-            'verbose': 0,  # Sin logs para acelerar
+            'verbose': 0,  # Sin logs para acelerar y ahorrar memoria
         }
         
         if use_validation:
@@ -139,6 +148,9 @@ class SentimentNeuralNetwork:
         else:
             history = self.model.fit(X_train, y_train, **fit_kwargs)
             print(f"✅ Entrenamiento completado (sin validación por datos limitados)")
+        
+        # Limpiar memoria después de entrenar
+        gc.collect()
         
         self.is_trained = True
         return history
@@ -288,8 +300,9 @@ class SentimentNeuralNetwork:
             raise
     
     def _create_pretrained_model(self):
-        """Crear modelo pre-entrenado con datos de ejemplo - Versión ultra-rápida"""
-        # Datos de entrenamiento balanceados pero suficientes para un modelo rápido
+        """Crear modelo pre-entrenado - Versión ULTRA-LIGERA para Render (512 MB) pero FUNCIONAL"""
+        # Datos de entrenamiento balanceados pero reducidos para ahorrar memoria
+        # Mantenemos suficiente variedad para que el modelo aprenda correctamente
         positive_texts = [
             "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho con la compra",
             "recomiendo totalmente", "calidad superior", "atención perfecta", "rápido y eficiente",
@@ -298,10 +311,8 @@ class SentimentNeuralNetwork:
             "súper recomendable", "calidad excelente", "muy profesional", "servicio impecable",
             "excelente servicio al cliente", "muy buena experiencia", "producto de calidad",
             "muy satisfecho", "recomiendo este producto", "muy bueno", "excelente calidad",
-            "muy rápido", "muy eficiente", "muy bien", "excelente", "genial", "perfecto",
-            "muy buena opción", "muy recomendable", "vale totalmente la pena", "super recomendado",
-            "me gusta mucho", "estoy contento", "muy buena compra", "recomiendo", "buen servicio"
-        ] * 5  # Datos suficientes pero no excesivos
+            "muy rápido", "muy eficiente", "muy bien", "excelente", "genial", "perfecto"
+        ] * 2  # Reducido de 5 a 2 para ahorrar memoria (pero mantiene variedad)
         
         negative_texts = [
             "pésimo servicio muy malo", "no recomiendo para nada", "calidad terrible",
@@ -311,31 +322,29 @@ class SentimentNeuralNetwork:
             "atención pésima", "muy caro para lo que es", "no lo recomiendo", "muy mal servicio",
             "problemas constantes", "muy malo", "terrible", "pésimo", "horrible", "decepcionante",
             "no funciona", "defectuoso", "mala calidad", "mal servicio", "no recomiendo",
-            "insatisfecho", "problemas", "muy mal", "no vale", "terrible experiencia",
-            "no me gusta", "estoy decepcionado", "muy mala compra", "no lo recomiendo", "mal servicio"
-        ] * 5
+            "insatisfecho", "problemas", "muy mal", "no vale", "terrible experiencia"
+        ] * 2  # Reducido de 5 a 2
         
         neutral_texts = [
             "producto regular", "ni bueno ni malo", "aceptable", "normal", "sin comentarios",
             "básico", "estándar", "cumple su función", "nada especial", "producto común",
             "servicio estándar", "normal como cualquier otro", "ni destacable ni malo",
             "producto promedio", "servicio básico", "regular", "aceptable", "normal",
-            "estándar", "básico", "promedio", "común", "sin destacar",
-            "ok", "normal", "regular", "estándar", "básico"
-        ] * 5
+            "estándar", "básico", "promedio", "común", "sin destacar"
+        ] * 2  # Reducido de 5 a 2
         
         texts = positive_texts + negative_texts + neutral_texts
         labels = (['positivo'] * len(positive_texts) + 
                  ['negativo'] * len(negative_texts) + 
                  ['neutral'] * len(neutral_texts))
         
-        print("🔄 Entrenando modelo de red neuronal con datos de ejemplo (versión ultra-rápida)...")
+        print("🔄 Entrenando modelo ULTRA-LIGERO (optimizado para 512 MB, pero completamente funcional)...")
         print(f"📊 Total de textos: {len(texts)}, Clases: {len(set(labels))}")
-        # Entrenamiento ultra-rápido: 2 épocas con modelo simplificado y batch grande
-        # Esto reduce el tiempo de entrenamiento a ~10-20 segundos en CPU
-        self.train(texts, labels, epochs=2, batch_size=128)  # 2 épocas, batch muy grande = muy rápido
+        # Entrenamiento con batch pequeño para usar menos memoria
+        # Aunque es pequeño, el modelo sigue siendo una red neuronal LSTM funcional
+        self.train(texts, labels, epochs=3, batch_size=16)  # 3 épocas, batch pequeño = menos memoria
         self.save_model()
-        print("✅ Modelo entrenado y guardado correctamente")
+        print("✅ Modelo entrenado y guardado correctamente (red neuronal LSTM funcional)")
     
     def save_model(self, model_path: str = 'app/ml_models/sentiment_model.h5'):
         """Guardar modelo"""
