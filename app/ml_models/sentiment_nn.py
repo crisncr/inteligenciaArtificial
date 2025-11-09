@@ -171,26 +171,26 @@ class SentimentNeuralNetwork:
         from tensorflow.keras.initializers import GlorotUniform
         
         model = Sequential([
-            Embedding(vocab_size + 1, 16, embeddings_initializer=GlorotUniform()),  # 16 dimensiones (aumentado de 8)
-            LSTM(8, dropout=0.2, kernel_initializer=GlorotUniform()),        # 8 unidades (aumentado de 4)
-            Dense(16, activation='relu', kernel_initializer=GlorotUniform()),   # 16 unidades (aumentado de 8)
-            Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida
+            Embedding(vocab_size + 1, 32, mask_zero=True),  # 32 dimensiones, mask_zero=True para ignorar padding
+            LSTM(16, dropout=0.0, recurrent_dropout=0.0),  # 16 unidades, sin dropout para que aprenda
+            Dense(32, activation='relu'),   # 32 unidades
+            Dense(num_classes, activation='softmax')  # Salida
         ])
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
-        # Compilar modelo neuronal con learning rate más alto para mejor aprendizaje
+        # Compilar modelo neuronal con learning rate más conservador para mejor convergencia
         from tensorflow.keras.optimizers import Adam
-        optimizer = Adam(learning_rate=0.02)  # Aumentado de 0.005 a 0.02 para aprendizaje más rápido
+        optimizer = Adam(learning_rate=0.001)  # Learning rate más conservador (0.001) para mejor convergencia
         model.compile(
-            optimizer=optimizer,  # Optimizador con learning rate configurado
-            loss='sparse_categorical_crossentropy',  # Función de pérdida
+            optimizer=optimizer,
+            loss='sparse_categorical_crossentropy',
             metrics=['accuracy'],
-            run_eagerly=True  # Ejecutar en modo eager para evitar bloqueos durante compilación
+            run_eagerly=False  # Deshabilitar eager mode para mejor rendimiento y convergencia
         )
         
         # NO contar parámetros aquí - el modelo aún no está "built"
         # Los parámetros se contarán después del primer fit() cuando el modelo se construya automáticamente
-        print(f"🔍 [DEBUG] Modelo compilado correctamente (run_eagerly=True)")
+        print(f"🔍 [DEBUG] Modelo compilado correctamente (run_eagerly=False)")
         
         return model
     
@@ -209,78 +209,23 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # Reducir datos para entrenamiento RÁPIDO pero con suficientes muestras para aprender
-        # Aumentar a 120 muestras para mejor aprendizaje (4x más que antes)
-        max_samples = 120  # Aumentado de 30 a 120 para mejor aprendizaje
-        if len(X) > max_samples:
-            print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para balance entre velocidad y aprendizaje...")
-            
-            # CRÍTICO: Mezclar datos ANTES de reducir para mantener balance de clases
-            # Esto asegura que no tomemos solo los primeros elementos que pueden ser de la misma clase
-            indices = np.arange(len(X))
-            np.random.seed(42)  # Semilla fija para reproducibilidad
-            np.random.shuffle(indices)
-            X_shuffled = X[indices]
-            y_shuffled = y[indices]
-            
-            # Intentar mantener balance de clases al reducir
-            # Asegurar que haya al menos algunas muestras de cada clase
-            unique_labels_all = np.unique(y_shuffled)
-            num_classes_available = len(unique_labels_all)
-            samples_per_class = max_samples // num_classes_available
-            min_samples_per_class = max(1, samples_per_class - 1)  # Al menos 1 por clase
-            
-            print(f"🔍 [DEBUG] Intentando balancear: {min_samples_per_class} muestras mínimas por clase de {num_classes_available} clases")
-            
-            # Recopilar muestras balanceadas
-            X_balanced = []
-            y_balanced = []
-            samples_taken_per_class = {int(label): 0 for label in unique_labels_all}
-            used_indices = set()
-            
-            # Primero, tomar al menos min_samples_per_class de cada clase
-            for label in unique_labels_all:
-                label_int = int(label)
-                label_indices = np.where(y_shuffled == label)[0]
-                np.random.shuffle(label_indices)
-                
-                for idx in label_indices[:min_samples_per_class]:
-                    if len(X_balanced) >= max_samples:
-                        break
-                    if idx not in used_indices:
-                        X_balanced.append(X_shuffled[idx])
-                        y_balanced.append(y_shuffled[idx])
-                        used_indices.add(idx)
-                        samples_taken_per_class[label_int] += 1
-                
-                if len(X_balanced) >= max_samples:
-                    break
-            
-            # Si aún hay espacio, tomar muestras adicionales de manera aleatoria
-            remaining_indices = [i for i in range(len(X_shuffled)) if i not in used_indices]
-            np.random.shuffle(remaining_indices)
-            
-            for idx in remaining_indices:
-                if len(X_balanced) >= max_samples:
-                    break
-                X_balanced.append(X_shuffled[idx])
-                y_balanced.append(y_shuffled[idx])
-                used_indices.add(idx)
-            
-            X = np.array(X_balanced)
-            y = np.array(y_balanced)
-            
-            # Validar balance de clases DESPUÉS de reducir
-            unique_labels_reduced, counts_reduced = np.unique(y, return_counts=True)
-            label_names_reduced = self.label_encoder.inverse_transform(unique_labels_reduced)
-            print(f"🔍 [DEBUG] Distribución de etiquetas DESPUÉS de reducir (balanceado):")
-            for label_name, count in zip(label_names_reduced, counts_reduced):
-                print(f"   - {label_name}: {count} muestras")
+        # USAR TODOS LOS DATOS disponibles para mejor aprendizaje
+        # No reducir datos - usar todos los datos disponibles para que el modelo aprenda mejor
+        print(f"✅ [DEBUG] Usando TODOS los datos disponibles: {len(X)} muestras")
+        
+        # MEZCLAR datos antes de entrenar para mejor aprendizaje
+        print("🔍 [DEBUG] Mezclando datos antes de entrenar...")
+        indices = np.arange(len(X))
+        np.random.seed(42)  # Semilla fija para reproducibilidad
+        np.random.shuffle(indices)
+        X_shuffled = X[indices]
+        y_shuffled = y[indices]
+        print(f"✅ [DEBUG] Datos mezclados: {len(X_shuffled)} muestras")
         
         # SIEMPRE entrenar sin validación para máxima velocidad
         # Con pocos datos, la validación no es necesaria y solo ralentiza
-        X_train, y_train = X, y
-        X_val, y_val = X, y
+        X_train, y_train = X_shuffled, y_shuffled
+        X_val, y_val = X_shuffled, y_shuffled
         use_validation = False
         print(f"🔍 [DEBUG] Entrenando SIN validación para máxima velocidad")
         
@@ -313,12 +258,12 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: Más épocas y mejor batch size para que aprenda correctamente
-        actual_epochs = 10  # Aumentado de 3 a 10 épocas para mejor aprendizaje
-        # Batch size más grande para mejor estabilidad
-        actual_batch_size = min(16, len(X_train))  # Aumentado de 8 a 16
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch más grande para estabilidad)")
-        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (suficiente para aprender correctamente)")
+        # OPTIMIZACIÓN: Más épocas con early stopping implícito si converge
+        actual_epochs = 20  # Aumentar a 20 épocas para dar más oportunidades de aprender
+        # Batch size más pequeño para mejor aprendizaje con gradient descent
+        actual_batch_size = min(8, len(X_train))  # Batch pequeño (8) para mejor aprendizaje
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size} (batch pequeño para mejor aprendizaje)")
+        print(f"🔍 [DEBUG] Épocas: {actual_epochs} (más épocas para converger)")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
