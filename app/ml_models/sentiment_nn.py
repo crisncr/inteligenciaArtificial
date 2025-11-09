@@ -167,22 +167,21 @@ class SentimentNeuralNetwork:
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM optimizada para aprender mejor con datos limitados
-        # Modelo más grande para mejor capacidad de aprendizaje, pero aún ligero para Render (512 MB)
-        # Usar inicialización mejorada para mejor aprendizaje
+        # Red neuronal LSTM optimizada para entrenamiento RÁPIDO pero efectivo
+        # Modelo balanceado: suficientemente grande para aprender, pero pequeño para entrenar rápido
         from tensorflow.keras.initializers import GlorotUniform
         
         model = Sequential([
-            Embedding(vocab_size + 1, 16, embeddings_initializer=GlorotUniform()),  # Aumentado a 16 con inicialización mejorada
-            LSTM(8, dropout=0.2, kernel_initializer=GlorotUniform()),        # Aumentado a 8 unidades con dropout y inicialización mejorada
-            Dense(8, activation='relu', kernel_initializer=GlorotUniform()),   # Aumentado a 8 unidades con inicialización mejorada
-            Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida con inicialización mejorada
+            Embedding(vocab_size + 1, 8, embeddings_initializer=GlorotUniform()),  # 8 dimensiones (balance entre velocidad y capacidad)
+            LSTM(4, dropout=0.1, kernel_initializer=GlorotUniform()),        # 4 unidades (rápido pero efectivo)
+            Dense(4, activation='relu', kernel_initializer=GlorotUniform()),   # 4 unidades
+            Dense(num_classes, activation='softmax', kernel_initializer=GlorotUniform())  # Salida
         ])
         
         print(f"🔍 [DEBUG] Modelo construido, compilando...")
-        # Compilar modelo neuronal con learning rate más alto para mejor aprendizaje
+        # Compilar modelo neuronal con learning rate optimizado
         from tensorflow.keras.optimizers import Adam
-        optimizer = Adam(learning_rate=0.01)  # Learning rate más alto (0.01) para aprender más rápido con pocos datos
+        optimizer = Adam(learning_rate=0.005)  # Learning rate balanceado (0.005) para aprender bien sin overshooting
         model.compile(
             optimizer=optimizer,  # Optimizador con learning rate configurado
             loss='sparse_categorical_crossentropy',  # Función de pérdida
@@ -211,9 +210,9 @@ class SentimentNeuralNetwork:
         for label_name, count in zip(label_names, counts):
             print(f"   - {label_name}: {count} muestras")
         
-        # Limitar tamaño de datos si es muy grande (para ahorrar memoria y velocidad)
-        # Aumentado a 30 para mejor aprendizaje, pero aún manejable en Render
-        max_samples = 30  # Aumentado para mejor aprendizaje del modelo
+        # NO reducir datos - usar TODOS para mejor aprendizaje
+        # Con modelo más pequeño y menos épocas, podemos usar más datos sin tardar mucho
+        max_samples = 1000  # Usar todos los datos disponibles (no reducir)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria y velocidad...")
             
@@ -317,8 +316,8 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # Aumentar épocas para mejor aprendizaje, pero mantenerlo razonable
-        actual_epochs = min(epochs, 5)  # Aumentado a 5 épocas para mejor aprendizaje con learning rate más alto
+        # Optimizar épocas: suficiente para aprender, pero rápido
+        actual_epochs = min(epochs, 2)  # Solo 2 épocas para entrenamiento rápido (con más datos y mejor LR)
         # Batch size debe ser menor o igual al número de muestras
         # Si hay 15 muestras, usar batch_size=15 (entrenar todas a la vez es más rápido)
         actual_batch_size = min(batch_size, len(X_train))  # No puede ser mayor que las muestras disponibles
@@ -722,36 +721,70 @@ class SentimentNeuralNetwork:
         # Datos de entrenamiento con comentarios completos (hasta 25 palabras)
         # Incluir frases cortas Y comentarios completos para mejor aprendizaje
         
-        # Datos de entrenamiento mejorados con más ejemplos y palabras clave
-        # Comentarios POSITIVOS (incluir variaciones de palabras clave como "excelente", "buena")
+        # Datos de entrenamiento MEJORADOS con muchas más palabras clave y ejemplos
+        # Incluir variaciones de palabras comunes en español
+        
+        # Comentarios POSITIVOS (palabras clave: excelente, bueno, buena, genial, etc.)
         positive_texts = [
+            # Palabras clave simples
+            "excelente", "bueno", "buena", "genial", "perfecto", "perfecta",
+            "increíble", "maravilloso", "fantástico", "súper", "súper bien",
+            # Frases comunes positivas
+            "excelente producto", "buen producto", "muy buen producto", "producto excelente",
+            "excelente servicio", "buen servicio", "muy buen servicio", "servicio excelente",
+            "excelente atención", "buena atención", "muy buena atención", "atención excelente",
+            "excelente calidad", "buena calidad", "muy buena calidad", "calidad excelente",
+            # Frases completas positivas
             "excelente producto muy bueno", "me encanta este servicio", "muy satisfecho",
             "recomiendo totalmente", "calidad superior", "atención perfecta",
             "super contento", "vale la pena", "muy recomendado", "increíble experiencia",
-            "excelente servicio", "muy buena calidad", "excelente atención", 
             "producto genial", "muy bien hecho", "súper recomendable",
-            # Agregar más variaciones con palabras clave
-            "excelente atención", "buena atención", "muy buena atención",
-            "excelente producto", "buen producto", "muy buen producto",
-            "excelente servicio al cliente", "buen servicio", "servicio excelente",
+            "excelente servicio al cliente", "servicio excelente",
             "muy buena experiencia", "experiencia excelente", "experiencia positiva",
             "altamente recomendado", "muy recomendable", "totalmente recomendado",
+            "muy contento", "satisfecho completamente", "me gustó mucho",
+            "funciona perfecto", "cumple expectativas", "supera expectativas",
         ]
         
-        # Comentarios NEGATIVOS (solo frases cortas)
+        # Comentarios NEGATIVOS (palabras clave: mal, malo, pésimo, insultos, etc.)
         negative_texts = [
+            # Palabras clave simples negativas
+            "mal", "malo", "mala", "pésimo", "pésima", "terrible", "horrible",
+            "basura", "ruin", "decepcionante", "decepcionado",
+            # Insultos y expresiones negativas comunes
+            "esta cagada", "es una mierda", "una porquería", "es basura",
+            "no sirve", "no funciona", "no vale", "no recomiendo",
+            # Frases comunes negativas
+            "pésimo servicio", "mal servicio", "muy mal servicio", "servicio pésimo",
+            "pésimo producto", "mal producto", "muy mal producto", "producto pésimo",
+            "pésima atención", "mal atención", "muy mal atención", "atención pésima",
+            "pésima calidad", "mal calidad", "muy mal calidad", "calidad pésima",
+            # Frases completas negativas
             "pésimo servicio muy malo", "no recomiendo para nada", "calidad terrible",
             "muy decepcionado", "atención horrible", "lento e ineficiente", "no vale la pena",
             "muy insatisfecho", "problema grave", "no cumplió expectativas", "servicio pésimo",
-            "mal servicio", "muy mala calidad", "no funciona bien", "muy decepcionante",
+            "muy mala calidad", "no funciona bien", "muy decepcionante",
+            "muy mal", "horrible experiencia", "pésima experiencia", "experiencia negativa",
+            "no lo recomiendo", "no vale nada", "totalmente insatisfecho",
+            "funciona mal", "no cumple expectativas", "muy por debajo de lo esperado",
         ]
         
-        # Comentarios NEUTRALES (solo frases cortas)
+        # Comentarios NEUTRALES (palabras clave: normal, regular, aceptable, etc.)
         neutral_texts = [
-            "producto regular", "ni bueno ni malo", "aceptable", "normal", "sin comentarios",
+            # Palabras clave simples neutrales
+            "normal", "regular", "aceptable", "básico", "estándar", "común",
+            "ni bueno ni malo", "ni mal ni bien", "sin más", "nada especial",
+            # Frases comunes neutrales
+            "producto regular", "servicio regular", "atención regular", "calidad regular",
+            "producto normal", "servicio normal", "atención normal", "calidad normal",
+            "producto aceptable", "servicio aceptable", "atención aceptable", "calidad aceptable",
+            # Frases completas neutrales
+            "ni bueno ni malo", "aceptable", "sin comentarios",
             "básico", "estándar", "cumple su función", "nada especial", "producto común",
             "servicio estándar", "normal como cualquier otro", "ni destacable ni malo",
-            "producto promedio", "servicio básico",
+            "producto promedio", "servicio básico", "cumple con lo básico",
+            "ni destacable ni malo", "regular nada más", "como se esperaba",
+            "sin sorpresas", "ni bueno ni mal", "está bien",
         ]
         
         texts = positive_texts + negative_texts + neutral_texts
@@ -766,8 +799,8 @@ class SentimentNeuralNetwork:
         # Entrenamiento con más épocas para mejor aprendizaje
         print("🔍 [DEBUG] Iniciando entrenamiento...")
         try:
-            # Aumentar épocas para mejor aprendizaje, batch size razonable
-            history = self.train(texts, labels, epochs=5, batch_size=16)  # 5 épocas para mejor aprendizaje con learning rate más alto
+            # Entrenamiento rápido pero efectivo: 2 épocas con más datos
+            history = self.train(texts, labels, epochs=2, batch_size=32)  # 2 épocas, batch más grande para velocidad
             print("✅ [DEBUG] Método train() completado")
             
             # Validar que el modelo está entrenado
