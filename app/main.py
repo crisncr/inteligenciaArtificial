@@ -240,10 +240,29 @@ app.include_router(sales_prediction_router.router)
 @app.post("/analyze")
 async def analyze_public(payload: dict = Body(...)):
     """Endpoint público para análisis usando Red Neuronal LSTM (máximo 3 análisis gratuitos)"""
-    text = (payload.get("text") or "").strip()
-    # Usa analyze_sentiment que ahora SOLO usa red neuronal LSTM
-    result = analyze_sentiment(text)
-    return JSONResponse(result)
+    try:
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return JSONResponse(
+                {"error": "El texto a analizar no puede estar vacío"},
+                status_code=400
+            )
+        
+        # Usa analyze_sentiment que ahora SOLO usa red neuronal LSTM
+        result = analyze_sentiment(text)
+        return JSONResponse(result)
+    except Exception as e:
+        error_msg = str(e)
+        # Retornar error en formato JSON
+        return JSONResponse(
+            {
+                "error": error_msg,
+                "sentiment": "error",
+                "score": 0.0,
+                "emoji": "⚠️"
+            },
+            status_code=500
+        )
 
 
 # Conveniencia para `uvicorn app.main:app --reload`
