@@ -4,6 +4,7 @@ from typing import List
 import pandas as pd
 import csv
 import io
+import json
 from pydantic import BaseModel
 from app.database import get_db
 from app.auth import get_current_user
@@ -34,54 +35,149 @@ async def upload_dataset(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo: {str(e)}")
     
+    # Detectar tipo de archivo por extensión
+    file_extension = file.filename.lower().split('.')[-1] if file.filename else ''
+    is_json_file = file_extension == 'json'
+    is_csv_file = file_extension == 'csv'
+    
     # Guardar el contenido original para debugging
     df = None
     encoding_used = None
+    file_type = None
     
     try:
-        # Intentar leer como CSV con diferentes codificaciones
         encodings_to_try = ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
         
-        for encoding in encodings_to_try:
-            try:
-                decoded_content = contents.decode(encoding)
-                # Intentar leer como CSV
-                df = pd.read_csv(io.StringIO(decoded_content))
-                encoding_used = encoding
-                print(f"✅ CSV leído correctamente con encoding: {encoding}")
-                break
-            except (UnicodeDecodeError, UnicodeError):
-                continue
-            except Exception as e:
-                # Si el encoding funciona pero hay otro error, guardar el error
-                if encoding == encodings_to_try[-1]:  # Último encoding
-                    raise e
-                continue
+        # Si es archivo JSON, intentar leer como JSON primero
+        if is_json_file:
+            print(f"🔍 Detectado archivo JSON: {file.filename}")
+            for encoding in encodings_to_try:
+                try:
+                    decoded_content = contents.decode(encoding)
+                    
+                    # Intentar diferentes formatos de JSON
+                    try:
+                        # Formato 1: JSON array estándar [{"key": "value"}, ...]
+                        df = pd.read_json(io.StringIO(decoded_content))
+                        encoding_used = encoding
+                        file_type = 'json'
+                        print(f"✅ JSON leído correctamente (formato array) con encoding: {encoding}")
+                        break
+                    except (ValueError, pd.errors.EmptyDataError):
+                        try:
+                            # Formato 2: JSON Lines (una línea por objeto JSON)
+                            lines = decoded_content.strip().split('\n')
+                            json_objects = []
+                            for line in lines:
+                                if line.strip():
+                                    json_objects.append(json.loads(line))
+                            if json_objects:
+                                df = pd.DataFrame(json_objects)
+                                encoding_used = encoding
+                                file_type = 'json'
+                                print(f"✅ JSON Lines leído correctamente con encoding: {encoding}")
+                                break
+                        except (ValueError, json.JSONDecodeError):
+                            try:
+                                # Formato 3: JSON object simple {"key": "value"}
+                                data = json.loads(decoded_content)
+                                if isinstance(data, dict):
+                                    # Si es un objeto simple, convertir a lista
+                                    df = pd.DataFrame([data])
+                                elif isinstance(data, list):
+                                    df = pd.DataFrame(data)
+                                encoding_used = encoding
+                                file_type = 'json'
+                                print(f"✅ JSON object leído correctamente con encoding: {encoding}")
+                                break
+                            except (ValueError, json.JSONDecodeError):
+                                continue
+                    
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+                except Exception as e:
+                    if encoding == encodings_to_try[-1]:  # Último encoding
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Error al leer archivo JSON: {str(e)}"
+                        )
+                    continue
+            
+            if df is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No se pudo leer el archivo JSON. Verifica que el archivo tenga un formato JSON válido (array de objetos, JSON Lines, o objeto JSON)."
+                )
         
-        # Si no se pudo leer como CSV, intentar JSON
-        if df is None:
-            try:
+        # Si es archivo CSV o no se detectó extensión, intentar CSV primero
+        elif is_csv_file or not is_json_file:
+            print(f"🔍 Intentando leer como CSV: {file.filename}")
+            for encoding in encodings_to_try:
+                try:
+                    decoded_content = contents.decode(encoding)
+                    # Intentar leer como CSV
+                    df = pd.read_csv(io.StringIO(decoded_content))
+                    encoding_used = encoding
+                    file_type = 'csv'
+                    print(f"✅ CSV leído correctamente con encoding: {encoding}")
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+                except Exception as e:
+                    # Si el encoding funciona pero hay otro error, guardar el error
+                    if encoding == encodings_to_try[-1]:  # Último encoding
+                        # Si falló CSV y no es explícitamente un CSV, intentar JSON
+                        if not is_csv_file:
+                            print(f"⚠️ Falló CSV, intentando JSON...")
+                            # Intentar JSON como fallback
+                            for json_encoding in encodings_to_try:
+                                try:
+                                    json_decoded = contents.decode(json_encoding)
+                                    data = json.loads(json_decoded)
+                                    if isinstance(data, dict):
+                                        df = pd.DataFrame([data])
+                                    elif isinstance(data, list):
+                                        df = pd.DataFrame(data)
+                                    encoding_used = json_encoding
+                                    file_type = 'json'
+                                    print(f"✅ JSON leído correctamente (fallback) con encoding: {json_encoding}")
+                                    break
+                                except:
+                                    continue
+                            if df is None:
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Error al leer archivo CSV: {str(e)}"
+                                )
+                        else:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Error al leer archivo CSV: {str(e)}"
+                            )
+                    continue
+            
+            # Si no se pudo leer como CSV y no es JSON, intentar JSON como último recurso
+            if df is None and not is_json_file:
+                print(f"⚠️ Falló CSV, intentando JSON como último recurso...")
                 for encoding in encodings_to_try:
                     try:
                         decoded_content = contents.decode(encoding)
-                        df = pd.read_json(io.StringIO(decoded_content))
+                        data = json.loads(decoded_content)
+                        if isinstance(data, dict):
+                            df = pd.DataFrame([data])
+                        elif isinstance(data, list):
+                            df = pd.DataFrame(data)
                         encoding_used = encoding
-                        print(f"✅ JSON leído correctamente con encoding: {encoding}")
+                        file_type = 'json'
+                        print(f"✅ JSON leído correctamente (último recurso) con encoding: {encoding}")
                         break
-                    except (UnicodeDecodeError, UnicodeError):
+                    except:
                         continue
-                    except Exception:
-                        continue
-            except Exception as json_error:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Formato de archivo inválido. Debe ser CSV o JSON. Error: {str(json_error)}"
-                )
         
         if df is None:
             raise HTTPException(
                 status_code=400,
-                detail="No se pudo leer el archivo con ninguna codificación estándar. Asegúrate de que el archivo esté en formato UTF-8 o Latin-1."
+                detail="No se pudo leer el archivo. Verifica que el archivo sea CSV o JSON válido."
             )
             
     except HTTPException:
