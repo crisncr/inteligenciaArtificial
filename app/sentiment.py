@@ -21,42 +21,20 @@ def _train_model_async():
     
     try:
         _model_lock = True
-        print("🔍 [DEBUG] [Thread] _model_lock = True")
         from app.ml_models.sentiment_nn import SentimentNeuralNetwork
-        print("✅ [DEBUG] [Thread] SentimentNeuralNetwork importado correctamente")
-        print("🔄 [Thread] Inicializando modelo de red neuronal...")
         _global_model = SentimentNeuralNetwork()
-        print(f"🔍 [DEBUG] [Thread] Modelo creado: is_trained={_global_model.is_trained}")
-        print("🔄 [Thread] Cargando modelo...")
         _global_model.load_model()
-        print(f"🔍 [DEBUG] [Thread] Modelo cargado: is_trained={_global_model.is_trained}")
-        print(f"🔍 [DEBUG] [Thread] Modelo existe: {_global_model.model is not None}")
-        print(f"🔍 [DEBUG] [Thread] Tokenizer tiene word_index: {hasattr(_global_model.tokenizer, 'word_index') and _global_model.tokenizer.word_index is not None}")
-        print(f"🔍 [DEBUG] [Thread] Label encoder tiene classes: {hasattr(_global_model.label_encoder, 'classes_') and len(_global_model.label_encoder.classes_) > 0}")
         
-        # Validación adicional
-        if not _global_model.is_trained:
-            raise Exception("El modelo no se marcó como entrenado después de load_model()")
-        if not _global_model.model:
-            raise Exception("El modelo no tiene el atributo model después de load_model()")
-        
-        # Hacer una predicción de prueba para asegurar que funciona
-        print("🔍 [DEBUG] [Thread] Haciendo predicción de prueba...")
-        test_result = _global_model.predict_single("excelente servicio")
-        print(f"🔍 [DEBUG] [Thread] Predicción de prueba exitosa: {test_result}")
-        
-        print("✅ [Thread] Modelo de red neuronal listo y entrenado")
+        # Validación mínima (sin predicción de prueba para mejor rendimiento)
+        if not _global_model.is_trained or not _global_model.model:
+            raise Exception("El modelo no se cargó correctamente")
     except Exception as e:
-        print(f"❌ [Thread] Error al cargar modelo: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Error al cargar modelo: {str(e)}")
         _global_model = None
         _model_lock = False
-        print("🔍 [DEBUG] [Thread] _model_lock = False (por error)")
     finally:
-        if _model_lock:  # Solo cambiar si aún está bloqueado (no hubo error antes)
+        if _model_lock:
             _model_lock = False
-            print("🔍 [DEBUG] [Thread] _model_lock = False")
 
 def _get_or_create_model():
     """Obtener o crear instancia global del modelo - Espera razonable si se está entrenando"""

@@ -321,27 +321,19 @@ async def startup_event():
 @app.post("/analyze")
 async def analyze_public(payload: dict = Body(...)):
     """Endpoint público para análisis usando Red Neuronal LSTM (máximo 3 análisis gratuitos)"""
-    print(f"🔍 [DEBUG] /analyze llamado con payload: {payload.get('text', '')[:50]}...")
     try:
         text = (payload.get("text") or "").strip()
-        print(f"🔍 [DEBUG] Texto procesado: '{text[:50]}...'")
         if not text:
-            print("❌ [DEBUG] Error: texto vacío en endpoint público")
             return JSONResponse(
                 {"error": "El texto a analizar no puede estar vacío"},
                 status_code=400
             )
         
-        print("🔍 [DEBUG] Llamando a analyze_sentiment()...")
         # Usa analyze_sentiment que ahora SOLO usa red neuronal LSTM
         result = analyze_sentiment(text)
-        print(f"✅ [DEBUG] Análisis completado: {result.get('sentiment')}")
         return JSONResponse(result)
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ [DEBUG] Error en /analyze: {error_msg}")
-        import traceback
-        traceback.print_exc()
         # Determinar código de estado según el tipo de error
         status_code = 500
         if "cargando" in error_msg.lower() or "entrenando" in error_msg.lower() or "espera" in error_msg.lower():

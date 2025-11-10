@@ -705,41 +705,13 @@ class SentimentNeuralNetwork:
                 if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
                     raise ValueError("El label encoder no se cargó correctamente")
                 
+                # Marcar modelo como entrenado (sin validación con predicción para mejor rendimiento)
                 self.is_trained = True
-                
-                # Validación final: asegurar que el modelo puede hacer una predicción de prueba
-                # OPTIMIZADO: Usar validación mínima para ahorrar memoria
-                print("🔍 [DEBUG] Validando modelo con predicción de prueba...")
-                try:
-                    # Hacer una predicción de prueba mínima para validar que el modelo funciona
-                    test_text = "excelente"
-                    print(f"🔍 [DEBUG] Texto de prueba: '{test_text}'")
-                    test_X = self.prepare_data([test_text])
-                    print(f"🔍 [DEBUG] Datos de prueba preparados: shape={test_X.shape}")
-                    # Usar batch_size=1 y verbose=0 para mínimo uso de memoria
-                    test_pred = self.model.predict(test_X, batch_size=1, verbose=0)
-                    print(f"🔍 [DEBUG] Predicción de prueba recibida: shape={test_pred.shape if test_pred is not None else None}")
-                    if test_pred is None or len(test_pred) == 0:
-                        raise ValueError("El modelo no puede hacer predicciones válidas")
-                    # Limpiar memoria inmediatamente después de validar
-                    import gc
-                    del test_X, test_pred
-                    gc.collect()
-                    print("✅ [DEBUG] Modelo validado correctamente con predicción de prueba")
-                except Exception as e:
-                    print(f"⚠️ [DEBUG] Error al validar modelo: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Si falla la validación, marcar como no entrenado
-                    self.is_trained = False
-                    raise ValueError(f"El modelo no está funcionando correctamente: {str(e)}")
                 
                 # Limpiar memoria después de cargar el modelo
                 import gc
                 gc.collect()
-                print("✅ [DEBUG] Memoria limpiada después de cargar modelo")
                 
-                print("✅ Modelo de red neuronal cargado y verificado correctamente")
                 return
             except Exception as e:
                 print(f"⚠️ Error al cargar modelo pre-entrenado: {e}")
