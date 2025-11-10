@@ -54,7 +54,7 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
   }
 
   return (
-    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`} style={{ position: 'relative' }}>
+    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`} style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1001 }}>
       {/* Logo solo cuando NO hay usuario (página pública) */}
       {!user && (
         <div className="nav__brand">
@@ -62,8 +62,7 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
           <span>Sentimetría</span>
         </div>
       )}
-      {/* Cuando hay usuario, no mostrar logo, solo espacio para mantener el layout */}
-      {user && <div className="nav__brand" style={{ visibility: 'hidden', width: 0, padding: 0, margin: 0 }}></div>}
+      {/* Cuando hay usuario, no mostrar logo */}
       
       {/* Menú hamburguesa para móviles - Siempre visible en móviles */}
       <button 

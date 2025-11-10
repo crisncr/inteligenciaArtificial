@@ -70,6 +70,7 @@ body {
   left: 0;
   right: 0;
   display: block;
+  z-index: 0;
 }
 
 .hero-carousel {
@@ -170,10 +171,10 @@ body {
   transform: translateX(-50%);
   width: 100%;
   z-index: 1001;
-  background: rgba(10, 14, 26, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: none;
 }
 
 /* Asegurar que el logo esté alineado a la izquierda dentro del contenedor */
@@ -197,6 +198,14 @@ nav.nav--transparent,
   border-radius: 0 !important;
   outline: none !important;
   padding: 16px 20px !important;
+}
+
+/* Navbar siempre transparente cuando no hay usuario (página pública) */
+.nav:not(.dashboard .nav) {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: none !important;
 }
 
 /* Eliminar cualquier fondo de contenedores hijos cuando el navbar es transparente */
@@ -301,17 +310,18 @@ nav.nav--transparent,
   display: block;
   width: 25px;
   height: 3px;
-  background: var(--text);
+  background: #ffffff;
   border-radius: 3px;
   transition: all 0.3s ease;
   transform-origin: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
-/* Mejorar visibilidad del botón en navbar transparente */
-.nav--transparent .nav__mobile-toggle span {
-  background: var(--text);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+/* Mejorar visibilidad del botón en navbar transparente - siempre blanco y visible */
+.nav--transparent .nav__mobile-toggle span,
+.nav .nav__mobile-toggle span {
+  background: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.9) !important;
 }
 
 .nav__mobile-toggle span.open:nth-child(1) {
@@ -332,17 +342,18 @@ nav.nav--transparent,
   top: 100%;
   left: 0;
   right: 0;
-  background: rgba(10, 14, 26, 0.98);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 9999;
+  background: rgba(10, 14, 26, 0.95);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  z-index: 10000;
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease, opacity 0.3s ease;
   opacity: 0;
   visibility: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0 0 12px 12px;
 }
 
 .nav__mobile-menu.open {
@@ -1079,20 +1090,46 @@ footer small {
     display: block !important;
   }
   
-  /* Asegurar que el navbar sea visible en móviles y tenga posición relativa para el dropdown */
+  /* Asegurar que el navbar sea visible en móviles - completamente transparente */
   .nav {
     padding: 12px 16px;
     padding-left: 16px;
     padding-right: 16px;
     position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
-    z-index: 1000;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
+    z-index: 1001;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: none !important;
   }
   
   .nav__brand {
     margin-right: auto;
+    flex-shrink: 0;
+  }
+  
+  .nav__links {
+    margin-left: auto;
+  }
+  
+  /* Menú hamburguesa siempre visible y blanco en móviles */
+  .nav__mobile-toggle {
+    display: flex !important;
+    z-index: 10002 !important;
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+  }
+  
+  .nav__mobile-toggle span {
+    background: #ffffff !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.9) !important;
+    width: 28px !important;
+    height: 3px !important;
   }
   
   /* Menú móvil como dropdown desde el navbar */
