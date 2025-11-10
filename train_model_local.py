@@ -5,6 +5,16 @@ Ejecuta este script en tu computadora antes de subir a Render.
 """
 import os
 import sys
+import io
+
+# Configurar encoding UTF-8 para Windows (antes de cualquier import o print)
+if sys.platform == 'win32':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except AttributeError:
+        # Si ya está configurado, no hacer nada
+        pass
 
 # Agregar el directorio actual al path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -12,8 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app.ml_models.sentiment_nn import SentimentNeuralNetwork
 
 def main():
+    
     print("=" * 60)
-    print("🚀 ENTRENANDO MODELO LOCALMENTE")
+    print("ENTRENANDO MODELO LOCALMENTE")
     print("=" * 60)
     print()
     
