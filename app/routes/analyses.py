@@ -37,27 +37,17 @@ async def create_analysis(
     db: Session = Depends(get_db)
 ):
     """Crear un nuevo análisis"""
-    print(f"🔍 [DEBUG] create_analysis() llamado para usuario {current_user.id}")
-    print(f"🔍 [DEBUG] Texto: '{analysis_data.text[:50]}...'")
-    
     # Verificar límite
     if not check_analysis_limit(current_user, db):
-        print("❌ [DEBUG] Límite de análisis alcanzado")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Has alcanzado el límite de análisis para tu plan. Actualiza tu plan para continuar."
         )
     
     # Analizar sentimiento usando SOLO red neuronal LSTM
-    # analyze_sentiment() ahora usa exclusivamente red neuronal
-    print("🔍 [DEBUG] Llamando a analyze_sentiment()...")
     try:
         result = analyze_sentiment(analysis_data.text)
-        print(f"✅ [DEBUG] Análisis completado: sentiment={result.get('sentiment')}")
     except Exception as e:
-        print(f"❌ [DEBUG] Error en analyze_sentiment: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al analizar sentimiento: {str(e)}"

@@ -451,48 +451,21 @@ class SentimentNeuralNetwork:
     
     def predict(self, texts: List[str]) -> List[Dict]:
         """Predecir sentimiento usando red neuronal LSTM"""
-        print(f"🔍 [DEBUG] predict() llamado con {len(texts)} texto(s)")
+        # Validación rápida (sin logs para mejor rendimiento)
+        if not self.is_trained or not self.model:
+            raise ValueError("El modelo no está listo. Por favor, espera unos momentos.")
         
-        # Validar que el modelo esté completamente entrenado y listo
-        print(f"🔍 [DEBUG] Validando modelo: is_trained={self.is_trained}, model={self.model is not None}")
-        if not self.is_trained:
-            print("❌ [DEBUG] Error: modelo no está entrenado")
-            raise ValueError(
-                "El modelo de red neuronal no está entrenado. "
-                "El modelo se está cargando o entrenando. Por favor, espera unos momentos."
-            )
-        
-        if not self.model:
-            print("❌ [DEBUG] Error: modelo no está inicializado")
-            raise ValueError(
-                "El modelo de red neuronal no está inicializado. "
-                "El modelo se está cargando. Por favor, espera unos momentos."
-            )
-        
-        # Validar que el tokenizer esté entrenado
-        print(f"🔍 [DEBUG] Validando tokenizer: has word_index={hasattr(self.tokenizer, 'word_index')}")
         if not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
-            print("❌ [DEBUG] Error: tokenizer no tiene word_index")
-            raise ValueError(
-                "El tokenizer del modelo no está entrenado. "
-                "El modelo se está cargando. Por favor, espera unos momentos."
-            )
+            raise ValueError("El tokenizer no está listo. Por favor, espera unos momentos.")
         
-        # Validar que el label encoder esté entrenado
-        print(f"🔍 [DEBUG] Validando label_encoder: has classes={hasattr(self.label_encoder, 'classes_')}")
         if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
-            print("❌ [DEBUG] Error: label_encoder no tiene classes")
-            raise ValueError(
-                "El label encoder del modelo no está entrenado. "
-                "El modelo se está cargando. Por favor, espera unos momentos."
-            )
+            raise ValueError("El label encoder no está listo. Por favor, espera unos momentos.")
         
         if not texts:
-            print("❌ [DEBUG] Error: lista de textos vacía")
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
-            # Preparar datos para predicción (logging mínimo para ahorrar memoria)
+            # Preparar datos para predicción
             X = self.prepare_data(texts)
             # Limpiar memoria inmediatamente después de preparar datos
             import gc
@@ -500,49 +473,23 @@ class SentimentNeuralNetwork:
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
-                print("❌ [DEBUG] Error: X.shape[0] == 0")
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
-            print("🔍 [DEBUG] Haciendo predicción con modelo neuronal...")
             # Hacer predicción con batch_size=1 para mínimo uso de memoria
-            # Procesar uno por uno para evitar problemas de memoria
             predictions = self.model.predict(X, batch_size=1, verbose=0)
-            print(f"🔍 [DEBUG] Predicciones recibidas: shape={predictions.shape if predictions is not None else None}")
             
             # Validar predicciones
-            if predictions is None:
-                print("❌ [DEBUG] Error: predictions es None")
-                raise ValueError("El modelo no devolvió predicciones (None)")
+            if predictions is None or len(predictions) == 0:
+                raise ValueError("El modelo no devolvió predicciones")
             
-            if len(predictions) == 0:
-                print("❌ [DEBUG] Error: predictions está vacío")
-                raise ValueError("El modelo no devolvió predicciones (vacío)")
-            
-            print(f"🔍 [DEBUG] Procesando predicciones...")
-            # Mostrar solo la primera predicción para ahorrar memoria (logging mínimo)
-            label_names = self.label_encoder.classes_
-            if len(predictions) > 0:
-                probs = predictions[0]
-                prob_dict = dict(zip(label_names, probs))
-                print(f"🔍 [DEBUG] Predicción 0: {prob_dict}")
-            
-            # Procesar predicciones de la red neuronal (mínimo logging para ahorrar memoria)
+            # Procesar predicciones de la red neuronal
             predicted_classes = np.argmax(predictions, axis=1)
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
             confidence = np.max(predictions, axis=1)
             
-            # Formatear confianza correctamente
-            if len(confidence) > 0 and len(predicted_labels) > 0:
-                conf_value = confidence[0]
-                label_value = predicted_labels[0]
-                print(f"🔍 [DEBUG] Predicción: {label_value}, confianza: {conf_value:.3f}")
-            else:
-                print(f"🔍 [DEBUG] Predicción: N/A, confianza: 0.000")
-            
             results = []
             for i, text in enumerate(texts):
                 if i >= len(predicted_labels):
-                    print(f"⚠️ [DEBUG] Advertencia: índice {i} fuera de rango para predicciones")
                     label = 'neutral'
                     score = 0.5
                 else:
@@ -589,19 +536,12 @@ class SentimentNeuralNetwork:
     
     def predict_single(self, text: str) -> Dict:
         """Predecir sentimiento de un solo texto"""
-        print(f"🔍 [DEBUG] predict_single() llamado con texto: '{text[:50]}...'")
         try:
             results = self.predict([text])
             if not results or len(results) == 0:
-                print("❌ [DEBUG] Error: predict() no devolvió resultados")
                 raise ValueError("No se obtuvieron resultados de la predicción")
-            result = results[0]
-            print(f"🔍 [DEBUG] predict_single() resultado: sentiment={result.get('sentiment')}, score={result.get('score')}")
-            return result
+            return results[0]
         except Exception as e:
-            print(f"❌ [DEBUG] Error en predict_single: {str(e)}")
-            import traceback
-            traceback.print_exc()
             raise
     
     def load_model(self, model_path: str = 'app/ml_models/sentiment_model.keras'):

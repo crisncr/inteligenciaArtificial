@@ -62,12 +62,8 @@ def _get_or_create_model():
     """Obtener o crear instancia global del modelo - Espera razonable si se está entrenando"""
     global _global_model, _model_lock, _training_thread
     
-    print(f"🔍 [DEBUG] _get_or_create_model() llamado")
-    print(f"🔍 [DEBUG] Estado: _global_model={_global_model is not None}, _model_lock={_model_lock}")
-    
-    # Si el modelo ya está entrenado, devolverlo inmediatamente
+    # Si el modelo ya está entrenado, devolverlo inmediatamente (sin logs para mejor rendimiento)
     if _global_model is not None and _global_model.is_trained:
-        print("✅ [DEBUG] Modelo ya está entrenado, devolviendo...")
         return _global_model
     
     # Si el modelo se está entrenando, esperar un poco (pero no bloquear mucho)
@@ -130,85 +126,47 @@ def analyze_sentiment(text: str) -> Dict[str, object]:
     Raises:
         Exception: Si no se puede cargar o usar el modelo de red neuronal
     """
-    print(f"🔍 [DEBUG] analyze_sentiment() llamado con texto: '{text[:50]}...'")
-    
     if not text or not text.strip():
-        print("❌ [DEBUG] Error: texto vacío")
         raise Exception("El texto a analizar no puede estar vacío")
     
     try:
-        print("🔍 [DEBUG] Obteniendo modelo...")
         # Obtener modelo (puede lanzar excepción si no está listo)
         model = _get_or_create_model()
-        print(f"🔍 [DEBUG] Modelo obtenido: is_trained={model.is_trained if model else None}, model={model is not None}")
         
-        # Validar que el modelo esté completamente listo
-        if model is None:
-            print("❌ [DEBUG] Error: modelo es None")
+        # Validación rápida (solo si es necesario)
+        if model is None or not model.is_trained or not model.model:
             raise Exception(
                 "El modelo de red neuronal no está disponible. "
-                "El modelo se está cargando. Por favor, espera unos momentos e intenta de nuevo."
-            )
-        
-        if not model.is_trained:
-            print("❌ [DEBUG] Error: modelo no está entrenado")
-            raise Exception(
-                "El modelo de red neuronal aún no está entrenado. "
-                "El modelo se está entrenando. Por favor, espera unos momentos e intenta de nuevo."
-            )
-        
-        if not model.model:
-            print("❌ [DEBUG] Error: model.model es None")
-            raise Exception(
-                "El modelo de red neuronal no está inicializado correctamente. "
                 "Por favor, espera unos momentos e intenta de nuevo."
             )
         
-        print("🔍 [DEBUG] Llamando a model.predict_single()...")
-        # Hacer predicción con la red neuronal LSTM
+        # Hacer predicción con la red neuronal LSTM (sin logs para mejor rendimiento)
         result = model.predict_single(text)
-        print(f"🔍 [DEBUG] Resultado recibido: {result}")
         
-        # Validar resultado
-        if not result:
-            print("❌ [DEBUG] Error: resultado es None o vacío")
+        # Validación mínima del resultado
+        if not result or 'sentiment' not in result:
             raise Exception("El modelo no devolvió un resultado válido")
-        
-        if 'sentiment' not in result:
-            print(f"❌ [DEBUG] Error: resultado no tiene 'sentiment'. Keys: {result.keys() if result else 'None'}")
-            raise Exception("El modelo no devolvió un sentimiento válido")
         
         # Marcar que se usó red neuronal (NO diccionario)
         result['method'] = 'neural_network'
-        print(f"✅ [DEBUG] Análisis completado: sentiment={result.get('sentiment')}, score={result.get('score')}")
         return result
         
     except ValueError as e:
         # Errores de validación del modelo
         error_msg = str(e)
-        print(f"❌ [DEBUG] ValueError en analyze_sentiment: {error_msg}")
-        import traceback
-        traceback.print_exc()
         if "no está entrenado" in error_msg.lower() or "no está inicializado" in error_msg.lower():
             raise Exception(
                 "El modelo de red neuronal se está cargando o entrenando. "
-                "Esto toma 15-30 segundos la primera vez. Por favor, espera unos momentos e intenta de nuevo."
+                "Por favor, espera unos momentos e intenta de nuevo."
             )
         raise Exception(f"Error en el modelo de red neuronal: {error_msg}")
     except ImportError as e:
-        print(f"❌ [DEBUG] ImportError: {e}")
-        import traceback
-        traceback.print_exc()
         raise Exception(
             "Error: No se pudo importar TensorFlow. "
-            "Asegúrate de que TensorFlow esté instalado correctamente. "
             f"Detalle: {str(e)}"
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ [DEBUG] Exception en analyze_sentiment: {error_msg}")
-        import traceback
-        traceback.print_exc()
         # Mejorar mensajes de error
         if "cargando" in error_msg.lower() or "entrenando" in error_msg.lower():
             raise Exception(error_msg)
