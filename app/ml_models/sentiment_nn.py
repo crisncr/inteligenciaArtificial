@@ -79,15 +79,44 @@ class SentimentNeuralNetwork:
         self.is_trained = False
         
     def clean_text(self, text: str) -> str:
-        """Limpieza de texto mejorada con normalización"""
+        """Limpieza de texto mejorada con normalización y corrección de encoding"""
         if not text:
             return ""
+        
+        # Primero, intentar corregir problemas de encoding comunes de Excel/CSV
+        # Problemas comunes: Ã© -> é, Ã³ -> ó, Ã± -> ñ, etc.
+        # Esto ocurre cuando Excel guarda UTF-8 pero se lee como Latin-1
+        encoding_fixes = {
+            # Caracteres mal codificados más comunes (UTF-8 mal leído como Latin-1)
+            'Ã¡': 'á', 'Ã©': 'é', 'Ã­': 'í', 'Ã³': 'ó', 'Ãº': 'ú',
+            'Ã±': 'ñ', 'Ã¼': 'ü', 
+            'Ã': 'Á', 'Ã‰': 'É', 'Ã': 'Í', 'Ã"': 'Ó', 'Ãš': 'Ú',
+            'Ã': 'Ñ', 'Ãœ': 'Ü',
+            # Caracteres raros que aparecen en Excel
+            'â€™': "'", 'â€œ': '"', 'â€': '"', 'â€"': '—', 'â€"': '–',
+            # Limpiar caracteres de control
+            '\ufeff': '',  # BOM de UTF-8
+            '\x00': '',  # Null bytes
+        }
+        
+        # Aplicar correcciones de encoding
+        for wrong, correct in encoding_fixes.items():
+            text = text.replace(wrong, correct)
+        
+        # Intentar corrección automática de encoding si detectamos problemas
+        if 'Ã' in text:
+            try:
+                # Intentar decodificar como Latin-1 y recodificar como UTF-8
+                text = text.encode('latin-1', errors='ignore').decode('utf-8', errors='ignore')
+            except:
+                pass
         
         # Convertir a minúsculas
         text = text.lower()
         
-        # Normalizar tildes y caracteres especiales (esto ayuda a que "atención" y "atencion" se traten igual)
-        # Reemplazar tildes por versiones sin tilde para normalizar
+        # Normalizar tildes y caracteres especiales
+        # IMPORTANTE: El modelo fue entrenado eliminando tildes para normalizar
+        # "atención" y "atencion" se tratan igual, lo cual es útil para el modelo
         replacements = {
             'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
             'ñ': 'n', 'ü': 'u'

@@ -331,9 +331,9 @@ function ManualAnalysis({ user, onAnalyze, freeAnalysesLeft, onLimitReached }) {
           )}
 
           {datasetResults && datasetResults.summary && (
-            <div className="stats-chart" style={{ marginTop: '20px' }}>
+            <div style={{ marginTop: '20px' }}>
               <h3>Resultados del Análisis</h3>
-              <div className="chart-container">
+              <div className="chart-container" style={{ marginBottom: '30px' }}>
                 <div className="chart-item">
                   <div className="chart-label">
                     <span className="chart-emoji">🟢</span>
@@ -379,6 +379,136 @@ function ManualAnalysis({ user, onAnalyze, freeAnalysesLeft, onLimitReached }) {
                   <div className="chart-count">{datasetResults.summary.neutral} de {datasetResults.total}</div>
                 </div>
               </div>
+
+              {/* Comentarios individuales agrupados por sentimiento */}
+              {datasetResults.results && datasetResults.results.length > 0 && (
+                <div style={{ marginTop: '30px' }}>
+                  <h4 style={{ marginBottom: '20px', color: 'var(--text)' }}>Comentarios Clasificados</h4>
+                  
+                  {/* Comentarios Positivos */}
+                  {datasetResults.summary.positive > 0 && (
+                    <div style={{ marginBottom: '25px' }}>
+                      <h5 style={{ color: '#4CAF50', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🟢</span>
+                        <span>Positivos ({datasetResults.summary.positive})</span>
+                      </h5>
+                      <div style={{ 
+                        background: 'rgba(76, 175, 80, 0.1)', 
+                        border: '1px solid rgba(76, 175, 80, 0.3)',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}>
+                        {datasetResults.results
+                          .filter(r => r.sentiment === 'positivo')
+                          .map((result, idx) => (
+                            <div 
+                              key={idx} 
+                              style={{ 
+                                marginBottom: '12px', 
+                                padding: '10px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '4px',
+                                borderLeft: '3px solid #4CAF50'
+                              }}
+                            >
+                              <div style={{ color: 'var(--text)', marginBottom: '5px' }}>
+                                "{result.text}"
+                              </div>
+                              <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', display: 'flex', gap: '15px' }}>
+                                <span>Confianza: {(result.confidence * 100).toFixed(1)}%</span>
+                                <span>Score: {result.score > 0 ? '+' : ''}{result.score.toFixed(3)}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comentarios Negativos */}
+                  {datasetResults.summary.negative > 0 && (
+                    <div style={{ marginBottom: '25px' }}>
+                      <h5 style={{ color: '#F44336', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🔴</span>
+                        <span>Negativos ({datasetResults.summary.negative})</span>
+                      </h5>
+                      <div style={{ 
+                        background: 'rgba(244, 67, 54, 0.1)', 
+                        border: '1px solid rgba(244, 67, 54, 0.3)',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}>
+                        {datasetResults.results
+                          .filter(r => r.sentiment === 'negativo')
+                          .map((result, idx) => (
+                            <div 
+                              key={idx} 
+                              style={{ 
+                                marginBottom: '12px', 
+                                padding: '10px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '4px',
+                                borderLeft: '3px solid #F44336'
+                              }}
+                            >
+                              <div style={{ color: 'var(--text)', marginBottom: '5px' }}>
+                                "{result.text}"
+                              </div>
+                              <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', display: 'flex', gap: '15px' }}>
+                                <span>Confianza: {(result.confidence * 100).toFixed(1)}%</span>
+                                <span>Score: {result.score > 0 ? '+' : ''}{result.score.toFixed(3)}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comentarios Neutrales */}
+                  {datasetResults.summary.neutral > 0 && (
+                    <div style={{ marginBottom: '25px' }}>
+                      <h5 style={{ color: '#FFC107', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🟡</span>
+                        <span>Neutrales ({datasetResults.summary.neutral})</span>
+                      </h5>
+                      <div style={{ 
+                        background: 'rgba(255, 193, 7, 0.1)', 
+                        border: '1px solid rgba(255, 193, 7, 0.3)',
+                        borderRadius: '8px',
+                        padding: '15px',
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}>
+                        {datasetResults.results
+                          .filter(r => r.sentiment === 'neutral')
+                          .map((result, idx) => (
+                            <div 
+                              key={idx} 
+                              style={{ 
+                                marginBottom: '12px', 
+                                padding: '10px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                borderRadius: '4px',
+                                borderLeft: '3px solid #FFC107'
+                              }}
+                            >
+                              <div style={{ color: 'var(--text)', marginBottom: '5px' }}>
+                                "{result.text}"
+                              </div>
+                              <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', display: 'flex', gap: '15px' }}>
+                                <span>Confianza: {(result.confidence * 100).toFixed(1)}%</span>
+                                <span>Score: {result.score > 0 ? '+' : ''}{result.score.toFixed(3)}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -106,8 +106,22 @@ async def upload_dataset(
         # Extraer textos, eliminar valores vacíos y limitar
         texts = df[text_column].dropna().astype(str).tolist()
         # Filtrar textos vacíos o muy cortos (menos de 2 caracteres)
-        texts = [t.strip() for t in texts if t.strip() and len(t.strip()) >= 2]
-        texts = texts[:max_rows]
+        # También corregir encoding común de Excel
+        cleaned_texts = []
+        for t in texts:
+            if t and t.strip() and len(t.strip()) >= 2:
+                # Corregir encoding común de Excel (UTF-8 mal interpretado como Latin-1)
+                text = t.strip()
+                # Intentar decodificar y recodificar si hay problemas de encoding
+                try:
+                    # Si el texto tiene caracteres mal codificados, intentar corregirlos
+                    if 'Ã' in text or 'â€™' in text:
+                        # Intentar corregir encoding común
+                        text = text.encode('latin-1', errors='ignore').decode('utf-8', errors='ignore')
+                except:
+                    pass
+                cleaned_texts.append(text)
+        texts = cleaned_texts[:max_rows]
         
         if len(texts) == 0:
             raise HTTPException(
