@@ -630,32 +630,48 @@ class SentimentNeuralNetwork:
         )
         
         def download_file(url: str, filepath: str) -> bool:
-            """Descargar archivo desde URL"""
+            """Descargar archivo desde URL - Optimizado para memoria"""
             try:
                 import requests
                 print(f"📥 Descargando {os.path.basename(filepath)} desde GitHub Releases...")
-                response = requests.get(url, timeout=60, stream=True)
+                # Timeout más corto y stream para ahorrar memoria
+                response = requests.get(url, timeout=30, stream=True)
                 response.raise_for_status()
                 
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 total_size = int(response.headers.get('content-length', 0))
                 downloaded = 0
                 
+                # Descargar en chunks pequeños para ahorrar memoria
                 with open(filepath, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
+                        # Limpiar memoria periódicamente durante la descarga
+                        if downloaded % (1024 * 1024) == 0:  # Cada 1MB
+                            import gc
+                            gc.collect()
                 
-                print(f"✅ {os.path.basename(filepath)} descargado correctamente ({downloaded / 1024:.1f} KB)")
+                # Limpiar memoria después de descargar
+                import gc
+                del response
+                gc.collect()
+                
+                file_size_kb = downloaded / 1024
+                print(f"✅ {os.path.basename(filepath)} descargado correctamente ({file_size_kb:.1f} KB)")
                 return True
             except Exception as e:
                 print(f"⚠️ No se pudo descargar {os.path.basename(filepath)}: {str(e)}")
+                print(f"🔍 URL intentada: {url}")
                 try:
                     if os.path.exists(filepath):
                         os.remove(filepath)
                 except:
                     pass
+                # Limpiar memoria en caso de error
+                import gc
+                gc.collect()
                 return False
         
         # Verificar qué archivos faltan
@@ -679,9 +695,10 @@ class SentimentNeuralNetwork:
                     print(f"❌ Error al descargar {name}")
             
             if downloaded_count < len(missing_files):
-                print(f"⚠️ Solo se descargaron {downloaded_count}/{len(missing_files)} archivos.")
-                print("🔄 Se entrenará el modelo desde cero (esto tomará más tiempo)...")
-                print("💡 NOTA: Esto solo debería pasar si las URLs de GitHub Releases no están disponibles")
+                print(f"❌ ERROR: Solo se descargaron {downloaded_count}/{len(missing_files)} archivos.")
+                print("❌ NO se puede entrenar el modelo en producción (consume demasiada memoria)")
+                print("💡 SOLUCIÓN: Sube los archivos del modelo a GitHub Releases")
+                print("📋 Ver train_model_local.py para instrucciones")
                 # Limpiar archivos parcialmente descargados
                 for name, url, filepath in missing_files:
                     if os.path.exists(filepath):
@@ -689,6 +706,13 @@ class SentimentNeuralNetwork:
                             os.remove(filepath)
                         except:
                             pass
+                # NO ENTRENAR - Lanzar error en lugar de entrenar
+                raise ValueError(
+                    f"No se pudieron descargar los archivos del modelo desde GitHub Releases. "
+                    f"Archivos faltantes: {len(missing_files) - downloaded_count}. "
+                    f"Por favor, asegúrate de que los archivos estén disponibles en GitHub Releases o "
+                    f"entrena el modelo localmente y súbelo a GitHub Releases."
+                )
             else:
                 print("✅ Todos los archivos del modelo se descargaron correctamente desde GitHub Releases")
                 print("✅ El modelo NO se entrenará, se usará el modelo pre-entrenado")
@@ -719,11 +743,19 @@ class SentimentNeuralNetwork:
                         print(f"❌ Error al recompilar modelo: {compile_error}")
                         raise
                 
-                # Cargar tokenizer y label encoder
+                # Cargar tokenizer y label encoder (optimizado para memoria)
+                print("🔄 Cargando tokenizer y label encoder...")
                 with open(tokenizer_path, 'rb') as f:
                     self.tokenizer = pickle.load(f)
+                # Limpiar memoria después de cargar tokenizer
+                import gc
+                gc.collect()
+                
                 with open(label_encoder_path, 'rb') as f:
                     self.label_encoder = pickle.load(f)
+                # Limpiar memoria después de cargar label encoder
+                gc.collect()
+                print("✅ Tokenizer y label encoder cargados")
                 
                 # Verificar que el modelo está correctamente cargado
                 if self.model is None:
@@ -736,17 +768,23 @@ class SentimentNeuralNetwork:
                 self.is_trained = True
                 
                 # Validación final: asegurar que el modelo puede hacer una predicción de prueba
+                # OPTIMIZADO: Usar validación mínima para ahorrar memoria
                 print("🔍 [DEBUG] Validando modelo con predicción de prueba...")
                 try:
-                    # Hacer una predicción de prueba para validar que el modelo funciona
+                    # Hacer una predicción de prueba mínima para validar que el modelo funciona
                     test_text = "excelente"
                     print(f"🔍 [DEBUG] Texto de prueba: '{test_text}'")
                     test_X = self.prepare_data([test_text])
                     print(f"🔍 [DEBUG] Datos de prueba preparados: shape={test_X.shape}")
+                    # Usar batch_size=1 y verbose=0 para mínimo uso de memoria
                     test_pred = self.model.predict(test_X, batch_size=1, verbose=0)
-                    print(f"🔍 [DEBUG] Predicción de prueba: {test_pred}")
+                    print(f"🔍 [DEBUG] Predicción de prueba recibida: shape={test_pred.shape if test_pred is not None else None}")
                     if test_pred is None or len(test_pred) == 0:
                         raise ValueError("El modelo no puede hacer predicciones válidas")
+                    # Limpiar memoria inmediatamente después de validar
+                    import gc
+                    del test_X, test_pred
+                    gc.collect()
                     print("✅ [DEBUG] Modelo validado correctamente con predicción de prueba")
                 except Exception as e:
                     print(f"⚠️ [DEBUG] Error al validar modelo: {e}")
@@ -755,6 +793,11 @@ class SentimentNeuralNetwork:
                     # Si falla la validación, marcar como no entrenado
                     self.is_trained = False
                     raise ValueError(f"El modelo no está funcionando correctamente: {str(e)}")
+                
+                # Limpiar memoria después de cargar el modelo
+                import gc
+                gc.collect()
+                print("✅ [DEBUG] Memoria limpiada después de cargar modelo")
                 
                 print("✅ Modelo de red neuronal cargado y verificado correctamente")
                 return
@@ -774,37 +817,23 @@ class SentimentNeuralNetwork:
                 except:
                     pass
         
-        # Si no existe o falló cargar, crear y entrenar modelo (FALLBACK)
+        # Si no existe o falló cargar, NO ENTRENAR - Lanzar error
+        # El entrenamiento consume demasiada memoria (>512MB) en Render
         print("=" * 60)
-        print("⚠️ MODO FALLBACK: ENTRENANDO MODELO DESDE CERO")
+        print("❌ ERROR: No se pudo cargar el modelo pre-entrenado")
         print("=" * 60)
-        print("🔄 Creando y entrenando modelo de red neuronal (versión rápida, ~30-60 segundos)...")
-        print("⚠️ NOTA: Esto se ejecuta solo si no se pudo descargar el modelo pre-entrenado")
-        print("💡 RECOMENDACIÓN: Sube los archivos a GitHub Releases para evitar este entrenamiento")
-        print("📋 Ver train_model_local.py para instrucciones")
-        print("🔍 [DEBUG] Iniciando _create_pretrained_model()...")
-        try:
-            self._create_pretrained_model()
-            print("✅ Modelo de red neuronal entrenado y guardado correctamente")
-            
-            # Validar que el modelo esté completamente listo después del entrenamiento
-            print("🔍 [DEBUG] Validando modelo después del entrenamiento...")
-            if not self.is_trained:
-                raise ValueError("El modelo no se marcó como entrenado después de _create_pretrained_model()")
-            if not self.model:
-                raise ValueError("El modelo no se creó después de _create_pretrained_model()")
-            if not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
-                raise ValueError("El tokenizer no se entrenó correctamente")
-            if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
-                raise ValueError("El label encoder no se entrenó correctamente")
-            
-            print("✅ [DEBUG] Modelo completamente validado después del entrenamiento")
-        except Exception as e:
-            print(f"❌ Error al crear modelo de red neuronal: {e}")
-            import traceback
-            traceback.print_exc()
-            self.is_trained = False
-            raise
+        print("❌ NO se puede entrenar el modelo en producción (límite de 512MB de memoria)")
+        print("💡 SOLUCIÓN:")
+        print("   1. Entrena el modelo localmente: python train_model_local.py")
+        print("   2. Sube los archivos a GitHub Releases")
+        print("   3. Asegúrate de que las URLs en load_model() sean correctas")
+        print("📋 Ver train_model_local.py y GUIA_GITHUB_RELEASES.md para instrucciones")
+        raise ValueError(
+            "No se pudo cargar el modelo pre-entrenado y no se puede entrenar en producción "
+            "(límite de memoria: 512MB). Por favor, asegúrate de que los archivos del modelo "
+            "estén disponibles en GitHub Releases. Entrena el modelo localmente y súbelo a "
+            "GitHub Releases antes de desplegar."
+        )
     
     def _create_pretrained_model(self):
         """Entrenar red neuronal LSTM con comentarios y párrafos largos (hasta 100 palabras)"""

@@ -288,18 +288,30 @@ async def startup_event():
         traceback.print_exc()
     
     # Precargar modelo en thread separado (no bloquea startup)
+    # IMPORTANTE: Solo precargar si el modelo está disponible (descargado)
+    # NO entrenar en producción para ahorrar memoria
     def precargar_modelo():
         try:
             from app.sentiment import _train_model_async
             print("🚀 Precargando red neuronal LSTM en background...")
+            print("📋 NOTA: El modelo debe estar descargado desde GitHub Releases")
+            print("📋 Si no está disponible, la aplicación fallará (NO se entrenará en producción)")
             _train_model_async()
             print("✅ Red neuronal LSTM precargada correctamente")
+        except ValueError as e:
+            # Error esperado si el modelo no está disponible
+            print(f"❌ ERROR CRÍTICO: No se pudo cargar el modelo: {e}")
+            print("💡 SOLUCIÓN: Asegúrate de que los archivos del modelo estén en GitHub Releases")
+            print("📋 Ver train_model_local.py para instrucciones")
+            import traceback
+            traceback.print_exc()
         except Exception as e:
             print(f"⚠️ Error al precargar modelo: {e}")
             import traceback
             traceback.print_exc()
     
     # Iniciar precarga en thread separado
+    # Usar thread con menor prioridad para no consumir recursos críticos
     thread = threading.Thread(target=precargar_modelo, daemon=True, name="ModelPreloader")
     thread.start()
     print("✅ Precarga de red neuronal LSTM iniciada")
