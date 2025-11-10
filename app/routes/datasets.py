@@ -29,17 +29,35 @@ async def upload_dataset(
     else:
         max_rows = 10000
     
-    contents = await file.read()
+    try:
+        contents = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al leer el archivo: {str(e)}")
     
     try:
         # Intentar leer como CSV
-        df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
-    except:
         try:
-            # Intentar leer como JSON
-            df = pd.read_json(io.StringIO(contents.decode('utf-8')))
-        except:
-            raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser CSV o JSON")
+            # Intentar diferentes codificaciones comunes
+            try:
+                df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+            except UnicodeDecodeError:
+                try:
+                    df = pd.read_csv(io.StringIO(contents.decode('latin-1')))
+                except UnicodeDecodeError:
+                    df = pd.read_csv(io.StringIO(contents.decode('utf-8', errors='ignore')))
+        except Exception as csv_error:
+            # Si falla CSV, intentar JSON
+            try:
+                df = pd.read_json(io.StringIO(contents.decode('utf-8')))
+            except Exception as json_error:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Formato de archivo inválido. Debe ser CSV o JSON. Error CSV: {str(csv_error)}, Error JSON: {str(json_error)}"
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar el archivo: {str(e)}")
     
     # Buscar columnas de texto de forma flexible
     # No requiere nombres específicos, solo busca columnas que contengan texto
@@ -84,17 +102,30 @@ async def upload_dataset(
     
     print(f"✅ Columna de texto detectada: '{text_column}' (de {len(text_columns)} columnas de texto encontradas)")
     
-    # Extraer textos, eliminar valores vacíos y limitar
-    texts = df[text_column].dropna().astype(str).tolist()
-    # Filtrar textos vacíos o muy cortos (menos de 2 caracteres)
-    texts = [t.strip() for t in texts if t.strip() and len(t.strip()) >= 2]
-    texts = texts[:max_rows]
-    
-    return {
-        "total": len(texts),
-        "texts": texts,
-        "message": f"Dataset cargado: {len(texts)} comentarios"
-    }
+    try:
+        # Extraer textos, eliminar valores vacíos y limitar
+        texts = df[text_column].dropna().astype(str).tolist()
+        # Filtrar textos vacíos o muy cortos (menos de 2 caracteres)
+        texts = [t.strip() for t in texts if t.strip() and len(t.strip()) >= 2]
+        texts = texts[:max_rows]
+        
+        if len(texts) == 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"No se encontraron textos válidos en la columna '{text_column}'. Verifica que el archivo contenga datos de texto."
+            )
+        
+        return {
+            "total": len(texts),
+            "texts": texts,
+            "message": f"Dataset cargado exitosamente: {len(texts)} comentarios",
+            "column": text_column
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error al procesar los textos del dataset: {str(e)}"
+        )
 
 @router.post("/analyze-batch")
 async def analyze_batch(

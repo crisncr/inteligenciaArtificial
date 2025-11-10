@@ -67,10 +67,10 @@ class TrainingProgressCallback(Callback):
             self._print_and_flush(f"⚠️ [DEBUG] No se registraron épocas completadas")
 
 class SentimentNeuralNetwork:
-    def __init__(self, max_words=300, max_len=20):
-        # Red neuronal LSTM basada en texto - Modelo MÍNIMO para Render 512MB
-        # max_words: 300 (vocabulario mínimo para memoria)
-        # max_len: 20 (longitud mínima para memoria)
+    def __init__(self, max_words=5000, max_len=100):
+        # Red neuronal LSTM basada en texto - Optimizado para párrafos largos
+        # max_words: 5000 (vocabulario amplio para mejor comprensión)
+        # max_len: 100 (longitud suficiente para párrafos completos)
         self.max_words = max_words
         self.max_len = max_len
         self.tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
@@ -203,8 +203,8 @@ class SentimentNeuralNetwork:
             print(f"   - {label_name}: {count} muestras")
         
         # USAR más datos para mejor aprendizaje (pero sin exceder memoria)
-        # Aumentar muestras para mejor precisión
-        max_samples = 120  # Usar 120 muestras para mejor aprendizaje (aumentado de 50)
+        # Aumentar muestras para mejor precisión con párrafos largos
+        max_samples = 180  # Usar 180 muestras para mejor aprendizaje (aumentado de 120 para incluir párrafos largos)
         if len(X) > max_samples:
             print(f"⚠️ Reduciendo datos de {len(X)} a {max_samples} para ahorrar memoria...")
             
@@ -778,13 +778,12 @@ class SentimentNeuralNetwork:
             raise
     
     def _create_pretrained_model(self):
-        """Entrenar red neuronal LSTM con comentarios de hasta 25 palabras"""
+        """Entrenar red neuronal LSTM con comentarios y párrafos largos (hasta 100 palabras)"""
         print("🔍 [DEBUG] _create_pretrained_model() iniciado")
-        # Datos de entrenamiento con comentarios completos (hasta 25 palabras)
-        # Incluir frases cortas Y comentarios completos para mejor aprendizaje
-        
-        # Datos de entrenamiento MEJORADOS con muchas más palabras clave y ejemplos
-        # Incluir variaciones de palabras comunes en español
+        print("📊 Modelo configurado para párrafos largos: max_len=100, max_words=5000")
+        # Datos de entrenamiento con frases cortas Y párrafos largos para mejor aprendizaje
+        # Incluir variaciones de palabras comunes en español y párrafos completos
+        # El modelo ahora puede procesar párrafos completos de hasta 100 palabras
         
         # Comentarios POSITIVOS (palabras clave: excelente, bueno, buena, genial, etc.)
         positive_texts = [
@@ -806,6 +805,12 @@ class SentimentNeuralNetwork:
             "altamente recomendado", "muy recomendable", "totalmente recomendado",
             "muy contento", "satisfecho completamente", "me gustó mucho",
             "funciona perfecto", "cumple expectativas", "supera expectativas",
+            # Párrafos largos positivos
+            "estoy muy satisfecho con este producto la calidad es excelente y el servicio al cliente fue increíble me respondieron rápido a todas mis preguntas y el producto llegó en perfectas condiciones sin duda lo recomiendo a todos",
+            "me encanta este servicio la atención que recibí fue maravillosa desde el primer momento me sentí bien atendido el producto funciona perfectamente y cumple con todas mis expectativas estoy muy contento con la compra",
+            "excelente experiencia de compra el producto es de muy buena calidad y el servicio al cliente es excepcional me ayudaron con todas mis dudas y el envío fue muy rápido sin duda volveré a comprar aquí",
+            "estoy muy contento con este producto la calidad es superior a lo que esperaba y el servicio al cliente fue increíble me ayudaron con todas mis preguntas y el producto llegó en perfectas condiciones",
+            "me encanta este servicio la atención que recibí fue maravillosa desde el primer momento me sentí bien atendido el producto funciona perfectamente y cumple con todas mis expectativas",
         ]
         
         # Comentarios NEGATIVOS (palabras clave: mal, malo, pésimo, insultos, etc.)
@@ -829,6 +834,15 @@ class SentimentNeuralNetwork:
             "muy mal", "horrible experiencia", "pésima experiencia", "experiencia negativa",
             "no lo recomiendo", "no vale nada", "totalmente insatisfecho",
             "funciona mal", "no cumple expectativas", "muy por debajo de lo esperado",
+            # Párrafos largos negativos (IMPORTANTE para detectar negatividad en párrafos)
+            "estoy muy decepcionado con este producto la calidad es terrible y el servicio al cliente fue pésimo me tardaron mucho en responder y cuando lo hicieron no me ayudaron en nada el producto llegó dañado y no me quisieron dar reembolso no lo recomiendo para nada",
+            "pésima experiencia de compra el producto no funciona como debería y el servicio al cliente es horrible me tardaron días en responder y cuando lo hicieron no me solucionaron nada el producto está defectuoso y no me quieren dar reembolso",
+            "estoy muy insatisfecho con este servicio la atención fue terrible desde el primer momento me sentí mal atendido el producto no funciona bien y no cumple con mis expectativas no volveré a comprar aquí",
+            "horrible experiencia el producto es de muy mala calidad y el servicio al cliente es pésimo me ayudaron mal con mis dudas y el envío tardó mucho tiempo sin duda no volveré a comprar aquí",
+            "estoy muy decepcionado con este producto la calidad es pésima y el servicio al cliente fue terrible me respondieron mal a todas mis preguntas y el producto llegó en malas condiciones no lo recomiendo",
+            "muy mala experiencia el producto no funciona como debería y el servicio al cliente es horrible me tardaron mucho en responder y cuando lo hicieron no me solucionaron nada el producto está defectuoso",
+            "pésimo servicio la atención que recibí fue terrible desde el primer momento me sentí mal atendido el producto funciona mal y no cumple con mis expectativas no volveré a comprar aquí",
+            "estoy muy insatisfecho con este producto la calidad es terrible y el servicio al cliente fue pésimo me ayudaron mal con todas mis dudas y el envío tardó mucho tiempo sin duda no lo recomiendo",
         ]
         
         # Comentarios NEUTRALES (palabras clave: normal, regular, aceptable, etc.)
@@ -847,6 +861,10 @@ class SentimentNeuralNetwork:
             "producto promedio", "servicio básico", "cumple con lo básico",
             "ni destacable ni malo", "regular nada más", "como se esperaba",
             "sin sorpresas", "ni bueno ni mal", "está bien",
+            # Párrafos largos neutrales
+            "el producto es normal cumple con su función básica pero no destaca en nada especial el servicio al cliente es regular y la calidad es aceptable sin más comentarios",
+            "experiencia regular el producto funciona como se espera pero no es nada especial el servicio al cliente es normal y la calidad es básica cumple con lo básico",
+            "producto estándar la calidad es normal y el servicio al cliente es aceptable no hay nada destacable pero tampoco hay problemas graves cumple con su función",
         ]
         
         texts = positive_texts + negative_texts + neutral_texts
