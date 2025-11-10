@@ -1385,21 +1385,7 @@ footer small {
   margin-bottom: 8px; 
 }
 
-.cookies {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.cookies button {
-  white-space: nowrap;
-  min-width: auto;
-  flex-shrink: 0;
-}
-
-/* Asegurar que el botón de cookies muestre el texto completo */
-.cookies .btn { 
+.cookies { 
   position: fixed; 
   left: 50%;
   transform: translateX(-50%);
@@ -1416,6 +1402,13 @@ footer small {
   justify-content: space-between;
   box-shadow: 0 10px 40px var(--shadow); 
   z-index: 1000; 
+  flex-wrap: wrap;
+}
+
+.cookies button {
+  white-space: nowrap;
+  min-width: auto;
+  flex-shrink: 0;
 }
 
 /* Form Actions */
