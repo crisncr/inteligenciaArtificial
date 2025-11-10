@@ -162,12 +162,12 @@ body {
   margin: 0 auto;
   padding: 16px 20px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
   z-index: 1001;
   background: rgba(10, 14, 26, 0.7);
@@ -176,18 +176,9 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Asegurar que el navbar esté centrado en el contenido pero el logo alineado a la izquierda */
-.nav {
-  padding-left: max(20px, calc((100% - 1100px) / 2 + 20px));
-  padding-right: max(20px, calc((100% - 1100px) / 2 + 20px));
-}
-
-/* En móviles, padding normal */
-@media (max-width: 768px) {
-  .nav {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
+/* Asegurar que el logo esté alineado a la izquierda dentro del contenedor */
+.nav__links {
+  margin-left: auto;
 }
 
 /* Navbar transparente sobre el carrusel (sin fondo oscuro) */
@@ -1157,7 +1148,8 @@ footer small {
   }
   
   .hero-section {
-    height: 400px;
+    height: 100vh;
+    min-height: 500px;
   }
   
   .hero { grid-template-columns: 1fr; }
