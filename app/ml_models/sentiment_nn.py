@@ -863,6 +863,7 @@ class SentimentNeuralNetwork:
     def _label_text_with_keywords(self, text: str) -> str:
         """
         Etiqueta un texto como positivo, negativo o neutral usando palabras clave.
+        Versión mejorada para detectar mejor los comentarios negativos.
         Usado para etiquetar textos de Hugging Face que no tienen etiquetas de sentimiento.
         """
         if not text:
@@ -875,44 +876,100 @@ class SentimentNeuralNetwork:
             'excelente', 'bueno', 'buena', 'genial', 'perfecto', 'perfecta',
             'increíble', 'maravilloso', 'fantástico', 'delicioso', 'deliciosa',
             'agradable', 'acogedor', 'acogedora', 'limpio', 'limpia', 'bonito', 'bonita',
-            'recomiendo', 'recomiendo', 'recomendado', 'recomendada', 'satisfecho', 'satisfecha',
+            'recomiendo', 'recomendado', 'recomendada', 'satisfecho', 'satisfecha',
             'me encanta', 'me encantó', 'me encanto', 'superó', 'supero', 'super', 'súper',
             'feliz', 'contento', 'contenta', 'alegre', 'amable', 'atento', 'atenta',
             'rápido', 'rápida', 'eficiente', 'profesional', 'calidad', 'precio', 'barato', 'barata',
-            'vale la pena', 'valió la pena', 'valio la pena'
+            'vale la pena', 'valió la pena', 'valio la pena', 'volveré', 'volvere',
+            'satisfactorio', 'satisfactoria', 'recomendable'
         ]
         
-        # Palabras clave negativas
+        # Palabras clave negativas (EXPANDIDO para detectar mejor los negativos)
         negative_keywords = [
-            'malo', 'mala', 'pésimo', 'pésima', 'terrible', 'horrible',
-            'decepcionante', 'decepcionado', 'decepcionada', 'frío', 'fría',
-            'incompleto', 'incompleta', 'roto', 'rota', 'dañado', 'dañada',
-            'defectuoso', 'defectuosa', 'grosero', 'grosera', 'desastre',
-            'tarde', 'lento', 'lenta', 'sin sabor', 'lleno de errores',
-            'no recomiendo', 'nunca volveré', 'nunca volvere', 'pésimo servicio',
-            'mala atención', 'pésima atención', 'no funciona', 'no funciona bien',
-            'problema', 'problemas', 'queja', 'quejas', 'insatisfecho', 'insatisfecha',
-            'devolución', 'devolver', 'reembolso', 'reclamo', 'reclamos'
+            # Calificaciones negativas directas
+            'malo', 'mala', 'pésimo', 'pésima', 'terrible', 'horrible', 'decepcionante',
+            'decepcionado', 'decepcionada', 'decepción', 'decepcion',
+            # Problemas de calidad/estado
+            'roto', 'rota', 'dañado', 'dañada', 'defectuoso', 'defectuosa', 
+            'incompleto', 'incompleta', 'en mal estado', 'mal estado', 
+            'defectos', 'defecto', 'daños', 'daño',
+            # Problemas de temperatura/sabor
+            'frío', 'fría', 'sin sabor', 'horrible sabor', 'sabor horrible',
+            'comida fría', 'comida fria',
+            # Problemas de tiempo/demora
+            'tarde', 'demoró', 'demoro', 'demorado', 'demorada', 'retraso', 
+            'retrasado', 'retrasada', 'se demoró', 'se demoro', 
+            'demoró demasiado', 'demoro demasiado', 'tardó', 'tardo',
+            'lento', 'lenta', 'demasiado lento', 'demasiado lenta',
+            'llegó tarde', 'llego tarde', 'con retraso',
+            # Problemas de entrega/envío
+            'desastre', 'perdido', 'perdida', 'se perdió', 'se perdio', 
+            'no llegó', 'no llego', 'llegó incompleto', 'llego incompleto', 
+            'llegó en mal estado', 'llego en mal estado', 'llegó roto', 'llego roto',
+            'el envío se perdió', 'el envio se perdio', 'el envío se demoró',
+            'el envio se demoro', 'la entrega fue un desastre',
+            # Problemas de servicio/atención
+            'grosero', 'grosera', 'mala atención', 'pésima atención', 
+            'pésimo servicio', 'poco atento', 'poca atención', 
+            'no respondió', 'no respondio', 'nunca respondió', 'nunca respondio',
+            'no funciona', 'no funciona bien', 'no cumple',
+            'mala comunicación', 'pésima comunicación',
+            # Negaciones y rechazo
+            'no recomiendo', 'no recomendaria', 'nunca volveré', 'nunca volvere',
+            'no volveré', 'no volvere', 'no compraría', 'no compraria',
+            'no lo recomiendo', 'no lo recomendaria', 'no lo recomendaría',
+            'no recibí', 'no recibi', 'no recibió', 'no recibio',
+            # Problemas y quejas
+            'problema', 'problemas', 'queja', 'quejas', 'reclamo', 'reclamos',
+            'insatisfecho', 'insatisfecha', 'devolución', 'devolver', 'reembolso',
+            # Otros negativos
+            'lleno de errores', 'errores', 'no cumple expectativas', 
+            'no cumplió', 'no cumplio', 'defraudado', 'defraudada',
+            # Frases negativas comunes
+            'muy mala', 'muy malo', 'muy mal', 'pésimo servicio', 
+            'terrible experiencia', 'no funcionó', 'no funciono',
+            'no sirve', 'no sirvió', 'no sirvio', 'horrible experiencia',
+            'una pésima experiencia', 'una pesima experiencia'
         ]
+        
+        # Detectar negaciones que cambian el sentido (ej: "no es bueno" = negativo)
+        negation_words = ['no', 'nunca', 'jamás', 'jamas', 'tampoco', 'ni']
+        words = text_lower.split()
+        has_negation_near_positive = False
+        
+        # Buscar patrones como "no es bueno", "nunca fue excelente", etc.
+        for i, word in enumerate(words):
+            if word in negation_words:
+                # Verificar si hay palabra positiva cerca (dentro de 3 palabras)
+                for j in range(max(0, i-3), min(len(words), i+4)):
+                    if any(pos_kw in words[j] for pos_kw in ['bueno', 'buena', 'excelente', 'genial', 'perfecto', 'recomiendo', 'satisfecho', 'contento']):
+                        has_negation_near_positive = True
+                        break
         
         # Contar palabras positivas y negativas
         positive_count = sum(1 for keyword in positive_keywords if keyword in text_lower)
         negative_count = sum(1 for keyword in negative_keywords if keyword in text_lower)
         
-        # Determinar sentimiento
-        if positive_count > negative_count and positive_count > 0:
-            return 'positivo'
-        elif negative_count > positive_count and negative_count > 0:
+        # Si hay negación cerca de palabra positiva, es negativo (ej: "no es bueno")
+        if has_negation_near_positive:
+            negative_count += 2  # Peso extra para negaciones
+        
+        # Determinar sentimiento (priorizar negativos si hay indicadores claros)
+        if negative_count > 0 and (negative_count > positive_count or negative_count >= 2):
             return 'negativo'
+        elif positive_count > 0 and positive_count > negative_count:
+            return 'positivo'
         else:
             return 'neutral'
     
-    def _load_huggingface_datasets(self, limite: int = 1000) -> List[Dict[str, str]]:
+    def _load_huggingface_datasets(self, limite: int = 5000, min_negativos: int = 300) -> List[Dict[str, str]]:
         """
         Carga datasets de Hugging Face en español y los etiqueta automáticamente.
+        Carga muchos datos hasta encontrar suficientes ejemplos negativos.
         
         Args:
             limite: Número máximo de comentarios a cargar
+            min_negativos: Número mínimo de comentarios negativos requeridos
             
         Returns:
             Lista de diccionarios con 'valor' (positivo/negativo/neutral) y 'comentario'
@@ -922,7 +979,7 @@ class SentimentNeuralNetwork:
         try:
             from datasets import load_dataset
             print("🔄 Cargando dataset de análisis de sentimientos en español desde Hugging Face...")
-            print(f"📥 Solicitando {limite} comentarios...")
+            print(f"📥 Solicitando hasta {limite} comentarios para encontrar al menos {min_negativos} negativos...")
             
             # Intentar cargar diferentes datasets compatibles
             dataset = None
@@ -939,6 +996,7 @@ class SentimentNeuralNetwork:
                 return []
             
             # Procesar cada comentario
+            negativos_encontrados = 0
             for item in dataset:
                 # Obtener texto del comentario
                 texto = item.get('text', item.get('texto', item.get('comentario', 
@@ -955,13 +1013,20 @@ class SentimentNeuralNetwork:
                 if not self._is_valid_comment(texto):
                     continue
                 
-                # Etiquetar usando palabras clave (ya que el dataset no tiene etiquetas de sentimiento)
+                # Etiquetar usando palabras clave mejoradas
                 sentimiento = self._label_text_with_keywords(texto)
+                
+                # Si es negativo, incrementar contador
+                if sentimiento == 'negativo':
+                    negativos_encontrados += 1
                 
                 datos.append({
                     'valor': sentimiento,
                     'comentario': texto
                 })
+                
+                # Si ya tenemos suficientes negativos y suficientes datos totales, podemos parar antes
+                # (pero procesamos todos para tener mejor distribución)
             
             print(f"✅ {len(datos)} comentarios válidos procesados de {dataset_name}")
             
@@ -970,6 +1035,13 @@ class SentimentNeuralNetwork:
             negativo_count = sum(1 for d in datos if d['valor'] == 'negativo')
             neutral_count = sum(1 for d in datos if d['valor'] == 'neutral')
             print(f"📊 Distribución: {positivo_count} positivos, {negativo_count} negativos, {neutral_count} neutrales")
+            
+            # Advertir si no hay suficientes negativos
+            if negativo_count < min_negativos:
+                print(f"⚠️ ADVERTENCIA: Solo se encontraron {negativo_count} comentarios negativos (objetivo: {min_negativos})")
+                print(f"💡 El dataset será balanceado con los negativos disponibles")
+            else:
+                print(f"✅ Se encontraron {negativo_count} comentarios negativos (objetivo: {min_negativos})")
             
         except ImportError:
             print("❌ Error: La librería 'datasets' no está instalada.")
@@ -986,9 +1058,9 @@ class SentimentNeuralNetwork:
     
     def _create_training_dataset(self) -> List[Dict[str, str]]:
         """
-        Crea un dataset estructurado con ~1000 muestras usando datos reales de Hugging Face.
+        Crea un dataset estructurado con ~1000 muestras balanceadas.
+        Usa solo datos de Hugging Face, balanceando automáticamente las clases.
         Los textos se cargan desde Hugging Face y se etiquetan automáticamente usando palabras clave.
-        Esto permite entrenar el modelo con comentarios reales de usuarios en español.
         """
         dataset = []
         
@@ -997,8 +1069,8 @@ class SentimentNeuralNetwork:
         print("=" * 80)
         print()
         
-        # Cargar datos de Hugging Face
-        hf_data = self._load_huggingface_datasets(limite=1200)  # Solicitar más para tener ~1000 válidos
+        # Cargar muchos datos de Hugging Face para encontrar suficientes negativos
+        hf_data = self._load_huggingface_datasets(limite=5000, min_negativos=300)
         
         if not hf_data:
             raise ValueError(
@@ -1007,7 +1079,51 @@ class SentimentNeuralNetwork:
                 "y conexión a internet para descargar el dataset."
             )
         
-        dataset.extend(hf_data)
+        # Separar por sentimiento
+        hf_positivos = [d for d in hf_data if d['valor'] == 'positivo']
+        hf_negativos = [d for d in hf_data if d['valor'] == 'negativo']
+        hf_neutrales = [d for d in hf_data if d['valor'] == 'neutral']
+        
+        print(f"\n📊 Datos disponibles después de etiquetado: {len(hf_positivos)} positivos, {len(hf_negativos)} negativos, {len(hf_neutrales)} neutrales")
+        
+        # Balancear: usar la cantidad de negativos como referencia
+        # Si hay pocos negativos, usar todos y balancear positivos/neutrales
+        import random
+        random.seed(42)
+        
+        if len(hf_negativos) > 0:
+            # Usar todos los negativos disponibles (son los más importantes)
+            target_negativos = min(len(hf_negativos), 350)
+            target_por_clase = target_negativos  # Balancear con la misma cantidad
+            
+            # Negativos: usar todos los disponibles (hasta el límite)
+            if len(hf_negativos) > target_negativos:
+                hf_negativos_selected = random.sample(hf_negativos, target_negativos)
+            else:
+                hf_negativos_selected = hf_negativos
+            
+            # Positivos: limitar a la misma cantidad que negativos
+            if len(hf_positivos) > target_por_clase:
+                hf_positivos_selected = random.sample(hf_positivos, target_por_clase)
+            else:
+                hf_positivos_selected = hf_positivos
+            
+            # Neutrales: limitar a la misma cantidad
+            if len(hf_neutrales) > target_por_clase:
+                hf_neutrales_selected = random.sample(hf_neutrales, target_por_clase)
+            else:
+                hf_neutrales_selected = hf_neutrales
+            
+            # Combinar
+            dataset.extend(hf_negativos_selected)
+            dataset.extend(hf_positivos_selected)
+            dataset.extend(hf_neutrales_selected)
+            
+            print(f"✅ Dataset balanceado seleccionado: {len(hf_negativos_selected)} negativos, {len(hf_positivos_selected)} positivos, {len(hf_neutrales_selected)} neutrales")
+        else:
+            # Si no hay negativos, usar todos los datos disponibles
+            print("⚠️ No se encontraron comentarios negativos, usando todos los datos disponibles")
+            dataset.extend(hf_data)
         
         # Eliminar duplicados (mismo comentario)
         seen_comments = set()
@@ -1021,19 +1137,37 @@ class SentimentNeuralNetwork:
         
         dataset = unique_dataset
         
-        # Limitar a ~1000 muestras (mantener distribución balanceada)
-        if len(dataset) > 1000:
-            import random
-            random.seed(42)
-            random.shuffle(dataset)
-            dataset = dataset[:1000]
-        
         # Mezclar dataset
-        import random
         random.seed(42)
         random.shuffle(dataset)
         
-        # Estadísticas
+        # Limitar a ~1000 muestras si es necesario (mantener balance)
+        if len(dataset) > 1000:
+            # Mantener proporción balanceada al limitar
+            positive_count = sum(1 for d in dataset if d['valor'] == 'positivo')
+            negative_count = sum(1 for d in dataset if d['valor'] == 'negativo')
+            neutral_count = sum(1 for d in dataset if d['valor'] == 'neutral')
+            
+            # Calcular proporciones
+            total = len(dataset)
+            p_ratio = positive_count / total
+            n_ratio = negative_count / total
+            neu_ratio = neutral_count / total
+            
+            # Seleccionar manteniendo proporciones
+            target_positive = int(1000 * p_ratio)
+            target_negative = int(1000 * n_ratio)
+            target_neutral = 1000 - target_positive - target_negative
+            
+            balanced_dataset = []
+            balanced_dataset.extend([d for d in dataset if d['valor'] == 'positivo'][:target_positive])
+            balanced_dataset.extend([d for d in dataset if d['valor'] == 'negativo'][:target_negative])
+            balanced_dataset.extend([d for d in dataset if d['valor'] == 'neutral'][:target_neutral])
+            
+            random.shuffle(balanced_dataset)
+            dataset = balanced_dataset
+        
+        # Estadísticas finales
         positive_count = sum(1 for d in dataset if d['valor'] == 'positivo')
         negative_count = sum(1 for d in dataset if d['valor'] == 'negativo')
         neutral_count = sum(1 for d in dataset if d['valor'] == 'neutral')
@@ -1041,7 +1175,7 @@ class SentimentNeuralNetwork:
         
         print()
         print("=" * 80)
-        print("RESUMEN DEL DATASET")
+        print("RESUMEN DEL DATASET BALANCEADO")
         print("=" * 80)
         print(f"📊 Total de comentarios: {len(dataset)}")
         print(f"📊   - Positivos: {positive_count} ({positive_count/len(dataset)*100:.1f}%)")
@@ -1055,13 +1189,14 @@ class SentimentNeuralNetwork:
     
     def _create_pretrained_model(self):
         """
-        Entrenar red neuronal LSTM con dataset real de Hugging Face (~1000 muestras).
-        Usa Amazon Reviews Multi en español para entrenar con comentarios reales de usuarios.
+        Entrenar red neuronal LSTM con dataset real de Hugging Face (~1000 muestras balanceadas).
+        Los textos se cargan desde Hugging Face y se etiquetan automáticamente usando palabras clave.
+        El dataset se balancea automáticamente para tener distribución similar de positivos, negativos y neutrales.
         El modelo aprenderá patrones generales de comentarios reales, mejorando la generalización.
         """
         print("🔍 [DEBUG] _create_pretrained_model() iniciado")
         print("📊 Modelo configurado para párrafos largos: max_len=100, max_words=5000")
-        print("🔄 Cargando dataset estructurado con ~1000 muestras desde Hugging Face (Amazon Reviews Multi - español)...")
+        print("🔄 Cargando dataset estructurado balanceado con ~1000 muestras desde Hugging Face...")
         
         # Generar dataset estructurado (valor, comentario)
         dataset = self._create_training_dataset()
