@@ -178,7 +178,7 @@ function ManualAnalysis({ user, onAnalyze, freeAnalysesLeft, onLimitReached }) {
       <div className="section-header">
         <h1>Análisis de Sentimientos</h1>
         <p className="section-subtitle">
-          Parte 1: Clasificación de texto con Red Neuronal - Carga datos, limpia texto y clasifica como positivo/negativo
+          Clasificación de texto con Red Neuronal - Carga datos, limpia texto y clasifica como positivo/negativo
         </p>
       </div>
 

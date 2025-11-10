@@ -719,7 +719,7 @@ function RouteOptimization({ user }) {
       <div className="section-header">
         <h1>Optimización de Rutas</h1>
         <p className="section-subtitle">
-          Parte 2: Algoritmos de búsqueda - Optimiza rutas de distribución minimizando distancia
+          Algoritmos de búsqueda - Optimiza rutas de distribución minimizando distancia
         </p>
       </div>
 

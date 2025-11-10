@@ -1,6 +1,27 @@
+import { useState } from 'react'
 import { getPlanFeatures } from '../utils/planFeatures'
 
 function Plans({ user, onSelectPlan }) {
+  const [expandedPlans, setExpandedPlans] = useState({})
+  
+  const togglePlan = (index) => {
+    setExpandedPlans(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }))
+  }
+  
+  const getVisibleFeatures = (planFeatures, isExpanded) => {
+    if (isExpanded) return planFeatures
+    // Mostrar solo las primeras 6 características (excluyendo líneas vacías)
+    const nonEmptyFeatures = planFeatures.filter(f => f.trim() !== '')
+    const visibleCount = Math.min(6, nonEmptyFeatures.length)
+    return planFeatures.filter(f => {
+      if (f.trim() === '') return true // Mantener líneas vacías para formato
+      const nonEmptyIndex = nonEmptyFeatures.indexOf(f)
+      return nonEmptyIndex < visibleCount
+    })
+  }
   const plans = [
     {
       name: 'Básico',
@@ -54,13 +75,34 @@ function Plans({ user, onSelectPlan }) {
               </div>
             </div>
             <ul className="pricing-features">
-              {plan.features.map((feature, fIndex) => (
-                <li key={fIndex}>
-                  <span className="check-icon">✓</span>
-                  {feature}
-                </li>
-              ))}
+              {getVisibleFeatures(plan.features, expandedPlans[index]).map((feature, fIndex) => {
+                // No mostrar líneas vacías
+                if (feature.trim() === '') return null
+                return (
+                  <li key={fIndex}>
+                    <span className="check-icon">✓</span>
+                    {feature}
+                  </li>
+                )
+              })}
             </ul>
+            {plan.features.filter(f => f.trim() !== '').length > 6 && (
+              <button
+                className="btn--link"
+                onClick={() => togglePlan(index)}
+                style={{ 
+                  marginTop: '12px', 
+                  background: 'transparent', 
+                  border: 'none', 
+                  color: 'var(--primary)', 
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {expandedPlans[index] ? 'Ver menos' : 'Ver más'}
+              </button>
+            )}
             <button 
               className={`btn ${plan.current ? 'btn--ghost' : plan.popular ? '' : 'btn--ghost'}`}
               onClick={() => onSelectPlan && onSelectPlan(plan.planId)}

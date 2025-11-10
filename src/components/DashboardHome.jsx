@@ -54,7 +54,7 @@ function DashboardHome({ user, onSelectPlan, onSectionChange }) {
               <div className="service-icon">📊</div>
               <div className="service-info">
                 <h3>Análisis de Sentimientos</h3>
-                <p>Parte 1: Clasificación de texto con Red Neuronal {plan === 'free' ? '(10 análisis/día)' : '(ilimitado)'}</p>
+                <p>Clasificación de texto con Red Neuronal {plan === 'free' ? '(10 análisis/día)' : '(ilimitado)'}</p>
                 <span className="service-status active">✓ Disponible</span>
               </div>
             </div>
@@ -69,7 +69,7 @@ function DashboardHome({ user, onSelectPlan, onSectionChange }) {
                 <div className="service-icon">🗺️</div>
                 <div className="service-info">
                   <h3>Optimización de Rutas</h3>
-                  <p>Parte 2: Optimiza rutas de distribución minimizando distancia</p>
+                  <p>Optimiza rutas de distribución minimizando distancia</p>
                   <span className="service-status active">✓ Disponible</span>
                 </div>
               </div>
@@ -85,7 +85,7 @@ function DashboardHome({ user, onSelectPlan, onSectionChange }) {
                 <div className="service-icon">💰</div>
                 <div className="service-info">
                   <h3>Predicción de Ventas</h3>
-                  <p>Parte 3: Predice ventas futuras por región usando IA</p>
+                  <p>Predice ventas futuras por región usando IA</p>
                   <span className="service-status active">✓ Disponible</span>
                 </div>
               </div>

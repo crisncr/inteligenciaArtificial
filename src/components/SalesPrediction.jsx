@@ -91,7 +91,7 @@ function SalesPrediction({ user }) {
       <div className="section-header">
         <h1>Predicción de Ventas</h1>
         <p className="section-subtitle">
-          Parte 3: Predicción de ventas por región usando IA (Regresión Lineal / Red Neuronal)
+          Predicción de ventas por región usando IA (Regresión Lineal / Red Neuronal)
         </p>
       </div>
 

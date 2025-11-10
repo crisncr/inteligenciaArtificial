@@ -8,12 +8,12 @@ export const getSidebarItems = (plan) => {
     { id: 'soporte', label: 'Ayuda', icon: '💬', plan: 'free' },
   ]
 
-  // PARTE 1 DE LA PRUEBA - Plan Free
+  // Plan Free
   const parte1Items = [
     { id: 'analisis-sentimientos', label: 'Análisis de Sentimientos', icon: '📊', plan: 'free' },
   ]
 
-  // Funcionalidades adicionales + PARTE 2 - Plan Pro
+  // Plan Pro
   const parte2Items = [
     { id: 'historial', label: 'Historial', icon: '📋', plan: 'pro' },
     { id: 'estadisticas', label: 'Estadísticas', icon: '📊', plan: 'pro' },
@@ -22,7 +22,7 @@ export const getSidebarItems = (plan) => {
     { id: 'optimizacion-rutas', label: 'Optimización de Rutas', icon: '🗺️', plan: 'pro' },
   ]
 
-  // Funcionalidades adicionales + PARTE 3 - Plan Enterprise
+  // Plan Enterprise
   const parte3Items = [
     { id: 'analisis-avanzado', label: 'Análisis Avanzado', icon: '🎯', plan: 'enterprise' },
     { id: 'prediccion-ventas', label: 'Predicción de Ventas', icon: '💰', plan: 'enterprise' },
@@ -40,13 +40,13 @@ export const getSidebarItems = (plan) => {
   let items = [...baseItems]
 
   if (plan === 'free') {
-    // Plan Free: solo PARTE 1
+    // Plan Free
     items = [...items, ...parte1Items]
   } else if (plan === 'pro') {
-    // Plan Pro: PARTE 1 + PARTE 2 + Funcionalidades adicionales
+    // Plan Pro
     items = [...items, ...parte1Items, ...parte2Items]
   } else if (plan === 'enterprise') {
-    // Plan Enterprise: PARTE 1 + PARTE 2 + PARTE 3 + Todas las funcionalidades
+    // Plan Enterprise
     items = [...items, ...parte1Items, ...parte2Items, ...parte3Items]
   }
 
@@ -58,7 +58,7 @@ export const getSidebarItems = (plan) => {
 
 // Features por plan - deben coincidir con los items disponibles en el sidebar
 export const getPlanFeatures = (plan) => {
-  // PARTE 1 DE LA PRUEBA - Plan Free
+  // Plan Free
   const parte1Features = [
     'Inicio - Overview de tu cuenta',
     'Pagos - Historial de pagos',
@@ -66,7 +66,7 @@ export const getPlanFeatures = (plan) => {
     'Ayuda - Soporte y documentación',
     'Ajustes - Configuración de cuenta',
     '',
-    '📊 PARTE 1: Análisis de Sentimientos',
+    '📊 Análisis de Sentimientos',
     '✓ Análisis de Sentimientos - Red Neuronal (10 análisis/día)',
     '✓ Carga de Datasets - Hasta 100 comentarios (CSV/JSON)',
     '✓ Limpieza de Texto - Técnicas de NLP',
@@ -76,14 +76,14 @@ export const getPlanFeatures = (plan) => {
     '✓ Algoritmo: Red Neuronal (LSTM)',
   ]
 
-  // PARTE 2 DE LA PRUEBA + Funcionalidades adicionales - Plan Pro
+  // Plan Pro
   const parte2Features = [
     '',
-    '📊 PARTE 1: Mejorado',
+    '📊 Análisis de Sentimientos Mejorado',
     '✓ Análisis ilimitado con Red Neuronal',
     '✓ Datasets ilimitados',
     '',
-    '🗺️ PARTE 2: Optimización de Rutas',
+    '🗺️ Optimización de Rutas',
     '✓ Optimización de Rutas - Hasta 50 puntos',
     '✓ Algoritmos de Búsqueda - A*, Dijkstra, TSP',
     '✓ Visualización de Rutas Óptimas',
@@ -97,10 +97,10 @@ export const getPlanFeatures = (plan) => {
     '✓ Diagnósticos - Análisis de comentarios',
   ]
 
-  // PARTE 3 DE LA PRUEBA + Funcionalidades adicionales - Plan Enterprise
+  // Plan Enterprise
   const parte3Features = [
     '',
-    '💰 PARTE 3: Predicción de Ventas',
+    '💰 Predicción de Ventas',
     '✓ Predicción de Ventas - Por región',
     '✓ Modelos de IA - Regresión Lineal / Red Neuronal',
     '✓ Análisis Predictivo - Tendencia de ventas',
@@ -122,10 +122,10 @@ export const getPlanFeatures = (plan) => {
   if (plan === 'free') {
     return parte1Features
   } else if (plan === 'pro') {
-    // Plan Pro: PARTE 1 + PARTE 2 + Funcionalidades adicionales
+    // Plan Pro
     return [...parte1Features, ...parte2Features]
   } else if (plan === 'enterprise') {
-    // Plan Enterprise: PARTE 1 + PARTE 2 + PARTE 3 + Todas las funcionalidades
+    // Plan Enterprise
     return [...parte1Features, ...parte2Features, ...parte3Features]
   }
 

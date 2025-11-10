@@ -1,13 +1,19 @@
+import { useState } from 'react'
+
 function Pricing({ user, onSelectPlan, onLoginRequired }) {
+  const [expandedPlans, setExpandedPlans] = useState({})
+  
   const plans = [
     {
       name: 'Básico',
       price: 'Gratis',
       features: [
+        'Análisis de sentimientos con Red Neuronal',
         'Hasta 10 análisis por día',
-        'Análisis básico de sentimientos',
+        'Carga de datasets (CSV/JSON)',
+        'Clasificación automática de texto',
         'Soporte por email',
-        'API básica'
+        'API básica para integraciones'
       ],
       popular: false
     },
@@ -16,12 +22,16 @@ function Pricing({ user, onSelectPlan, onLoginRequired }) {
       price: '$9.99',
       period: '/mes',
       features: [
-        'Análisis ilimitados',
-        'Análisis avanzado de sentimientos',
-        'Historial completo',
-        'API completa',
+        'Análisis ilimitados con Red Neuronal',
+        'Optimización de rutas de distribución',
+        'Historial completo de análisis',
+        'Estadísticas y métricas avanzadas',
+        'API completa con documentación',
+        'Integración con APIs externas',
         'Soporte prioritario',
-        'Exportar resultados'
+        'Exportar resultados en CSV/JSON',
+        'Diagnósticos automáticos',
+        'Búsqueda avanzada en comentarios'
       ],
       popular: true
     },
@@ -29,16 +39,34 @@ function Pricing({ user, onSelectPlan, onLoginRequired }) {
       name: 'Enterprise',
       price: 'Personalizado',
       features: [
-        'Todo lo de Pro',
+        'Todo lo incluido en Pro',
+        'Predicción de ventas por región',
         'Análisis en tiempo real',
+        'Análisis avanzado multi-idioma',
         'Integración personalizada',
-        'Soporte 24/7',
-        'Analytics avanzados',
-        'SLA garantizado'
+        'Soporte 24/7 dedicado',
+        'Analytics avanzados y reportes',
+        'Exportación de datos ilimitada',
+        'Integraciones con Slack, Zapier',
+        'SLA garantizado',
+        'Capacitación personalizada',
+        'Cuenta manager dedicado'
       ],
       popular: false
     }
   ]
+  
+  const togglePlan = (index) => {
+    setExpandedPlans(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }))
+  }
+  
+  const getVisibleFeatures = (planFeatures, isExpanded) => {
+    if (isExpanded) return planFeatures
+    return planFeatures.slice(0, 4) // Mostrar solo las primeras 4 características
+  }
 
   return (
     <section id="precio" className="pricing-panel">
@@ -62,13 +90,30 @@ function Pricing({ user, onSelectPlan, onLoginRequired }) {
               </div>
             </div>
             <ul className="pricing-features">
-              {plan.features.map((feature, fIndex) => (
+              {getVisibleFeatures(plan.features, expandedPlans[index]).map((feature, fIndex) => (
                 <li key={fIndex}>
                   <span className="check-icon">✓</span>
                   {feature}
                 </li>
               ))}
             </ul>
+            {plan.features.length > 4 && (
+              <button
+                className="btn--link"
+                onClick={() => togglePlan(index)}
+                style={{ 
+                  marginTop: '12px', 
+                  background: 'transparent', 
+                  border: 'none', 
+                  color: 'var(--primary)', 
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {expandedPlans[index] ? 'Ver menos' : 'Ver más'}
+              </button>
+            )}
             <button 
               className={`btn ${plan.popular ? '' : 'btn--ghost'}`}
               onClick={() => {
