@@ -79,13 +79,22 @@ class SentimentNeuralNetwork:
         self.is_trained = False
         
     def clean_text(self, text: str) -> str:
-        """Limpieza de texto mejorada con normalización y corrección de encoding"""
+        """
+        Limpieza de texto mejorada con normalización y corrección de encoding.
+        
+        ⚠️ IMPORTANTE: Este método SOLO limpia el texto (corrige encoding, normaliza).
+        NO clasifica sentimientos. La clasificación se hace 100% por la red neuronal LSTM.
+        
+        El diccionario 'encoding_fixes' es SOLO para corregir problemas de encoding
+        de archivos CSV/Excel (ej: Ã© -> é). NO es un diccionario de sentimientos.
+        """
         if not text:
             return ""
         
-        # Primero, intentar corregir problemas de encoding comunes de Excel/CSV
-        # Problemas comunes: Ã© -> é, Ã³ -> ó, Ã± -> ñ, etc.
-        # Esto ocurre cuando Excel guarda UTF-8 pero se lee como Latin-1
+        # ⚠️ SOLO CORRECCIÓN DE ENCODING - NO CLASIFICACIÓN DE SENTIMIENTOS
+        # Esto corrige problemas cuando Excel guarda UTF-8 pero se lee como Latin-1
+        # Ejemplo: "Ã©" (mal codificado) -> "é" (correcto)
+        # Esto NO afecta la clasificación de sentimientos, solo limpia el texto
         encoding_fixes = {
             # Caracteres mal codificados más comunes (UTF-8 mal leído como Latin-1)
             'Ã¡': 'á', 'Ã©': 'é', 'Ã­': 'í', 'Ã³': 'ó', 'Ãº': 'ú',
@@ -99,7 +108,7 @@ class SentimentNeuralNetwork:
             '\x00': '',  # Null bytes
         }
         
-        # Aplicar correcciones de encoding
+        # Aplicar correcciones de encoding (SOLO limpieza, NO clasificación)
         for wrong, correct in encoding_fixes.items():
             text = text.replace(wrong, correct)
         
@@ -139,7 +148,21 @@ class SentimentNeuralNetwork:
         return text.strip()
     
     def prepare_data(self, texts: List[str], labels: List[str] = None) -> Tuple:
-        """Preparar datos para entrenamiento o predicción"""
+        """
+        Preparar datos para entrenamiento o predicción.
+        
+        ⚠️ IMPORTANTE: Este método SOLO convierte texto a números.
+        NO clasifica sentimientos. La clasificación se hace 100% por la red neuronal LSTM.
+        
+        Flujo:
+        1. Limpia el texto (encoding, normalización)
+        2. Tokenizer: Convierte palabras a números (ej: "excelente" -> 5)
+           - Esto es necesario porque las redes neuronales solo procesan números
+           - NO es un diccionario de sentimientos, solo un mapeo palabra->número
+        3. Label encoder: Convierte etiquetas a números (ej: "positivo" -> 0)
+           - Solo para entrenamiento, NO para predicción
+        4. La red neuronal LSTM hace la clasificación real en predict()
+        """
         # Logging mínimo para ahorrar memoria durante predicción
         if labels:
             print(f"🔍 [DEBUG] prepare_data() entrenamiento: {len(texts)} textos")
@@ -148,10 +171,13 @@ class SentimentNeuralNetwork:
         if not texts:
             raise ValueError("La lista de textos no puede estar vacía")
         
-        # Limpiar textos
+        # 1. Limpiar textos (SOLO limpieza, NO clasificación)
         cleaned_texts = [self.clean_text(text) if text else "" for text in texts]
         
-        # Tokenizar
+        # 2. Tokenizar: Convertir palabras a números
+        # ⚠️ El tokenizer.word_index es un VOCABULARIO (mapeo palabra->número)
+        # NO es un diccionario de sentimientos. Ejemplo: {"excelente": 5, "malo": 12}
+        # Las redes neuronales necesitan números, no texto
         if labels:
             # Si hay etiquetas, estamos entrenando, ajustar tokenizer
             self.tokenizer.fit_on_texts(cleaned_texts)
@@ -160,16 +186,20 @@ class SentimentNeuralNetwork:
         elif not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
             raise ValueError("El tokenizer no está entrenado. Debe entrenar el modelo primero.")
         
-        # Convertir textos a secuencias
+        # Convertir textos a secuencias de números
+        # Ejemplo: "excelente servicio" -> [5, 23] (números, no sentimientos)
         sequences = self.tokenizer.texts_to_sequences(cleaned_texts)
         
         # Asegurar que todas las secuencias tengan al menos un elemento (OOV token)
         sequences = [seq if seq else [1] for seq in sequences]
         
-        # Hacer padding
+        # Hacer padding (rellenar secuencias para que tengan la misma longitud)
         padded_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post', truncating='post')
         
         if labels:
+            # 3. Label encoder: Convertir etiquetas a números (SOLO para entrenamiento)
+            # Ejemplo: "positivo" -> 0, "negativo" -> 1, "neutral" -> 2
+            # ⚠️ Esto NO clasifica, solo convierte etiquetas a números para entrenar
             encoded_labels = self.label_encoder.fit_transform(labels)
             # Mostrar distribución de etiquetas (logging mínimo)
             unique_encoded, counts_encoded = np.unique(encoded_labels, return_counts=True)
@@ -180,21 +210,40 @@ class SentimentNeuralNetwork:
         return padded_sequences
     
     def build_model(self, vocab_size: int, num_classes: int):
-        """Construir red neuronal LSTM basada en texto para comentarios de hasta 25 palabras"""
+        """
+        Construir red neuronal LSTM basada en texto.
+        
+        ⚠️ IMPORTANTE: Esta es una RED NEURONAL REAL (LSTM) que aprende patrones.
+        NO hay reglas hardcodeadas, NO hay diccionarios de sentimientos.
+        
+        Arquitectura de la red neuronal:
+        1. Embedding: Convierte números de palabras a vectores (representación semántica)
+        2. LSTM: Procesa secuencias de palabras y aprende patrones temporales
+        3. Dense + Dropout: Capas de aprendizaje que extraen características
+        4. Dense (softmax): Capa de salida que clasifica en 3 clases (positivo/negativo/neutral)
+        
+        La red neuronal APRENDE durante el entrenamiento qué combinaciones de palabras
+        indican sentimientos positivos, negativos o neutrales.
+        """
         print(f"🔍 [DEBUG] Construyendo modelo: vocab_size={vocab_size}, num_classes={num_classes}")
         print(f"🔍 [DEBUG] Parámetros del modelo: max_words={self.max_words}, max_len={self.max_len}")
         
-        # Red neuronal LSTM con suficiente capacidad para aprender
+        # 🧠 RED NEURONAL LSTM - Aprende patrones, no reglas hardcodeadas
         from tensorflow.keras.initializers import GlorotUniform
         
         # Modelo optimizado para mejor aprendizaje (aumentado de tamaño mínimo)
         # Balance entre memoria y capacidad de aprendizaje
         effective_vocab_size = min(vocab_size + 1, self.max_words + 1)
         model = Sequential([
+            # Capa 1: Embedding - Convierte números a vectores semánticos
             Embedding(effective_vocab_size, 16, mask_zero=True),  # 16 dimensiones (aumentado de 6)
+            # Capa 2: LSTM - Procesa secuencias y aprende patrones temporales
             LSTM(8, dropout=0.2, recurrent_dropout=0.2),  # 8 unidades (aumentado de 3) con dropout
+            # Capa 3: Dense - Extrae características aprendidas
             Dense(16, activation='relu'),   # 16 unidades (aumentado de 6)
+            # Capa 4: Dropout - Previene sobreajuste
             Dropout(0.3),  # Dropout para regularización
+            # Capa 5: Dense (softmax) - Clasifica en 3 clases (positivo/negativo/neutral)
             Dense(num_classes, activation='softmax')  # Salida (3 clases)
         ])
         print(f"🔍 [DEBUG] Vocabulario: {effective_vocab_size}, Modelo mejorado: Embedding(16), LSTM(8), Dense(16)")
@@ -450,7 +499,22 @@ class SentimentNeuralNetwork:
         return history if history is not None else None
     
     def predict(self, texts: List[str]) -> List[Dict]:
-        """Predecir sentimiento usando red neuronal LSTM"""
+        """
+        Predecir sentimiento usando SOLO red neuronal LSTM.
+        
+        ⚠️ IMPORTANTE: Esta función usa 100% red neuronal LSTM para clasificar.
+        NO hay reglas hardcodeadas, NO hay diccionarios de sentimientos.
+        
+        Flujo de predicción:
+        1. Limpia el texto (encoding, normalización)
+        2. Tokeniza (convierte palabras a números)
+        3. Pasa por la red neuronal LSTM (aquí se hace la clasificación)
+        4. La red neuronal devuelve probabilidades (ej: [0.1, 0.8, 0.1] = negativo)
+        5. Se convierte el número de clase a etiqueta (ej: 1 -> "negativo")
+        
+        La clasificación real ocurre en la línea: predictions = self.model.predict(X)
+        La red neuronal LSTM aprendió los patrones durante el entrenamiento.
+        """
         # Validación rápida (sin logs para mejor rendimiento)
         if not self.is_trained or not self.model:
             raise ValueError("El modelo no está listo. Por favor, espera unos momentos.")
@@ -465,7 +529,7 @@ class SentimentNeuralNetwork:
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
-            # Preparar datos para predicción
+            # 1. Preparar datos: Convertir texto a números (NO clasifica, solo convierte)
             X = self.prepare_data(texts)
             # Limpiar memoria inmediatamente después de preparar datos
             import gc
@@ -475,16 +539,22 @@ class SentimentNeuralNetwork:
             if X.shape[0] == 0:
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
-            # Hacer predicción con batch_size=1 para mínimo uso de memoria
+            # 2. 🧠 AQUÍ ES DONDE LA RED NEURONAL CLASIFICA
+            # La red neuronal LSTM procesa los números y devuelve probabilidades
+            # Ejemplo: [0.1, 0.8, 0.1] = 80% negativo, 10% positivo, 10% neutral
+            # NO hay reglas hardcodeadas, TODO es aprendizaje neuronal
             predictions = self.model.predict(X, batch_size=1, verbose=0)
             
             # Validar predicciones
             if predictions is None or len(predictions) == 0:
                 raise ValueError("El modelo no devolvió predicciones")
             
-            # Procesar predicciones de la red neuronal
+            # 3. Procesar predicciones de la red neuronal
+            # np.argmax encuentra la clase con mayor probabilidad (la que eligió la red neuronal)
             predicted_classes = np.argmax(predictions, axis=1)
+            # Convertir número de clase a etiqueta (ej: 1 -> "negativo")
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
+            # Obtener la confianza (probabilidad máxima)
             confidence = np.max(predictions, axis=1)
             
             results = []
@@ -867,34 +937,80 @@ class SentimentNeuralNetwork:
             "solo quiero decir que deberían mejorar",
             "comentario indicando que deberían mejorar",
             # Comentarios mixtos con aspectos positivos pero con mejoras (NEUTRALES)
+            # ⚠️ IMPORTANTE: Estos comentarios tienen aspectos positivos PERO también mejoras/críticas
+            # Por lo tanto, son NEUTRALES, no positivos
             "el servicio estuvo bien aunque podría mejorar en algunos aspectos",
             "el servicio estuvo bien aunque podria mejorar en algunos aspectos",
+            "el servicio estuvo bien pero podría mejorar en algunos aspectos",
+            "el servicio estuvo bien pero podria mejorar en algunos aspectos",
+            "el servicio está bien aunque podría mejorar",
+            "el servicio esta bien aunque podria mejorar",
+            "el servicio está bien pero podría mejorar",
+            "el servicio esta bien pero podria mejorar",
             "el producto llegó en buen estado pero tardó un poco más de lo esperado",
             "el producto llego en buen estado pero tardo un poco mas de lo esperado",
+            "el producto llegó bien pero tardó más de lo esperado",
+            "el producto llego bien pero tardo mas de lo esperado",
+            "el producto está bien pero tardó en llegar",
+            "el producto esta bien pero tardo en llegar",
             "el soporte respondió aunque tomó algo de tiempo en hacerlo",
             "el soporte respondio aunque tomo algo de tiempo en hacerlo",
+            "el soporte respondió pero tomó tiempo",
+            "el soporte respondio pero tomo tiempo",
+            "el soporte está bien aunque tardó en responder",
+            "el soporte esta bien aunque tardo en responder",
             "el servicio es bueno pero podría mejorar",
+            "el servicio es bueno pero podria mejorar",
+            "el servicio es bueno aunque podría mejorar",
+            "el servicio es bueno aunque podria mejorar",
             "el producto es bueno pero podría ser mejor",
+            "el producto es bueno pero podria ser mejor",
+            "el producto es bueno aunque podría ser mejor",
+            "el producto es bueno aunque podria ser mejor",
             "buen servicio aunque podría mejorar",
+            "buen servicio aunque podria mejorar",
+            "buen servicio pero podría mejorar",
+            "buen servicio pero podria mejorar",
             "buen producto aunque podría mejorar",
+            "buen producto aunque podria mejorar",
+            "buen producto pero podría mejorar",
+            "buen producto pero podria mejorar",
             "está bien pero podría mejorar",
             "esta bien pero podria mejorar",
-            "funciona bien pero podría mejorar",
-            "funciona bien pero podria mejorar",
-            "buena atención aunque podría mejorar",
-            "buena atencion aunque podria mejorar",
-            "llegó bien pero tardó un poco",
-            "llego bien pero tardo un poco",
-            "respondió bien aunque tardó",
-            "respondio bien aunque tardo",
-            "bueno pero podría mejorar",
-            "bueno pero podria mejorar",
             "está bien aunque podría mejorar",
             "esta bien aunque podria mejorar",
+            "funciona bien pero podría mejorar",
+            "funciona bien pero podria mejorar",
+            "funciona bien aunque podría mejorar",
+            "funciona bien aunque podria mejorar",
+            "buena atención aunque podría mejorar",
+            "buena atencion aunque podria mejorar",
+            "buena atención pero podría mejorar",
+            "buena atencion pero podria mejorar",
+            "llegó bien pero tardó un poco",
+            "llego bien pero tardo un poco",
+            "llegó bien aunque tardó un poco",
+            "llego bien aunque tardo un poco",
+            "respondió bien aunque tardó",
+            "respondio bien aunque tardo",
+            "respondió bien pero tardó",
+            "respondio bien pero tardo",
+            "bueno pero podría mejorar",
+            "bueno pero podria mejorar",
+            "bueno aunque podría mejorar",
+            "bueno aunque podria mejorar",
+            "está bien aunque podría mejorar",
+            "esta bien aunque podria mejorar",
+            "está bien pero podría mejorar",
+            "esta bien pero podria mejorar",
             "cumple pero podría mejorar",
             "cumple pero podria mejorar",
+            "cumple aunque podría mejorar",
+            "cumple aunque podria mejorar",
             "aceptable pero podría mejorar",
             "aceptable pero podria mejorar",
+            "aceptable aunque podría mejorar",
+            "aceptable aunque podria mejorar",
             # Comentarios con "aunque", "pero", "sin embargo" (generalmente NEUTRALES)
             "está bien aunque tiene detalles por corregir",
             "esta bien aunque tiene detalles por corregir",
@@ -930,13 +1046,26 @@ class SentimentNeuralNetwork:
             "información adicional", "comentario adicional", "observación",
             "comentario sobre el producto", "comentario sobre el servicio",
             "comentario general", "comentario básico", "comentario estándar",
-            # Párrafos largos neutrales
+            # Párrafos largos neutrales con comentarios mixtos
             "el producto es normal cumple con su función básica pero no destaca en nada especial el servicio al cliente es regular y la calidad es aceptable sin más comentarios",
             "experiencia regular el producto funciona como se espera pero no es nada especial el servicio al cliente es normal y la calidad es básica cumple con lo básico",
             "producto estándar la calidad es normal y el servicio al cliente es aceptable no hay nada destacable pero tampoco hay problemas graves cumple con su función",
             "este comentario es solo diciendo que deberían mejorar el servicio en algunos aspectos el producto funciona bien pero hay cosas que podrían mejorar",
             "solo estoy haciendo una sugerencia para que mejoren el producto el servicio es aceptable pero podría ser mejor en algunos puntos",
             "comentario constructivo sugiriendo que deberían mejorar algunos aspectos del servicio el producto es aceptable pero hay espacio para mejorar",
+            # Párrafos neutrales con aspectos positivos pero mejoras (MUY IMPORTANTE)
+            "el servicio estuvo bien en general aunque podría mejorar en algunos aspectos la atención fue buena pero hubo algunos problemas menores que se podrían solucionar",
+            "el servicio estuvo bien en general aunque podria mejorar en algunos aspectos la atencion fue buena pero hubo algunos problemas menores que se podrian solucionar",
+            "el producto llegó en buen estado y funciona correctamente pero tardó un poco más de lo esperado en llegar el servicio de envío fue aceptable",
+            "el producto llego en buen estado y funciona correctamente pero tardo un poco mas de lo esperado en llegar el servicio de envio fue aceptable",
+            "el soporte respondió a mis preguntas y fue útil aunque tomó algo de tiempo en hacerlo la respuesta fue clara pero podría ser más rápida",
+            "el soporte respondio a mis preguntas y fue util aunque tomo algo de tiempo en hacerlo la respuesta fue clara pero podria ser mas rapida",
+            "el servicio es bueno en general y cumple con lo básico pero podría mejorar en algunos aspectos la experiencia fue aceptable",
+            "el producto es bueno y funciona bien pero podría ser mejor en algunos detalles menores la calidad es aceptable pero hay espacio para mejorar",
+            "buen servicio en general aunque podría mejorar en algunos aspectos la atención fue buena pero hubo algunos problemas menores",
+            "buen producto en general pero podría mejorar en algunos detalles la funcionalidad es aceptable pero hay cosas que se podrían mejorar",
+            "la aplicación funciona bien y cumple su función principal aunque tiene algunos detalles por corregir la experiencia general fue aceptable",
+            "la aplicacion funciona bien y cumple su funcion principal aunque tiene algunos detalles por corregir la experiencia general fue aceptable",
         ]
         
         texts = positive_texts + negative_texts + neutral_texts
