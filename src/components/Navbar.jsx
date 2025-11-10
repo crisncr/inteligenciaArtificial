@@ -54,7 +54,7 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
   }
 
   return (
-    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`} style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1001 }}>
+    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`}>
       {/* Logo solo cuando NO hay usuario (página pública) */}
       {!user && (
         <div className="nav__brand">
