@@ -834,6 +834,18 @@ class SentimentNeuralNetwork:
             "altamente recomendado", "muy recomendable", "totalmente recomendado",
             "muy contento", "satisfecho completamente", "me gustó mucho",
             "funciona perfecto", "cumple expectativas", "supera expectativas",
+            # Frases positivas adicionales (palabras que el modelo necesita aprender)
+            "funciona de maravilla", "muy fácil de usar", "muy rápida",
+            "fue amable", "resolvió mi problema", "soporte técnico amable",
+            "aplicación funciona bien", "muy fácil", "rápida y eficiente",
+            "llegó antes de lo esperado", "totalmente recomendado", "muy recomendable",
+            "resolvió enseguida", "problema resuelto", "soporte excelente",
+            "aplicación fácil", "funciona bien", "muy rápido",
+            "amable y servicial", "resolvió rápido", "soporte rápido",
+            "fácil de usar", "muy eficiente", "funciona perfectamente",
+            "de maravilla", "muy bien", "excelente atención",
+            "resolvió mi problema enseguida", "soporte técnico excelente",
+            "aplicación funciona de maravilla", "muy fácil de usar y rápida",
             # Párrafos largos positivos
             "estoy muy satisfecho con este producto la calidad es excelente y el servicio al cliente fue increíble me respondieron rápido a todas mis preguntas y el producto llegó en perfectas condiciones sin duda lo recomiendo a todos",
             "me encanta este servicio la atención que recibí fue maravillosa desde el primer momento me sentí bien atendido el producto funciona perfectamente y cumple con todas mis expectativas estoy muy contento con la compra",

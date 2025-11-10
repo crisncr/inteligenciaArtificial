@@ -34,26 +34,56 @@ async def upload_dataset(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo: {str(e)}")
     
+    # Guardar el contenido original para debugging
+    df = None
+    encoding_used = None
+    
     try:
-        # Intentar leer como CSV
-        try:
-            # Intentar diferentes codificaciones comunes
+        # Intentar leer como CSV con diferentes codificaciones
+        encodings_to_try = ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+        
+        for encoding in encodings_to_try:
             try:
-                df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
-            except UnicodeDecodeError:
-                try:
-                    df = pd.read_csv(io.StringIO(contents.decode('latin-1')))
-                except UnicodeDecodeError:
-                    df = pd.read_csv(io.StringIO(contents.decode('utf-8', errors='ignore')))
-        except Exception as csv_error:
-            # Si falla CSV, intentar JSON
+                decoded_content = contents.decode(encoding)
+                # Intentar leer como CSV
+                df = pd.read_csv(io.StringIO(decoded_content))
+                encoding_used = encoding
+                print(f"✅ CSV leído correctamente con encoding: {encoding}")
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+            except Exception as e:
+                # Si el encoding funciona pero hay otro error, guardar el error
+                if encoding == encodings_to_try[-1]:  # Último encoding
+                    raise e
+                continue
+        
+        # Si no se pudo leer como CSV, intentar JSON
+        if df is None:
             try:
-                df = pd.read_json(io.StringIO(contents.decode('utf-8')))
+                for encoding in encodings_to_try:
+                    try:
+                        decoded_content = contents.decode(encoding)
+                        df = pd.read_json(io.StringIO(decoded_content))
+                        encoding_used = encoding
+                        print(f"✅ JSON leído correctamente con encoding: {encoding}")
+                        break
+                    except (UnicodeDecodeError, UnicodeError):
+                        continue
+                    except Exception:
+                        continue
             except Exception as json_error:
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"Formato de archivo inválido. Debe ser CSV o JSON. Error CSV: {str(csv_error)}, Error JSON: {str(json_error)}"
+                    detail=f"Formato de archivo inválido. Debe ser CSV o JSON. Error: {str(json_error)}"
                 )
+        
+        if df is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No se pudo leer el archivo con ninguna codificación estándar. Asegúrate de que el archivo esté en formato UTF-8 o Latin-1."
+            )
+            
     except HTTPException:
         raise
     except Exception as e:
@@ -105,23 +135,45 @@ async def upload_dataset(
     try:
         # Extraer textos, eliminar valores vacíos y limitar
         texts = df[text_column].dropna().astype(str).tolist()
-        # Filtrar textos vacíos o muy cortos (menos de 2 caracteres)
-        # También corregir encoding común de Excel
+        
+        # Filtrar textos vacíos o muy cortos y limpiar encoding
         cleaned_texts = []
-        for t in texts:
-            if t and t.strip() and len(t.strip()) >= 2:
-                # Corregir encoding común de Excel (UTF-8 mal interpretado como Latin-1)
-                text = t.strip()
-                # Intentar decodificar y recodificar si hay problemas de encoding
+        for idx, t in enumerate(texts):
+            if not t or not isinstance(t, str):
+                continue
+                
+            text = str(t).strip()
+            
+            # Filtrar textos muy cortos
+            if len(text) < 2:
+                continue
+            
+            # Limpiar texto: corregir encoding común de Excel/CSV
+            # Problemas comunes: UTF-8 guardado pero leído como Latin-1
+            original_text = text
+            
+            # Detectar y corregir problemas de encoding comunes
+            if 'Ã' in text:
                 try:
-                    # Si el texto tiene caracteres mal codificados, intentar corregirlos
-                    if 'Ã' in text or 'â€™' in text:
-                        # Intentar corregir encoding común
-                        text = text.encode('latin-1', errors='ignore').decode('utf-8', errors='ignore')
+                    # Intentar corregir: texto UTF-8 mal leído como Latin-1
+                    text = text.encode('latin-1', errors='ignore').decode('utf-8', errors='ignore')
                 except:
                     pass
+            
+            # Limpiar caracteres de control y BOM
+            text = text.replace('\ufeff', '').replace('\x00', '').strip()
+            
+            # Solo agregar si después de limpiar aún tiene contenido
+            if len(text) >= 2:
                 cleaned_texts.append(text)
+                # Log solo para los primeros 3 textos para debugging
+                if idx < 3:
+                    print(f"🔍 [DEBUG] Texto {idx+1} original: {original_text[:50]}...")
+                    print(f"🔍 [DEBUG] Texto {idx+1} limpiado: {text[:50]}...")
+        
         texts = cleaned_texts[:max_rows]
+        
+        print(f"✅ Total de textos procesados: {len(texts)} (encoding usado: {encoding_used})")
         
         if len(texts) == 0:
             raise HTTPException(
@@ -162,7 +214,17 @@ async def analyze_batch(
         if not model or not model.is_trained:
             raise HTTPException(status_code=500, detail="El modelo de red neuronal no está disponible. Por favor, intenta de nuevo en unos momentos.")
         
+        # Log de los primeros textos que se van a analizar
+        print(f"🔍 [DEBUG] Analizando {len(texts)} textos")
+        for i, text in enumerate(texts[:3]):
+            print(f"🔍 [DEBUG] Texto {i+1} a analizar: {text[:80]}...")
+        
+        # Analizar textos
         results = model.predict(texts)
+        
+        # Log de los primeros resultados
+        for i, result in enumerate(results[:3]):
+            print(f"🔍 [DEBUG] Resultado {i+1}: texto='{result.get('text', '')[:50]}...', sentiment={result.get('sentiment')}, confidence={result.get('confidence', 0):.3f}")
         
         positive_count = sum(1 for r in results if r['sentiment'] == 'positivo')
         negative_count = sum(1 for r in results if r['sentiment'] == 'negativo')
