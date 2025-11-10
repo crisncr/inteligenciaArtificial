@@ -948,6 +948,26 @@ class SentimentNeuralNetwork:
             "supero completamente mis expectativas",
             "el restaurante estaba muy limpio y acogedor",
             "el empaque era muy bonito y seguro",
+            # Ejemplos adicionales reportados como problemáticos
+            "la comida estaba deliciosa y el ambiente agradable",
+            "la comida estaba deliciosa y el ambiente agradable",
+            "comida deliciosa y ambiente agradable",
+            "deliciosa y agradable",
+            "estaba deliciosa y el ambiente agradable",
+            "comida deliciosa ambiente agradable",
+            "superó mis expectativas",
+            "supero mis expectativas",
+            "superó expectativas",
+            "supero expectativas",
+            "superó completamente mis expectativas",
+            "supero completamente mis expectativas",
+            "excelente calidad en todos los aspectos",
+            "excelente calidad en todos los aspectos",
+            "calidad excelente en todos los aspectos",
+            "excelente calidad todos los aspectos",
+            "calidad excelente todos aspectos",
+            "excelente en todos los aspectos",
+            "calidad en todos los aspectos excelente",
         ]
         
         # Comentarios NEGATIVOS (palabras clave: mal, malo, pésimo, insultos, etc.)
