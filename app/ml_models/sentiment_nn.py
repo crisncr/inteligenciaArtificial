@@ -1169,6 +1169,26 @@ class SentimentNeuralNetwork:
             "sabor horrible la comida no tenia sabor",
             "producto llegó roto y no funcionaba",
             "producto llego roto y no funcionaba",
+            # Ejemplos adicionales reportados como problemáticos
+            "muy mala atención, no recomiendo este lugar",
+            "muy mala atencion, no recomiendo este lugar",
+            "muy mala atención no recomiendo este lugar",
+            "muy mala atencion no recomiendo este lugar",
+            "muy mala atención no recomiendo",
+            "muy mala atencion no recomiendo",
+            "mala atención no recomiendo este lugar",
+            "mala atencion no recomiendo este lugar",
+            "muy mala atención no recomiendo lugar",
+            "muy mala atencion no recomiendo lugar",
+            "la entrega fue un desastre",
+            "entrega fue un desastre",
+            "fue un desastre la entrega",
+            "fue un desastre la entrega",
+            "la entrega fue completamente un desastre",
+            "la entrega fue completamente un desastre",
+            "entrega completamente un desastre",
+            "fue un desastre total la entrega",
+            "fue un desastre total la entrega",
         ]
         
         # Comentarios NEUTRALES (palabras clave: normal, regular, aceptable, sugerencias, etc.)
