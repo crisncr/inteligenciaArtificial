@@ -33,14 +33,19 @@ body {
   line-height: 1.6;
   margin: 0;
   padding: 0;
-  padding-top: env(safe-area-inset-top, 0px);
   overflow-x: hidden;
+  /* Ocultar la barra blanca del navegador móvil */
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  height: -webkit-fill-available;
 }
 
 /* Soporte para nuevas unidades de viewport */
 @supports (height: 100dvh) {
   body {
     min-height: 100dvh;
+    height: 100dvh;
   }
 }
 
@@ -63,11 +68,22 @@ html {
 
 #root {
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   position: relative;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+@supports (height: 100dvh) {
+  #root {
+    min-height: 100dvh;
+    height: 100dvh;
+  }
 }
 
 #root > * {
@@ -75,10 +91,9 @@ html {
   padding-top: 0;
 }
 
-/* Asegurar que el primer elemento (navbar) esté en el top */
+/* Asegurar que el primer elemento (navbar) esté en el top pero con padding */
 #root > nav {
   margin-top: 0 !important;
-  padding-top: 0 !important;
 }
 
 .container {
@@ -203,8 +218,7 @@ html {
 .nav {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 20px 20px 16px 20px;
-  padding-top: 24px;
+  padding: 24px 20px 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1178,7 +1192,7 @@ footer small {
   /* Asegurar que el navbar sea visible en móviles - completamente transparente */
   .nav {
     padding: 20px 16px 12px 16px;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
     padding-left: 16px;
     padding-right: 16px;
     position: absolute;
@@ -1192,6 +1206,13 @@ footer small {
     -webkit-backdrop-filter: none !important;
     border-bottom: none !important;
     justify-content: space-between !important;
+  }
+  
+  /* Agregar espacio adicional desde el top en móviles para que no toque el borde */
+  @supports (padding: max(0px)) {
+    .nav {
+      padding-top: max(calc(env(safe-area-inset-top, 0px) + 20px), 24px);
+    }
   }
   
   .nav__brand {
