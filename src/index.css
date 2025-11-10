@@ -286,8 +286,9 @@ nav.nav--transparent,
   border: none;
   cursor: pointer;
   padding: 8px;
-  z-index: 1001;
+  z-index: 10000;
   position: relative;
+  margin-left: auto;
 }
 
 .nav__mobile-toggle span {
@@ -298,6 +299,13 @@ nav.nav--transparent,
   border-radius: 3px;
   transition: all 0.3s ease;
   transform-origin: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Mejorar visibilidad del botón en navbar transparente */
+.nav--transparent .nav__mobile-toggle span {
+  background: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
 .nav__mobile-toggle span.open:nth-child(1) {
@@ -314,7 +322,6 @@ nav.nav--transparent,
 
 /* Menú móvil desplegable */
 .nav__mobile-menu {
-  display: none;
   position: fixed;
   top: 0;
   left: 0;
@@ -322,27 +329,32 @@ nav.nav--transparent,
   bottom: 0;
   background: rgba(10, 14, 26, 0.98);
   backdrop-filter: blur(10px);
-  z-index: 1000;
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 9999;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  display: block;
 }
 
 .nav__mobile-menu.open {
   opacity: 1;
   visibility: visible;
+  display: block;
 }
 
 .nav__mobile-content {
-  padding: 80px 20px 40px;
+  padding: 100px 20px 40px;
   display: flex;
   flex-direction: column;
   gap: 20px;
   align-items: stretch;
   max-width: 400px;
   margin: 0 auto;
+  position: relative;
+  z-index: 10001;
 }
 
 .nav__mobile-content a {
@@ -375,6 +387,11 @@ nav.nav--transparent,
   background: rgba(110, 139, 255, 0.1);
   border-radius: 12px;
   border: 1px solid rgba(110, 139, 255, 0.3);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 10px;
 }
 
 .btn { background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary) 100%); color: #0a0e1a; border-radius: 12px; padding: 10px 16px; font-weight: 700; box-shadow: 0 4px 16px rgba(110,139,255,.3); text-decoration: none; display:inline-block; border: none; cursor: pointer; }
@@ -1012,28 +1029,67 @@ footer small {
   opacity: 0.7;
 }
 
+/* Tablet - entre 769px y 1024px */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .nav__links { 
+    display: flex; 
+  }
+  
+  .nav__mobile-toggle {
+    display: none;
+  }
+}
+
+/* Mobile - hasta 768px */
 @media (max-width: 768px) {
   .container { padding: 32px 20px; }
   
   /* Navbar responsive - mostrar menú hamburguesa */
   .nav__links { 
-    display: none; 
+    display: none !important; 
   }
   
   .nav__mobile-toggle {
-    display: flex;
+    display: flex !important;
   }
   
   .nav__mobile-menu {
-    display: block;
+    display: block !important;
+  }
+  
+  /* Asegurar que el navbar sea visible en móviles */
+  .nav {
+    padding: 12px 16px;
+    position: relative;
+    z-index: 1000;
+  }
+  
+  /* Cuando el menú móvil está abierto, asegurar visibilidad */
+  .nav__mobile-menu.open {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  
+  /* Asegurar que el botón hamburguesa sea siempre visible */
+  .nav__mobile-toggle {
+    display: flex !important;
+    z-index: 10000 !important;
+  }
+  
+  /* Prevenir scroll cuando el menú está abierto */
+  body.menu-open {
+    overflow: hidden;
+  }
+  
+  /* En el dashboard, el navbar debe estar por encima del sidebar */
+  .dashboard .nav {
+    z-index: 1000;
+    position: relative;
   }
   
   .hero-section {
     height: 400px;
-  }
-  
-  .nav {
-    padding: 12px 16px;
   }
   
   .hero { grid-template-columns: 1fr; }
@@ -1043,6 +1099,28 @@ footer small {
   .result { padding: 16px 20px; gap: 14px; }
   .badge { font-size: 32px; width: 44px; height: 44px; }
   .sentiment { font-size: 1.2rem; }
+}
+
+/* Mobile pequeño - hasta 480px (iPhone SE, etc.) */
+@media (max-width: 480px) {
+  .nav {
+    padding: 10px 12px;
+  }
+  
+  .nav__mobile-content {
+    padding: 90px 16px 30px;
+    max-width: 100%;
+  }
+  
+  .nav__mobile-content button {
+    padding: 14px 18px;
+    font-size: 0.95rem;
+  }
+  
+  .nav__mobile-content .nav-user {
+    padding: 14px 18px;
+    font-size: 1rem;
+  }
 }
 
 .loading {
@@ -2328,6 +2406,8 @@ footer small {
     border-right: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding: 16px 0;
+    z-index: 100;
+    padding-top: 70px; /* Espacio para el navbar */
   }
   
   .sidebar-nav {
@@ -2335,6 +2415,7 @@ footer small {
     overflow-x: auto;
     padding: 0 16px;
     gap: 8px;
+    -webkit-overflow-scrolling: touch;
   }
   
   .sidebar-item {
@@ -2346,6 +2427,7 @@ footer small {
     margin-left: 0;
     max-width: 100%;
     padding: 16px;
+    padding-top: 16px;
   }
   
   .settings-section {
@@ -2359,6 +2441,18 @@ footer small {
   .filter-btn {
     width: 100%;
     justify-content: center;
+  }
+  
+  /* Asegurar que el navbar esté por encima del sidebar en móviles */
+  .dashboard .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(10, 14, 26, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
 }
 
