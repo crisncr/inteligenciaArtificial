@@ -871,7 +871,7 @@ class SentimentNeuralNetwork:
         
         text_lower = text.lower()
         
-        # Palabras clave positivas
+        # Palabras clave positivas (EXPANDIDO)
         positive_keywords = [
             'excelente', 'bueno', 'buena', 'genial', 'perfecto', 'perfecta',
             'increíble', 'maravilloso', 'fantástico', 'delicioso', 'deliciosa',
@@ -881,7 +881,11 @@ class SentimentNeuralNetwork:
             'feliz', 'contento', 'contenta', 'alegre', 'amable', 'atento', 'atenta',
             'rápido', 'rápida', 'eficiente', 'profesional', 'calidad', 'precio', 'barato', 'barata',
             'vale la pena', 'valió la pena', 'valio la pena', 'volveré', 'volvere',
-            'satisfactorio', 'satisfactoria', 'recomendable'
+            'satisfactorio', 'satisfactoria', 'recomendable',
+            # Palabras adicionales para casos específicos
+            'fácil', 'facil', 'fácil de usar', 'facil de usar',
+            'atención rápida', 'atencion rapida', 'atención eficiente', 'atencion eficiente',
+            'rápida y eficiente', 'rapida y eficiente', 'rápido y eficiente', 'rapido y eficiente'
         ]
         
         # Palabras clave negativas (EXPANDIDO para detectar mejor los negativos)
@@ -929,38 +933,140 @@ class SentimentNeuralNetwork:
             'muy mala', 'muy malo', 'muy mal', 'pésimo servicio', 
             'terrible experiencia', 'no funcionó', 'no funciono',
             'no sirve', 'no sirvió', 'no sirvio', 'horrible experiencia',
-            'una pésima experiencia', 'una pesima experiencia'
+            'una pésima experiencia', 'una pesima experiencia', 'pésima experiencia',
+            # Negaciones específicas con palabras positivas
+            'no vale', 'no vale la pena', 'no vale la calidad', 'no vale el precio',
+            'no es bueno', 'no es buena', 'no es excelente', 'no es genial'
         ]
+        
+        # Contar palabras positivas y negativas primero
+        positive_count = sum(1 for keyword in positive_keywords if keyword in text_lower)
+        negative_count = sum(1 for keyword in negative_keywords if keyword in text_lower)
         
         # Detectar negaciones que cambian el sentido (ej: "no es bueno" = negativo)
         negation_words = ['no', 'nunca', 'jamás', 'jamas', 'tampoco', 'ni']
         words = text_lower.split()
         has_negation_near_positive = False
+        has_negation_with_value = False  # Para "no vale"
+        
+        # Buscar patrones específicos de negación
+        text_lower_clean = ' ' + text_lower + ' '  # Agregar espacios para búsqueda exacta
+        
+        # Detectar "no vale" (ej: "no vale la calidad", "no vale la pena")
+        if ' no vale ' in text_lower_clean or text_lower.startswith('no vale ') or text_lower.endswith(' no vale'):
+            has_negation_with_value = True
+            negative_count += 3  # Peso alto para este patrón
         
         # Buscar patrones como "no es bueno", "nunca fue excelente", etc.
         for i, word in enumerate(words):
             if word in negation_words:
-                # Verificar si hay palabra positiva cerca (dentro de 3 palabras)
-                for j in range(max(0, i-3), min(len(words), i+4)):
-                    if any(pos_kw in words[j] for pos_kw in ['bueno', 'buena', 'excelente', 'genial', 'perfecto', 'recomiendo', 'satisfecho', 'contento']):
+                # Verificar si hay palabra positiva cerca (dentro de 4 palabras)
+                context_start = max(0, i-4)
+                context_end = min(len(words), i+5)
+                context = ' '.join(words[context_start:context_end])
+                
+                # Palabras positivas que pueden ser negadas
+                positive_words_to_check = ['bueno', 'buena', 'excelente', 'genial', 'perfecto', 
+                                         'recomiendo', 'satisfecho', 'contento', 'vale', 'valió',
+                                         'valio', 'recomendable', 'útil', 'util']
+                
+                for pos_word in positive_words_to_check:
+                    if pos_word in context:
                         has_negation_near_positive = True
                         break
+                
+                if has_negation_near_positive:
+                    break
         
-        # Contar palabras positivas y negativas
-        positive_count = sum(1 for keyword in positive_keywords if keyword in text_lower)
-        negative_count = sum(1 for keyword in negative_keywords if keyword in text_lower)
+        # Detectar frases con "muy" + adjetivo positivo/negativo
+        if 'muy ' in text_lower:
+            muy_index = text_lower.find('muy ')
+            if muy_index != -1:
+                # Buscar adjetivo después de "muy" (hasta 5 palabras para capturar contexto)
+                rest_of_text = text_lower[muy_index + 4:].split()[0:5]
+                rest_text = ' '.join(rest_of_text)
+                
+                # Adjetivos positivos con "muy"
+                muy_positivos = ['amable', 'satisfecho', 'satisfecha', 'contento', 'contenta', 
+                               'bueno', 'buena', 'bien', 'fácil', 'facil', 'feliz', 'excelente',
+                               'buen', 'satisfactorio', 'satisfactoria']
+                if any(adj in rest_text for adj in muy_positivos):
+                    positive_count += 3  # Peso alto para "muy + positivo"
+                
+                # Adjetivos negativos con "muy"
+                muy_negativos = ['malo', 'mala', 'mal', 'pésimo', 'pesimo', 'pésima', 'pesima',
+                               'decepcionado', 'decepcionada', 'insatisfecho', 'insatisfecha']
+                if any(adj in rest_text for adj in muy_negativos):
+                    negative_count += 3  # Peso alto para "muy + negativo"
+        
+        # Detectar patrones específicos positivos en contexto
+        # "atención al cliente" + adjetivo positivo
+        if 'atención' in text_lower or 'atencion' in text_lower:
+            if any(pos in text_lower for pos in ['amable', 'rápida', 'rapida', 'eficiente', 'buena', 'excelente']):
+                positive_count += 2
+        
+        # "diseño" + verbo positivo (ej: "me encantó el diseño")
+        if 'diseño' in text_lower or 'diseno' in text_lower:
+            if any(pos in text_lower for pos in ['encantó', 'encanto', 'encanta', 'excelente', 'bueno', 'bonito']):
+                positive_count += 2
+        
+        # "proceso" + adjetivo positivo (ej: "fácil proceso")
+        if 'proceso' in text_lower:
+            if any(pos in text_lower for pos in ['fácil', 'facil', 'rápido', 'rapido', 'sencillo', 'bueno']):
+                positive_count += 2
+        
+        # "compra" + adjetivo positivo (ej: "fácil compra", "buena compra")
+        if 'compra' in text_lower:
+            if any(pos in text_lower for pos in ['fácil', 'facil', 'buena', 'buen', 'satisfecho', 'contento']):
+                positive_count += 2
+        
+        # "resultado" + adjetivo positivo (ej: "satisfecho con el resultado")
+        if 'resultado' in text_lower:
+            if any(pos in text_lower for pos in ['satisfecho', 'satisfecha', 'contento', 'contenta', 'bueno', 'excelente']):
+                positive_count += 2
+        
+        # "app" o "aplicación" + adjetivo positivo (ej: "app fácil de usar")
+        if 'app' in text_lower or 'aplicación' in text_lower or 'aplicacion' in text_lower:
+            if any(pos in text_lower for pos in ['fácil', 'facil', 'rápida', 'rapida', 'eficiente', 'buena']):
+                positive_count += 2
+        
+        # Si hay negación con "vale", es definitivamente negativo
+        if has_negation_with_value:
+            return 'negativo'
         
         # Si hay negación cerca de palabra positiva, es negativo (ej: "no es bueno")
         if has_negation_near_positive:
-            negative_count += 2  # Peso extra para negaciones
+            negative_count += 3  # Peso alto para negaciones
         
-        # Determinar sentimiento (priorizar negativos si hay indicadores claros)
-        if negative_count > 0 and (negative_count > positive_count or negative_count >= 2):
-            return 'negativo'
-        elif positive_count > 0 and positive_count > negative_count:
+        # Detectar "pésima experiencia" o variantes
+        if 'pésima experiencia' in text_lower or 'pesima experiencia' in text_lower or \
+           'pésima' in text_lower and 'experiencia' in text_lower:
+            negative_count += 2
+        
+        # Determinar sentimiento con lógica mejorada
+        # Si hay indicadores negativos claros, priorizar negativo
+        if negative_count > 0:
+            # Si hay más negativos que positivos, o si hay al menos 2 negativos, es negativo
+            if negative_count > positive_count or negative_count >= 2:
+                return 'negativo'
+            # Si hay negativos pero también muchos positivos, puede ser positivo
+            elif positive_count > negative_count * 2:
+                return 'positivo'
+        
+        # Si hay positivos y no hay negativos, es positivo
+        if positive_count > 0 and negative_count == 0:
             return 'positivo'
-        else:
-            return 'neutral'
+        
+        # Si hay más positivos que negativos, es positivo
+        if positive_count > negative_count:
+            return 'positivo'
+        
+        # Si hay negativos y no hay positivos, es negativo
+        if negative_count > 0 and positive_count == 0:
+            return 'negativo'
+        
+        # Por defecto, neutral
+        return 'neutral'
     
     def _load_huggingface_datasets(self, limite: int = 5000, min_negativos: int = 300) -> List[Dict[str, str]]:
         """
