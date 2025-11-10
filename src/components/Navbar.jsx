@@ -55,10 +55,15 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
 
   return (
     <nav className={`nav ${transparent ? 'nav--transparent' : ''}`} style={{ position: 'relative' }}>
-      <div className="nav__brand">
-        <img src="/favicon.svg" alt="logo" width="24" height="24" />
-        <span>Sentimetría</span>
-      </div>
+      {/* Logo solo cuando NO hay usuario (página pública) */}
+      {!user && (
+        <div className="nav__brand">
+          <img src="/favicon.svg" alt="logo" width="24" height="24" />
+          <span>Sentimetría</span>
+        </div>
+      )}
+      {/* Cuando hay usuario, no mostrar logo, solo espacio para mantener el layout */}
+      {user && <div className="nav__brand" style={{ visibility: 'hidden', width: 0, padding: 0, margin: 0 }}></div>}
       
       {/* Menú hamburguesa para móviles - Siempre visible en móviles */}
       <button 
