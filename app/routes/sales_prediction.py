@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 import pandas as pd
 import io
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from app.database import get_db
 from app.auth import get_current_user
@@ -57,8 +57,8 @@ async def upload_sales_data(
 @router.post("/train")
 async def train_model(
     file: UploadFile = File(...),
-    region: str = None,
-    model_type: str = "linear_regression",
+    region: Optional[str] = Query(None, description="Región para filtrar los datos"),
+    model_type: str = Query("linear_regression", description="Tipo de modelo: linear_regression o neural_network"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -66,12 +66,23 @@ async def train_model(
     if current_user.plan != 'enterprise':
         raise HTTPException(status_code=403, detail="Predicción de ventas disponible solo en plan Enterprise")
     
-    contents = await file.read()
-    df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+    try:
+        contents = await file.read()
+        df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
     
     required_columns = ['fecha', 'region', 'ventas']
     if not all(col in df.columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"El archivo debe contener las columnas: {', '.join(required_columns)}")
+    
+    # Normalizar región: convertir None o string vacío a None
+    if region:
+        region = region.strip()
+        if not region:
+            region = None
+    else:
+        region = None
     
     try:
         predictor = SalesPredictor()
@@ -88,10 +99,19 @@ async def train_model(
             user_data_storage[current_user.id] = {}
         user_data_storage[current_user.id]['predictor'] = predictor
         user_data_storage[current_user.id]['data'] = df.to_dict('records')
+        user_data_storage[current_user.id]['region'] = region
+        user_data_storage[current_user.id]['model_type'] = model_type
         
         return result
+    except ValueError as e:
+        # Errores de validación (ej: región no encontrada, sin datos)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al entrenar modelo: {str(e)}")
+        import traceback
+        error_detail = f"Error al entrenar modelo: {str(e)}"
+        print(f"ERROR EN ENTRENAMIENTO: {error_detail}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=error_detail)
 
 @router.post("/predict")
 async def predict_sales(

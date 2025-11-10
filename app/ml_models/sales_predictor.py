@@ -19,8 +19,14 @@ class SalesPredictor:
     
     def prepare_data(self, df: pd.DataFrame, region: str = None) -> Tuple:
         """Preparar datos para entrenamiento"""
-        if region:
+        # Filtrar por región si se especifica y no está vacío
+        if region and region.strip():
             df = df[df['region'] == region].copy()
+            if len(df) == 0:
+                raise ValueError(f"No hay datos para la región '{region}'")
+        
+        if len(df) == 0:
+            raise ValueError("No hay datos para procesar")
         
         df['fecha'] = pd.to_datetime(df['fecha'])
         df['dia_mes'] = df['fecha'].dt.day
@@ -39,8 +45,9 @@ class SalesPredictor:
         """Entrenar modelo de regresión lineal - Parte 3"""
         X, y, _ = self.prepare_data(df, region)
         
+        # prepare_data ya valida que hay datos, pero por seguridad
         if len(X) == 0:
-            raise ValueError("No hay datos para la región especificada")
+            raise ValueError("No hay datos para entrenar el modelo")
         
         X = self.scaler.fit_transform(X)
         
@@ -71,8 +78,9 @@ class SalesPredictor:
         """Entrenar modelo de red neuronal - Parte 3"""
         X, y, _ = self.prepare_data(df, region)
         
+        # prepare_data ya valida que hay datos, pero por seguridad
         if len(X) == 0:
-            raise ValueError("No hay datos para la región especificada")
+            raise ValueError("No hay datos para entrenar el modelo")
         
         X = self.scaler.fit_transform(X)
         y = y.reshape(-1, 1)
@@ -98,18 +106,36 @@ class SalesPredictor:
             verbose=0
         )
         
-        train_loss = self.model.evaluate(X_train, y_train, verbose=0)
-        test_loss = self.model.evaluate(X_test, y_test, verbose=0)
+        # model.evaluate() devuelve una lista/array numpy: [loss, metric1, metric2, ...]
+        # En este caso: [loss, mae] porque compile tiene metrics=['mae']
+        train_loss_result = self.model.evaluate(X_train, y_train, verbose=0)
+        test_loss_result = self.model.evaluate(X_test, y_test, verbose=0)
         test_predictions = self.model.predict(X_test, verbose=0)
         mse = mean_squared_error(y_test, test_predictions)
         r2 = r2_score(y_test, test_predictions)
+        
+        # Manejar diferentes tipos de retorno de evaluate()
+        # Puede ser lista, tupla, array numpy, o escalar
+        if isinstance(train_loss_result, (list, tuple)):
+            train_loss = train_loss_result[0]
+        elif isinstance(train_loss_result, np.ndarray):
+            train_loss = train_loss_result.item() if train_loss_result.size == 1 else train_loss_result[0]
+        else:
+            train_loss = train_loss_result
+            
+        if isinstance(test_loss_result, (list, tuple)):
+            test_loss = test_loss_result[0]
+        elif isinstance(test_loss_result, np.ndarray):
+            test_loss = test_loss_result.item() if test_loss_result.size == 1 else test_loss_result[0]
+        else:
+            test_loss = test_loss_result
         
         self.model_type = 'neural_network'
         self.is_trained = True
         
         return {
-            "train_loss": float(train_loss[0]),
-            "test_loss": float(test_loss[0]),
+            "train_loss": float(train_loss),
+            "test_loss": float(test_loss),
             "mse": float(mse),
             "r2_score": float(r2),
             "model_type": "Red Neuronal",
