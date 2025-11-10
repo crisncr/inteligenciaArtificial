@@ -179,7 +179,7 @@ html {
   margin: 0 auto;
   padding: 16px 20px;
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   position: absolute;
   top: 0;
@@ -193,9 +193,18 @@ html {
   border-bottom: none;
 }
 
-/* Asegurar que el logo esté alineado a la izquierda dentro del contenedor */
+/* Asegurar que el logo esté alineado a la izquierda y los botones a la derecha */
+.nav__brand {
+  flex: 0 0 auto;
+  margin-right: auto;
+}
+
 .nav__links {
+  flex: 0 0 auto;
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 /* Navbar transparente sobre el carrusel (sin fondo oscuro) */
@@ -296,7 +305,7 @@ nav.nav--transparent,
   box-shadow: none !important;
 }
 
-/* Botones con sombra para visibilidad sobre imagen */
+/* Botones con sombra para visibilidad sobre imagen - Desktop */
 .nav--transparent .nav__links button,
 .nav__links button {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8) !important;
@@ -304,16 +313,27 @@ nav.nav--transparent,
   background: rgba(255, 255, 255, 0.1) !important;
   backdrop-filter: blur(5px) !important;
   -webkit-backdrop-filter: blur(5px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 
 .nav--transparent .nav__links .btn {
   background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary) 100%) !important;
   box-shadow: 0 4px 16px rgba(110, 139, 255, 0.5) !important;
+  border: none !important;
 }
 
 .nav--transparent .nav__links .btn--ghost {
   background: rgba(255, 255, 255, 0.15) !important;
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Asegurar que los botones estén alineados a la derecha en desktop */
+@media (min-width: 769px) {
+  .nav__links {
+    display: flex !important;
+    margin-left: auto;
+    justify-content: flex-end;
+  }
 }
 .nav__links a { 
   color: var(--text); 
@@ -328,24 +348,29 @@ nav.nav--transparent,
   display: none;
   flex-direction: column;
   gap: 5px;
-  background: transparent;
-  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
   cursor: pointer;
-  padding: 8px;
+  padding: 10px 8px;
   z-index: 10000;
   position: relative;
   margin-left: auto;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  align-items: center;
 }
 
 .nav__mobile-toggle span {
   display: block;
-  width: 25px;
+  width: 28px;
   height: 3px;
   background: #ffffff;
   border-radius: 3px;
   transition: all 0.3s ease;
   transform-origin: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 /* Mejorar visibilidad del botón en navbar transparente - siempre blanco y visible */
@@ -353,6 +378,8 @@ nav.nav--transparent,
 .nav .nav__mobile-toggle span {
   background: #ffffff !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.9) !important;
+  width: 28px !important;
+  height: 3px !important;
 }
 
 .nav__mobile-toggle span.open:nth-child(1) {
@@ -1136,6 +1163,7 @@ footer small {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border-bottom: none !important;
+    justify-content: space-between !important;
   }
   
   .nav__brand {
@@ -1143,17 +1171,21 @@ footer small {
     flex-shrink: 0;
   }
   
-  .nav__links {
-    margin-left: auto;
-  }
+  /* El menú hamburguesa está a la derecha automáticamente por margin-left: auto */
   
-  /* Menú hamburguesa siempre visible y blanco en móviles */
+  /* Menú hamburguesa siempre visible y blanco en móviles - MUY VISIBLE */
   .nav__mobile-toggle {
     display: flex !important;
     z-index: 10002 !important;
-    background: rgba(0, 0, 0, 0.3) !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    border: 2px solid rgba(255, 255, 255, 0.5) !important;
     border-radius: 8px !important;
-    padding: 10px !important;
+    padding: 10px 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8) !important;
   }
   
   .nav__mobile-toggle span {
@@ -1161,6 +1193,14 @@ footer small {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.9) !important;
     width: 28px !important;
     height: 3px !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  
+  /* Ocultar botones de escritorio en móvil */
+  .nav__links {
+    display: none !important;
   }
   
   /* Menú móvil como dropdown desde el navbar */
