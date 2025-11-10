@@ -660,42 +660,31 @@ class SentimentNeuralNetwork:
         # Intentar cargar modelo existente (local o descargado)
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
             try:
-                print("🔄 Cargando modelo de red neuronal pre-entrenado...")
                 # Cargar modelo en formato .keras (compatible con Keras 3.x)
                 try:
                     # Intentar cargar directamente (formato .keras es más compatible)
                     self.model = load_model(model_path)
-                    print("✅ Modelo cargado correctamente")
                 except Exception as load_error:
-                    print(f"⚠️ Error al cargar modelo: {load_error}")
                     # Si falla, intentar cargar sin compilación
-                    try:
-                        self.model = load_model(model_path, compile=False)
-                        # Recompilar el modelo
-                        from tensorflow.keras.optimizers import Adam
-                        self.model.compile(
-                            optimizer=Adam(learning_rate=0.001),
-                            loss='sparse_categorical_crossentropy',
-                            metrics=['accuracy']
-                        )
-                        print("✅ Modelo cargado y recompilado correctamente")
-                    except Exception as compile_error:
-                        print(f"❌ Error al recompilar modelo: {compile_error}")
-                        raise
+                    self.model = load_model(model_path, compile=False)
+                    # Recompilar el modelo
+                    from tensorflow.keras.optimizers import Adam
+                    self.model.compile(
+                        optimizer=Adam(learning_rate=0.001),
+                        loss='sparse_categorical_crossentropy',
+                        metrics=['accuracy']
+                    )
                 
                 # Cargar tokenizer y label encoder (optimizado para memoria)
-                print("🔄 Cargando tokenizer y label encoder...")
                 with open(tokenizer_path, 'rb') as f:
                     self.tokenizer = pickle.load(f)
-                # Limpiar memoria después de cargar tokenizer
-                import gc
-                gc.collect()
                 
                 with open(label_encoder_path, 'rb') as f:
                     self.label_encoder = pickle.load(f)
-                # Limpiar memoria después de cargar label encoder
+                
+                # Limpiar memoria después de cargar
+                import gc
                 gc.collect()
-                print("✅ Tokenizer y label encoder cargados")
                 
                 # Verificar que el modelo está correctamente cargado
                 if self.model is None:
@@ -707,10 +696,6 @@ class SentimentNeuralNetwork:
                 
                 # Marcar modelo como entrenado (sin validación con predicción para mejor rendimiento)
                 self.is_trained = True
-                
-                # Limpiar memoria después de cargar el modelo
-                import gc
-                gc.collect()
                 
                 return
             except Exception as e:
@@ -847,7 +832,7 @@ class SentimentNeuralNetwork:
             "estoy muy insatisfecho con este producto la calidad es terrible y el servicio al cliente fue pésimo me ayudaron mal con todas mis dudas y el envío tardó mucho tiempo sin duda no lo recomiendo",
         ]
         
-        # Comentarios NEUTRALES (palabras clave: normal, regular, aceptable, etc.)
+        # Comentarios NEUTRALES (palabras clave: normal, regular, aceptable, sugerencias, etc.)
         neutral_texts = [
             # Palabras clave simples neutrales
             "normal", "regular", "aceptable", "básico", "estándar", "común",
@@ -863,10 +848,95 @@ class SentimentNeuralNetwork:
             "producto promedio", "servicio básico", "cumple con lo básico",
             "ni destacable ni malo", "regular nada más", "como se esperaba",
             "sin sorpresas", "ni bueno ni mal", "está bien",
+            # Sugerencias y comentarios constructivos (NEUTRALES)
+            "deberían mejorar", "debería mejorar", "hay que mejorar", "podría mejorar",
+            "sugerencia para mejorar", "sugerencias para mejorar", "debería ser mejor",
+            "podría ser mejor", "hay espacio para mejorar", "tienen que mejorar",
+            "deberían mejorar el servicio", "debería mejorar el producto",
+            "sugerencia de mejora", "sugerencias de mejora", "comentario para mejorar",
+            "este comentario es solo diciendo que deberían mejorar",
+            "solo estoy sugiriendo que mejoren", "sugerencia que deberían mejorar",
+            "comentario sugiriendo mejoras", "observación para mejorar",
+            "nota para mejorar", "recomendación para mejorar",
+            "deberían mejorar en algunos aspectos", "podrían mejorar algunas cosas",
+            "hay cosas que deberían mejorar", "sugerencias para mejorar el servicio",
+            "sugerencias para mejorar el producto", "comentario constructivo",
+            "sugerencia constructiva", "feedback para mejorar",
+            "comentario solo diciendo que deberían mejorar",
+            "este comentario es solo diciendo que deberían mejorar",
+            "solo quiero decir que deberían mejorar",
+            "comentario indicando que deberían mejorar",
+            # Comentarios mixtos con aspectos positivos pero con mejoras (NEUTRALES)
+            "el servicio estuvo bien aunque podría mejorar en algunos aspectos",
+            "el servicio estuvo bien aunque podria mejorar en algunos aspectos",
+            "el producto llegó en buen estado pero tardó un poco más de lo esperado",
+            "el producto llego en buen estado pero tardo un poco mas de lo esperado",
+            "el soporte respondió aunque tomó algo de tiempo en hacerlo",
+            "el soporte respondio aunque tomo algo de tiempo en hacerlo",
+            "el servicio es bueno pero podría mejorar",
+            "el producto es bueno pero podría ser mejor",
+            "buen servicio aunque podría mejorar",
+            "buen producto aunque podría mejorar",
+            "está bien pero podría mejorar",
+            "esta bien pero podria mejorar",
+            "funciona bien pero podría mejorar",
+            "funciona bien pero podria mejorar",
+            "buena atención aunque podría mejorar",
+            "buena atencion aunque podria mejorar",
+            "llegó bien pero tardó un poco",
+            "llego bien pero tardo un poco",
+            "respondió bien aunque tardó",
+            "respondio bien aunque tardo",
+            "bueno pero podría mejorar",
+            "bueno pero podria mejorar",
+            "está bien aunque podría mejorar",
+            "esta bien aunque podria mejorar",
+            "cumple pero podría mejorar",
+            "cumple pero podria mejorar",
+            "aceptable pero podría mejorar",
+            "aceptable pero podria mejorar",
+            # Comentarios con "aunque", "pero", "sin embargo" (generalmente NEUTRALES)
+            "está bien aunque tiene detalles por corregir",
+            "esta bien aunque tiene detalles por corregir",
+            "funciona bien aunque tiene algunos problemas",
+            "funciona bien aunque tiene algunos problemas",
+            "buen servicio pero tardó en responder",
+            "buen servicio pero tardo en responder",
+            "buen producto pero tiene algunos detalles",
+            "producto bueno pero podría ser mejor",
+            "servicio bueno pero podría mejorar",
+            "atención buena aunque tardó un poco",
+            "atencion buena aunque tardo un poco",
+            "responde bien aunque tarda",
+            "llegó bien pero tardó",
+            "llego bien pero tardo",
+            "está bien pero tiene cosas por mejorar",
+            "esta bien pero tiene cosas por mejorar",
+            # Comentarios con aspectos positivos y negativos balanceados (NEUTRALES)
+            "la aplicación cumple su función aunque tiene algunos detalles por corregir",
+            "la aplicacion cumple su funcion aunque tiene algunos detalles por corregir",
+            "la experiencia fue aceptable ni excelente ni mala",
+            "la experiencia fue aceptable ni excelente ni mala",
+            "cumple con lo básico pero podría ser mejor",
+            "cumple con lo basico pero podria ser mejor",
+            "aceptable aunque tiene cosas por mejorar",
+            "aceptable aunque tiene cosas por mejorar",
+            "regular pero funcional",
+            "normal aunque podría mejorar",
+            "normal aunque podria mejorar",
+            # Observaciones y comentarios informativos (NEUTRALES)
+            "es solo un comentario", "solo un comentario", "comentario informativo",
+            "observación general", "comentario de observación", "nota informativa",
+            "información adicional", "comentario adicional", "observación",
+            "comentario sobre el producto", "comentario sobre el servicio",
+            "comentario general", "comentario básico", "comentario estándar",
             # Párrafos largos neutrales
             "el producto es normal cumple con su función básica pero no destaca en nada especial el servicio al cliente es regular y la calidad es aceptable sin más comentarios",
             "experiencia regular el producto funciona como se espera pero no es nada especial el servicio al cliente es normal y la calidad es básica cumple con lo básico",
             "producto estándar la calidad es normal y el servicio al cliente es aceptable no hay nada destacable pero tampoco hay problemas graves cumple con su función",
+            "este comentario es solo diciendo que deberían mejorar el servicio en algunos aspectos el producto funciona bien pero hay cosas que podrían mejorar",
+            "solo estoy haciendo una sugerencia para que mejoren el producto el servicio es aceptable pero podría ser mejor en algunos puntos",
+            "comentario constructivo sugiriendo que deberían mejorar algunos aspectos del servicio el producto es aceptable pero hay espacio para mejorar",
         ]
         
         texts = positive_texts + negative_texts + neutral_texts

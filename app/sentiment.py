@@ -47,44 +47,34 @@ def _get_or_create_model():
     # Si el modelo se está entrenando, esperar un poco (pero no bloquear mucho)
     if _model_lock:
         import time
-        max_wait = 90  # Esperar máximo 90 segundos (entrenamiento con más datos y épocas)
+        max_wait = 90  # Esperar máximo 90 segundos
         waited = 0
-        print("⏳ [DEBUG] Esperando que el modelo termine de cargarse...")
         while _model_lock and waited < max_wait:
             time.sleep(1)
             waited += 1
-            if waited % 5 == 0:  # Log cada 5 segundos
-                print(f"⏳ [DEBUG] Esperando... {waited}s / {max_wait}s")
             if _global_model is not None and _global_model.is_trained:
-                print("✅ [DEBUG] Modelo listo después de esperar")
                 return _global_model
         
         # Si después de esperar no está listo, lanzar error
-        print(f"❌ [DEBUG] Timeout esperando modelo: {waited}s")
         raise Exception(
             f"El modelo se está cargando pero ha tardado más de {max_wait} segundos. "
             "Por favor, espera unos segundos e intenta de nuevo."
         )
     
-    # Si el modelo no existe, iniciar entrenamiento
+    # Si el modelo no existe, iniciar carga
     if _global_model is None:
-        print("🚀 [DEBUG] Iniciando entrenamiento del modelo en thread separado...")
         _training_thread = threading.Thread(target=_train_model_async, daemon=True, name="ModelTrainer")
         _training_thread.start()
-        print("🚀 [DEBUG] Thread de entrenamiento iniciado")
         raise Exception(
-            "El modelo se está cargando por primera vez. Esto tomará 30-60 segundos. "
-            "Por favor, espera unos momentos e intenta de nuevo."
+            "El modelo se está cargando por primera vez. Por favor, espera unos momentos e intenta de nuevo."
         )
     
     # Si el modelo existe pero no está entrenado
     if not _global_model.is_trained:
-        print(f"❌ [DEBUG] Modelo existe pero no está entrenado: is_trained={_global_model.is_trained}")
         raise Exception(
-            "El modelo aún se está entrenando. Por favor, espera unos momentos."
+            "El modelo aún se está cargando. Por favor, espera unos momentos."
         )
     
-    print("✅ [DEBUG] Devolviendo modelo")
     return _global_model
 
 
