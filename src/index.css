@@ -320,58 +320,55 @@ nav.nav--transparent,
   transform: rotate(-45deg) translate(7px, -7px);
 }
 
-/* Menú móvil desplegable */
+/* Menú móvil desplegable - Dropdown desde el navbar */
 .nav__mobile-menu {
-  position: fixed;
-  top: 0;
+  position: absolute;
+  top: 100%;
   left: 0;
   right: 0;
-  bottom: 0;
   background: rgba(10, 14, 26, 0.98);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   z-index: 9999;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
   opacity: 0;
   visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  display: block;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .nav__mobile-menu.open {
+  max-height: 400px;
   opacity: 1;
   visibility: visible;
-  display: block;
-  pointer-events: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .nav__mobile-content {
-  padding: 100px 20px 40px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   align-items: stretch;
-  max-width: 400px;
-  margin: 0 auto;
   position: relative;
   z-index: 10001;
-  opacity: 1;
-  visibility: visible;
 }
 
 /* Cuando el menú está cerrado, ocultar el contenido */
 .nav__mobile-menu:not(.open) .nav__mobile-content {
-  display: none !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Cuando el menú está abierto, mostrar el contenido */
 .nav__mobile-menu.open .nav__mobile-content {
-  display: flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .nav__mobile-content a {
@@ -393,32 +390,24 @@ nav.nav--transparent,
 
 .nav__mobile-content button {
   width: 100%;
-  padding: 16px 20px;
+  padding: 14px 18px;
   font-size: 1rem;
   margin: 0;
-  visibility: visible !important;
-  opacity: 1 !important;
-  display: block !important;
-}
-
-.nav__mobile-content > * {
-  visibility: visible !important;
-  opacity: 1 !important;
+  display: block;
+  text-align: center;
 }
 
 .nav__mobile-content .nav-user {
   text-align: center;
-  padding: 16px 20px;
+  padding: 14px 18px;
   background: rgba(110, 139, 255, 0.1);
   border-radius: 12px;
   border: 1px solid rgba(110, 139, 255, 0.3);
-  color: var(--text) !important;
+  color: var(--text);
   font-weight: 600;
-  font-size: 1.1rem;
-  display: block !important;
-  margin-bottom: 10px;
-  visibility: visible !important;
-  opacity: 1 !important;
+  font-size: 1rem;
+  display: block;
+  margin-bottom: 8px;
 }
 
 .btn { background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary) 100%); color: #0a0e1a; border-radius: 12px; padding: 10px 16px; font-weight: 700; box-shadow: 0 4px 16px rgba(110,139,255,.3); text-decoration: none; display:inline-block; border: none; cursor: pointer; }
@@ -1084,22 +1073,42 @@ footer small {
     display: block !important;
   }
   
-  /* Asegurar que el navbar sea visible en móviles */
+  /* Asegurar que el navbar sea visible en móviles y tenga posición relativa para el dropdown */
   .nav {
     padding: 12px 16px;
     position: relative;
     z-index: 1000;
   }
   
-  /* Cuando el menú móvil está abierto, asegurar visibilidad */
-  .nav__mobile-menu.open {
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
+  /* Menú móvil como dropdown desde el navbar */
+  .nav__mobile-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    background: rgba(10, 14, 26, 0.98) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    z-index: 9999 !important;
+    opacity: 0;
+    visibility: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    transition: max-height 0.3s ease, opacity 0.3s ease !important;
   }
   
-  /* Asegurar que el contenido del menú móvil sea visible cuando está abierto */
+  /* Cuando el menú móvil está abierto, desplegarlo */
+  .nav__mobile-menu.open {
+    max-height: 400px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Contenido del menú móvil visible cuando está abierto */
   .nav__mobile-menu.open .nav__mobile-content {
     display: flex !important;
     visibility: visible !important;
@@ -1107,52 +1116,20 @@ footer small {
     pointer-events: auto !important;
   }
   
-  .nav__mobile-menu.open .nav__mobile-content > * {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-  }
-  
-  /* Asegurar que el nombre de usuario y botones sean visibles */
-  .nav__mobile-menu.open .nav-user {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    color: var(--text) !important;
-  }
-  
-  .nav__mobile-menu.open .nav__mobile-content button {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    color: var(--text) !important;
-  }
-  
   /* Asegurar que el botón hamburguesa sea siempre visible */
   .nav__mobile-toggle {
     display: flex !important;
-    z-index: 10000 !important;
+    z-index: 10001 !important;
+    position: relative;
   }
   
-  /* Prevenir scroll cuando el menú está abierto */
-  body.menu-open {
-    overflow: hidden;
-  }
+  /* NO prevenir scroll del body - el menú es un dropdown, no overlay */
+  /* El navbar debe mantenerse visible cuando el menú está abierto */
   
   /* En el dashboard, el navbar debe estar por encima del sidebar */
   .dashboard .nav {
     z-index: 1000;
     position: relative;
-  }
-  
-  /* Asegurar que el menú móvil esté por encima de todo en móviles */
-  .nav__mobile-menu {
-    z-index: 99999 !important;
-  }
-  
-  .nav__mobile-content {
-    z-index: 100000 !important;
   }
   
   .hero-section {
@@ -1175,18 +1152,18 @@ footer small {
   }
   
   .nav__mobile-content {
-    padding: 90px 16px 30px;
+    padding: 16px;
     max-width: 100%;
   }
   
   .nav__mobile-content button {
-    padding: 14px 18px;
+    padding: 12px 16px;
     font-size: 0.95rem;
   }
   
   .nav__mobile-content .nav-user {
-    padding: 14px 18px;
-    font-size: 1rem;
+    padding: 12px 16px;
+    font-size: 0.95rem;
   }
 }
 

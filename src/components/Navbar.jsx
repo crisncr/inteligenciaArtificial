@@ -3,25 +3,32 @@ import { useState, useEffect } from 'react'
 function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = false }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Cerrar menú con ESC
+  // Cerrar menú con ESC y cerrar cuando se hace clic fuera
   useEffect(() => {
     const handleEsc = (event) => {
       if (event.key === 'Escape' && mobileMenuOpen) {
         setMobileMenuOpen(false)
       }
     }
+    
+    const handleClickOutside = (event) => {
+      // Si el menú está abierto y se hace clic fuera del navbar, cerrarlo
+      if (mobileMenuOpen && !event.target.closest('.nav')) {
+        setMobileMenuOpen(false)
+      }
+    }
 
     if (mobileMenuOpen) {
       document.addEventListener('keydown', handleEsc)
-      // Prevenir scroll del body cuando el menú está abierto
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
+      // Usar setTimeout para evitar que el clic en el botón hamburguesa cierre el menú inmediatamente
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside)
+      }, 100)
     }
 
     return () => {
       document.removeEventListener('keydown', handleEsc)
-      document.body.style.overflow = ''
+      document.removeEventListener('click', handleClickOutside)
     }
   }, [mobileMenuOpen])
 
@@ -47,19 +54,10 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
   }
 
   return (
-    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`}>
+    <nav className={`nav ${transparent ? 'nav--transparent' : ''}`} style={{ position: 'relative' }}>
       <div className="nav__brand">
-        {!user ? (
-          <>
-            <img src="/favicon.svg" alt="logo" width="24" height="24" />
-            <span>Sentimetría</span>
-          </>
-        ) : (
-          <>
-            <img src="/favicon.svg" alt="logo" width="24" height="24" />
-            <span>Sentimetría</span>
-          </>
-        )}
+        <img src="/favicon.svg" alt="logo" width="24" height="24" />
+        <span>Sentimetría</span>
       </div>
       
       {/* Menú hamburguesa para móviles - Siempre visible en móviles */}
@@ -89,61 +87,16 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
         )}
       </div>
 
-      {/* Menú móvil - Siempre renderizado, controlado por CSS */}
-      <div 
-        className={`nav__mobile-menu ${mobileMenuOpen ? 'open' : ''}`}
-        onClick={(e) => {
-          // Cerrar menú si se hace clic en el overlay (fondo)
-          if (e.target === e.currentTarget) {
-            handleCloseMenu()
-          }
-        }}
-      >
-        <div 
-          className="nav__mobile-content" 
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            display: mobileMenuOpen ? 'flex' : 'none',
-            opacity: mobileMenuOpen ? 1 : 0,
-            visibility: mobileMenuOpen ? 'visible' : 'hidden'
-          }}
-        >
+      {/* Menú móvil - Dropdown que se despliega hacia abajo */}
+      <div className={`nav__mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
+        <div className="nav__mobile-content">
           {user ? (
             <>
-              <div 
-                className="nav-user" 
-                style={{ 
-                  display: 'block', 
-                  visibility: 'visible', 
-                  opacity: 1,
-                  color: 'var(--text)',
-                  backgroundColor: 'rgba(110, 139, 255, 0.1)',
-                  padding: '16px 20px',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(110, 139, 255, 0.3)',
-                  textAlign: 'center',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  marginBottom: '10px'
-                }}
-              >
+              <div className="nav-user">
                 👤 {user.name || user.email || 'Usuario'}
               </div>
               <button 
                 className="btn--ghost" 
-                style={{ 
-                  display: 'block', 
-                  visibility: 'visible', 
-                  opacity: 1,
-                  width: '100%',
-                  padding: '16px 20px',
-                  fontSize: '1rem',
-                  color: 'var(--text)',
-                  backgroundColor: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  borderRadius: '12px',
-                  cursor: 'pointer'
-                }}
                 onClick={() => { 
                   console.log('🔍 [Navbar] Cerrar sesión clickeado')
                   onLogout(); 
@@ -157,15 +110,6 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
             <>
               <button 
                 className="btn--ghost" 
-                style={{ 
-                  display: 'block', 
-                  visibility: 'visible', 
-                  opacity: 1,
-                  width: '100%',
-                  padding: '16px 20px',
-                  fontSize: '1rem',
-                  color: 'var(--text)'
-                }}
                 onClick={() => { 
                   onLoginClick(); 
                   handleCloseMenu(); 
@@ -175,14 +119,6 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
               </button>
               <button 
                 className="btn" 
-                style={{ 
-                  display: 'block', 
-                  visibility: 'visible', 
-                  opacity: 1,
-                  width: '100%',
-                  padding: '16px 20px',
-                  fontSize: '1rem'
-                }}
                 onClick={() => { 
                   onRegisterClick(); 
                   handleCloseMenu(); 
