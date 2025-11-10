@@ -34,18 +34,12 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  /* Ocultar la barra blanca del navegador móvil */
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  height: -webkit-fill-available;
 }
 
 /* Soporte para nuevas unidades de viewport */
 @supports (height: 100dvh) {
   body {
     min-height: 100dvh;
-    height: 100dvh;
   }
 }
 
@@ -75,14 +69,12 @@ html {
   flex-direction: column;
   position: relative;
   width: 100%;
-  height: 100%;
   overflow-x: hidden;
 }
 
 @supports (height: 100dvh) {
   #root {
     min-height: 100dvh;
-    height: 100dvh;
   }
 }
 
