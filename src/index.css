@@ -2516,10 +2516,25 @@ footer small {
     top: 0;
     left: 0;
     right: 0;
-    z-index: 1000;
+    z-index: 10000;
     background: rgba(10, 14, 26, 0.95);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+  }
+  
+  /* Asegurar que el menú móvil esté por encima del sidebar del dashboard */
+  .dashboard .nav__mobile-menu {
+    z-index: 99999 !important;
+  }
+  
+  .dashboard .nav__mobile-content {
+    z-index: 100000 !important;
+  }
+  
+  /* El sidebar del dashboard NO debe interferir con el navbar */
+  .dashboard .dashboard-sidebar {
+    z-index: 100;
+    position: relative;
   }
 }
 

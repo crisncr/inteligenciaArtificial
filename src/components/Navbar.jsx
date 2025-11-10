@@ -49,7 +49,12 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
   return (
     <nav className={`nav ${transparent ? 'nav--transparent' : ''}`}>
       <div className="nav__brand">
-        {!user && (
+        {!user ? (
+          <>
+            <img src="/favicon.svg" alt="logo" width="24" height="24" />
+            <span>Sentimetría</span>
+          </>
+        ) : (
           <>
             <img src="/favicon.svg" alt="logo" width="24" height="24" />
             <span>Sentimetría</span>
