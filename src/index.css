@@ -333,6 +333,7 @@ nav.nav--transparent,
   z-index: 9999;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition: opacity 0.3s ease, visibility 0.3s ease;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -343,6 +344,7 @@ nav.nav--transparent,
   opacity: 1;
   visibility: visible;
   display: block;
+  pointer-events: auto;
 }
 
 .nav__mobile-content {
@@ -355,6 +357,21 @@ nav.nav--transparent,
   margin: 0 auto;
   position: relative;
   z-index: 10001;
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Cuando el menú está cerrado, ocultar el contenido */
+.nav__mobile-menu:not(.open) .nav__mobile-content {
+  display: none !important;
+}
+
+/* Cuando el menú está abierto, mostrar el contenido */
+.nav__mobile-menu.open .nav__mobile-content {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 .nav__mobile-content a {
@@ -379,6 +396,14 @@ nav.nav--transparent,
   padding: 16px 20px;
   font-size: 1rem;
   margin: 0;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+}
+
+.nav__mobile-content > * {
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .nav__mobile-content .nav-user {
@@ -387,11 +412,13 @@ nav.nav--transparent,
   background: rgba(110, 139, 255, 0.1);
   border-radius: 12px;
   border: 1px solid rgba(110, 139, 255, 0.3);
-  color: var(--text);
+  color: var(--text) !important;
   font-weight: 600;
   font-size: 1.1rem;
-  display: block;
+  display: block !important;
   margin-bottom: 10px;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .btn { background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary) 100%); color: #0a0e1a; border-radius: 12px; padding: 10px 16px; font-weight: 700; box-shadow: 0 4px 16px rgba(110,139,255,.3); text-decoration: none; display:inline-block; border: none; cursor: pointer; }
@@ -1069,6 +1096,37 @@ footer small {
     display: block !important;
     opacity: 1 !important;
     visibility: visible !important;
+    pointer-events: auto !important;
+  }
+  
+  /* Asegurar que el contenido del menú móvil sea visible cuando está abierto */
+  .nav__mobile-menu.open .nav__mobile-content {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
+  .nav__mobile-menu.open .nav__mobile-content > * {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
+  /* Asegurar que el nombre de usuario y botones sean visibles */
+  .nav__mobile-menu.open .nav-user {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: var(--text) !important;
+  }
+  
+  .nav__mobile-menu.open .nav__mobile-content button {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: var(--text) !important;
   }
   
   /* Asegurar que el botón hamburguesa sea siempre visible */
@@ -1086,6 +1144,15 @@ footer small {
   .dashboard .nav {
     z-index: 1000;
     position: relative;
+  }
+  
+  /* Asegurar que el menú móvil esté por encima de todo en móviles */
+  .nav__mobile-menu {
+    z-index: 99999 !important;
+  }
+  
+  .nav__mobile-content {
+    z-index: 100000 !important;
   }
   
   .hero-section {

@@ -36,10 +36,13 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
   }
 
   const handleMenuClick = () => {
+    console.log('🔍 [Navbar] Menú clickeado, estado actual:', mobileMenuOpen)
+    console.log('🔍 [Navbar] Usuario:', user ? (user.name || user.email) : 'No hay usuario')
     setMobileMenuOpen(!mobileMenuOpen)
   }
 
   const handleCloseMenu = () => {
+    console.log('🔍 [Navbar] Cerrando menú')
     setMobileMenuOpen(false)
   }
 
@@ -81,56 +84,111 @@ function Navbar({ user, onLoginClick, onRegisterClick, onLogout, transparent = f
         )}
       </div>
 
-      {/* Menú móvil */}
-      {mobileMenuOpen && (
+      {/* Menú móvil - Siempre renderizado, controlado por CSS */}
+      <div 
+        className={`nav__mobile-menu ${mobileMenuOpen ? 'open' : ''}`}
+        onClick={(e) => {
+          // Cerrar menú si se hace clic en el overlay (fondo)
+          if (e.target === e.currentTarget) {
+            handleCloseMenu()
+          }
+        }}
+      >
         <div 
-          className={`nav__mobile-menu ${mobileMenuOpen ? 'open' : ''}`}
-          onClick={(e) => {
-            // Cerrar menú si se hace clic en el overlay (fondo)
-            if (e.target === e.currentTarget) {
-              handleCloseMenu()
-            }
+          className="nav__mobile-content" 
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: mobileMenuOpen ? 'flex' : 'none',
+            opacity: mobileMenuOpen ? 1 : 0,
+            visibility: mobileMenuOpen ? 'visible' : 'hidden'
           }}
         >
-          <div className="nav__mobile-content" onClick={(e) => e.stopPropagation()}>
-            {user ? (
-              <>
-                <div className="nav-user">👤 {user.name}</div>
-                <button 
-                  className="btn--ghost" 
-                  onClick={() => { 
-                    onLogout(); 
-                    handleCloseMenu(); 
-                  }}
-                >
-                  Cerrar sesión
-                </button>
-              </>
-            ) : (
-              <>
-                <button 
-                  className="btn--ghost" 
-                  onClick={() => { 
-                    onLoginClick(); 
-                    handleCloseMenu(); 
-                  }}
-                >
-                  Iniciar sesión
-                </button>
-                <button 
-                  className="btn" 
-                  onClick={() => { 
-                    onRegisterClick(); 
-                    handleCloseMenu(); 
-                  }}
-                >
-                  Registrarse
-                </button>
-              </>
-            )}
-          </div>
+          {user ? (
+            <>
+              <div 
+                className="nav-user" 
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  color: 'var(--text)',
+                  backgroundColor: 'rgba(110, 139, 255, 0.1)',
+                  padding: '16px 20px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(110, 139, 255, 0.3)',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                  fontSize: '1.1rem',
+                  marginBottom: '10px'
+                }}
+              >
+                👤 {user.name || user.email || 'Usuario'}
+              </div>
+              <button 
+                className="btn--ghost" 
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  width: '100%',
+                  padding: '16px 20px',
+                  fontSize: '1rem',
+                  color: 'var(--text)',
+                  backgroundColor: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  borderRadius: '12px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => { 
+                  console.log('🔍 [Navbar] Cerrar sesión clickeado')
+                  onLogout(); 
+                  handleCloseMenu(); 
+                }}
+              >
+                Cerrar sesión
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                className="btn--ghost" 
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  width: '100%',
+                  padding: '16px 20px',
+                  fontSize: '1rem',
+                  color: 'var(--text)'
+                }}
+                onClick={() => { 
+                  onLoginClick(); 
+                  handleCloseMenu(); 
+                }}
+              >
+                Iniciar sesión
+              </button>
+              <button 
+                className="btn" 
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  width: '100%',
+                  padding: '16px 20px',
+                  fontSize: '1rem'
+                }}
+                onClick={() => { 
+                  onRegisterClick(); 
+                  handleCloseMenu(); 
+                }}
+              >
+                Registrarse
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </nav>
   )
 }
