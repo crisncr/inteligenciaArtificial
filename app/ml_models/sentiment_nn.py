@@ -750,27 +750,13 @@ class SentimentNeuralNetwork:
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
-            # 0. Traducir textos en inglés a español antes de analizar
-            # Optimizado para producción: traducir en batch y limpiar memoria
-            translated_texts = []
-            original_texts = []  # Guardar textos originales
+            # 0. Usar textos directamente sin traducción (más rápido, evita timeout)
+            # NOTA: El modelo fue entrenado con español, pero puede analizar inglés directamente
+            # La traducción se eliminó para mejorar rendimiento y evitar timeout en Render
+            original_texts = texts.copy()
             
-            # Traducir en lotes pequeños para ahorrar memoria en producción
-            batch_size = 10 if not self.is_production else 5
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i+batch_size]
-                for text in batch:
-                    original_texts.append(text)
-                    translated = self._translate_to_spanish(text)
-                    translated_texts.append(translated)
-                
-                # Limpiar memoria después de cada batch en producción
-                if self.is_production and i + batch_size < len(texts):
-                    import gc
-                    gc.collect()
-            
-            # 1. Preparar datos: Convertir texto traducido a números (NO clasifica, solo convierte)
-            X = self.prepare_data(translated_texts)
+            # 1. Preparar datos: Convertir texto a números (NO clasifica, solo convierte)
+            X = self.prepare_data(texts)
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:

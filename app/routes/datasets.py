@@ -361,10 +361,10 @@ async def analyze_batch(
         if not model or not model.is_trained:
             raise HTTPException(status_code=500, detail="El modelo de red neuronal no está disponible. Por favor, intenta de nuevo en unos momentos.")
         
-        # MEJORA: Procesar en lotes pequeños para evitar timeout (502)
-        # Render tiene timeout de ~30 segundos, procesar en lotes de 3 textos
-        # Reducido a 3 para dar máximo margen de tiempo por lote
-        batch_size = 3
+        # MEJORA: Procesar en lotes para evitar timeout (502)
+        # Sin traducción, podemos procesar más textos por lote
+        # Render tiene timeout de ~30 segundos, procesar en lotes de 50 textos
+        batch_size = 50
         all_results = []
         
         print(f"🔍 [DEBUG] Analizando {len(texts)} textos en lotes de {batch_size}")
