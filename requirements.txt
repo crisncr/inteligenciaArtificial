@@ -22,4 +22,6 @@ pandas==2.1.4
 nltk==3.8.1
 requests==2.31.0
 datasets>=2.14.0
+deep-translator>=1.11.4
+langdetect>=1.0.9
 

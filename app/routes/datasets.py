@@ -186,32 +186,65 @@ async def upload_dataset(
         raise HTTPException(status_code=400, detail=f"Error al procesar el archivo: {str(e)}")
     
     # Buscar columnas de texto de forma flexible
-    # No requiere nombres específicos, solo busca columnas que contengan texto
+    # Priorizar nombres comunes: Text, text, comentario, opinion, etc.
     text_columns = []
+    sentiment_columns = []
     
     # Guardar nombres originales de columnas
     original_columns = df.columns.tolist()
     
-    # Buscar todas las columnas que contengan texto (tipo object/string)
-    for col in original_columns:
-        if df[col].dtype == 'object':  # Tipo string/object
-            # Verificar que realmente contenga texto (no solo números o vacíos)
-            sample_values = df[col].dropna().head(10)
-            if len(sample_values) > 0:
-                # Si al menos el 50% de los valores no vacíos son strings con más de 2 caracteres
-                text_count = sum(1 for val in sample_values if isinstance(val, str) and len(str(val).strip()) > 2)
-                if text_count > len(sample_values) * 0.3:  # Al menos 30% son textos
-                    text_columns.append(col)
+    # Nombres comunes de columnas de texto (en inglés y español)
+    common_text_names = [
+        'text', 'texto', 'comentario', 'comentarios', 'opinion', 'opiniones',
+        'review', 'reviews', 'mensaje', 'mensajes', 'descripcion', 'descripción',
+        'content', 'contenido', 'message', 'comment', 'comments'
+    ]
     
-    # Si no se encontraron columnas de texto, usar todas las columnas de tipo object
+    # Nombres comunes de columnas de sentimiento
+    common_sentiment_names = [
+        'sentiment', 'sentimiento', 'sentimientos', 'valor', 'valores',
+        'label', 'etiqueta', 'clasificacion', 'clasificación', 'category', 'categoria'
+    ]
+    
+    # Primero buscar por nombre exacto (case-insensitive)
+    for col in original_columns:
+        col_lower = col.lower().strip()
+        if col_lower in common_text_names:
+            if df[col].dtype == 'object':
+                text_columns.insert(0, col)  # Priorizar al inicio
+        elif col_lower in common_sentiment_names:
+            if df[col].dtype == 'object':
+                sentiment_columns.append(col)
+    
+    # Si no se encontraron por nombre, buscar por contenido
+    if not text_columns:
+        for col in original_columns:
+            if df[col].dtype == 'object':  # Tipo string/object
+                # Verificar que realmente contenga texto (no solo números o vacíos)
+                sample_values = df[col].dropna().head(10)
+                if len(sample_values) > 0:
+                    # Si al menos el 30% de los valores no vacíos son strings con más de 2 caracteres
+                    text_count = sum(1 for val in sample_values if isinstance(val, str) and len(str(val).strip()) > 2)
+                    if text_count > len(sample_values) * 0.3:  # Al menos 30% son textos
+                        # Excluir columnas de sentimiento
+                        col_lower = col.lower().strip()
+                        if col_lower not in common_sentiment_names:
+                            text_columns.append(col)
+    
+    # Si no se encontraron columnas de texto, usar todas las columnas de tipo object (excepto sentimiento)
     if not text_columns:
         for col in original_columns:
             if df[col].dtype == 'object':
-                text_columns.append(col)
+                col_lower = col.lower().strip()
+                if col_lower not in common_sentiment_names:
+                    text_columns.append(col)
     
-    # Si aún no hay columnas, usar todas las columnas disponibles
+    # Si aún no hay columnas, usar todas las columnas disponibles (excepto sentimiento)
     if not text_columns:
-        text_columns = original_columns
+        for col in original_columns:
+            col_lower = col.lower().strip()
+            if col_lower not in common_sentiment_names:
+                text_columns.append(col)
     
     if not text_columns:
         raise HTTPException(
@@ -219,12 +252,19 @@ async def upload_dataset(
             detail=f"El archivo no contiene columnas con texto. Columnas encontradas: {', '.join(original_columns)}"
         )
     
-    # Usar la primera columna de texto encontrada (o combinar todas si hay múltiples)
-    # Por simplicidad, usamos la primera columna con más datos
+    # Usar la primera columna de texto encontrada (o la que tiene más datos)
     text_column = text_columns[0]
     if len(text_columns) > 1:
         # Si hay múltiples columnas de texto, usar la que tiene más datos no vacíos
         text_column = max(text_columns, key=lambda col: df[col].notna().sum())
+    
+    # Detectar columna de sentimiento si existe
+    sentiment_column = None
+    if sentiment_columns:
+        sentiment_column = sentiment_columns[0]
+        if len(sentiment_columns) > 1:
+            sentiment_column = max(sentiment_columns, key=lambda col: df[col].notna().sum())
+        print(f"✅ Columna de sentimiento detectada: '{sentiment_column}'")
     
     print(f"✅ Columna de texto detectada: '{text_column}' (de {len(text_columns)} columnas de texto encontradas)")
     
@@ -277,12 +317,19 @@ async def upload_dataset(
                 detail=f"No se encontraron textos válidos en la columna '{text_column}'. Verifica que el archivo contenga datos de texto."
             )
         
-        return {
+        result = {
             "total": len(texts),
             "texts": texts,
             "message": f"Dataset cargado exitosamente: {len(texts)} comentarios",
             "column": text_column
         }
+        
+        # Agregar información sobre columna de sentimiento si fue detectada
+        if sentiment_column:
+            result["sentiment_column"] = sentiment_column
+            result["message"] += f" (columna de sentimiento detectada: '{sentiment_column}')"
+        
+        return result
     except Exception as e:
         raise HTTPException(
             status_code=500, 

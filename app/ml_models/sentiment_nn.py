@@ -250,6 +250,58 @@ class SentimentNeuralNetwork:
         without_marks = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
         return unicodedata.normalize('NFC', without_marks)
     
+    def _translate_to_spanish(self, text: str) -> str:
+        """
+        Traducir texto en inglés a español para análisis de sentimientos.
+        Si el texto ya está en español, lo devuelve sin cambios.
+        """
+        if not text or len(text.strip()) < 2:
+            return text
+        
+        try:
+            from deep_translator import GoogleTranslator
+            from langdetect import detect, LangDetectException
+            
+            # Detectar idioma
+            try:
+                detected_lang = detect(text)
+                # Si ya está en español, no traducir
+                if detected_lang == 'es':
+                    return text
+                # Si está en inglés, traducir
+                if detected_lang == 'en':
+                    translator = GoogleTranslator(source='en', target='es')
+                    translated = translator.translate(text)
+                    if translated and len(translated.strip()) > 0:
+                        return translated
+                    return text
+                # Para otros idiomas, intentar traducir desde auto-detección
+                translator = GoogleTranslator(source='auto', target='es')
+                translated = translator.translate(text)
+                if translated and len(translated.strip()) > 0:
+                    return translated
+                return text
+            except LangDetectException:
+                # Si no se puede detectar, intentar traducir de todos modos (puede ser inglés)
+                try:
+                    translator = GoogleTranslator(source='auto', target='es')
+                    translated = translator.translate(text)
+                    if translated and len(translated.strip()) > 0:
+                        return translated
+                except:
+                    pass
+                return text
+        except ImportError:
+            # Si no está instalado, devolver texto original
+            if not self.is_production:
+                print("⚠️ deep-translator o langdetect no instalado. Instala con: pip install deep-translator langdetect")
+            return text
+        except Exception as e:
+            # En caso de error, devolver texto original
+            if not self.is_production:
+                print(f"⚠️ Error al traducir: {e}")
+            return text
+    
     def prepare_data(self, texts: List[str], labels: List[str] = None) -> Tuple:
         """
         Preparar datos para entrenamiento o predicción.
@@ -644,8 +696,17 @@ class SentimentNeuralNetwork:
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
-            # 1. Preparar datos: Convertir texto a números (NO clasifica, solo convierte)
-            X = self.prepare_data(texts)
+            # 0. Traducir textos en inglés a español antes de analizar
+            translated_texts = []
+            original_texts = []  # Guardar textos originales
+            
+            for text in texts:
+                original_texts.append(text)
+                translated = self._translate_to_spanish(text)
+                translated_texts.append(translated)
+            
+            # 1. Preparar datos: Convertir texto traducido a números (NO clasifica, solo convierte)
+            X = self.prepare_data(translated_texts)
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
@@ -678,7 +739,7 @@ class SentimentNeuralNetwork:
             gc.collect()
             
             results = []
-            for i, text in enumerate(texts):
+            for i, original_text in enumerate(original_texts):
                 if i >= len(predicted_labels):
                     label = 'neutral'
                     score = 0.5
@@ -700,7 +761,7 @@ class SentimentNeuralNetwork:
                     score_value = 0.0
                 
                 results.append({
-                    'text': text,
+                    'text': original_text,  # Usar texto original
                     'sentiment': sentiment,
                     'score': round(score_value, 3),
                     'emoji': emoji,
