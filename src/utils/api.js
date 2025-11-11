@@ -369,15 +369,28 @@ export const salesPredictionAPI = {
     return response.json()
   },
 
-  predict: async (region, modelType, startDate, days = 30) => {
+  predict: async (region = null, producto = null, modelType = 'linear_regression', startDate, days = 30) => {
     return apiRequest('/api/sales-prediction/predict', {
       method: 'POST',
       body: JSON.stringify({
         region,
+        producto,
         model_type: modelType,
         start_date: startDate,
         days,
       }),
+    })
+  },
+
+  getHistoricalData: async (producto = null, region = null) => {
+    let url = `${API_URL}/api/sales-prediction/historical-data`
+    const params = []
+    if (producto) params.push(`producto=${encodeURIComponent(producto)}`)
+    if (region) params.push(`region=${encodeURIComponent(region)}`)
+    if (params.length > 0) url += `?${params.join('&')}`
+
+    return apiRequest(url.replace(API_URL, ''), {
+      method: 'GET',
     })
   },
 }

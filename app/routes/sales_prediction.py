@@ -13,7 +13,8 @@ router = APIRouter(prefix="/api/sales-prediction", tags=["sales-prediction"])
 
 
 class PredictionRequest(BaseModel):
-    region: str
+    region: Optional[str] = None
+    producto: Optional[str] = None
     model_type: str = "linear_regression"
     start_date: str
     days: int = 30
@@ -38,7 +39,7 @@ async def upload_sales_data(
     except:
         raise HTTPException(status_code=400, detail="Formato de archivo inválido. Debe ser CSV")
     
-    required_columns = ['fecha', 'region', 'ventas']
+    required_columns = ['fecha', 'region', 'producto', 'ventas']
     if not all(col in df.columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"El archivo debe contener las columnas: {', '.join(required_columns)}")
     
@@ -47,10 +48,12 @@ async def upload_sales_data(
     if current_user.id not in user_data_storage:
         user_data_storage[current_user.id] = {}
     user_data_storage[current_user.id]['data'] = df.to_dict('records')
+    user_data_storage[current_user.id]['dataframe'] = df  # Guardar DataFrame también para uso en gráficos
     
     return {
         "total": len(df),
-        "regions": df['region'].unique().tolist(),
+        "regions": sorted(df['region'].unique().tolist()),
+        "products": sorted(df['producto'].unique().tolist()),
         "date_range": {
             "start": str(df['fecha'].min()),
             "end": str(df['fecha'].max())
@@ -75,7 +78,7 @@ async def train_model(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
     
-    required_columns = ['fecha', 'region', 'ventas']
+    required_columns = ['fecha', 'region', 'producto', 'ventas']
     if not all(col in df.columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"El archivo debe contener las columnas: {', '.join(required_columns)}")
     
@@ -100,6 +103,7 @@ async def train_model(
             user_data_storage[current_user.id] = {}
         user_data_storage[current_user.id]['predictor'] = predictor
         user_data_storage[current_user.id]['data'] = df.to_dict('records')
+        user_data_storage[current_user.id]['dataframe'] = df  # Guardar DataFrame para gráficos
         user_data_storage[current_user.id]['region'] = region
         user_data_storage[current_user.id]['model_type'] = model_type
         
@@ -130,25 +134,50 @@ async def predict_sales(
             raise HTTPException(status_code=400, detail="Primero debe entrenar el modelo usando /train")
         
         predictor = user_data_storage[current_user.id]['predictor']
-        predictions = predictor.predict(request.start_date, request.days, request.region)
+        predictions = predictor.predict(
+            request.start_date, 
+            request.days, 
+            request.region, 
+            request.producto
+        )
         
-        total_predicted = sum(p['ventas_predichas'] for p in predictions)
-        average_daily = total_predicted / len(predictions) if predictions else 0
+        # Agrupar predicciones por producto-región para el resumen
+        summary_by_combo = {}
+        for pred in predictions:
+            key = f"{pred['producto']} - {pred['region']}"
+            if key not in summary_by_combo:
+                summary_by_combo[key] = []
+            summary_by_combo[key].append(pred['ventas_predichas'])
+        
+        summary = {}
+        for key, ventas_list in summary_by_combo.items():
+            total = sum(ventas_list)
+            summary[key] = {
+                "total_predicted": round(total, 2),
+                "average_daily": round(total / len(ventas_list), 2),
+                "days": len(ventas_list)
+            }
+        
+        total_all = sum(p['ventas_predichas'] for p in predictions)
+        average_all = total_all / len(predictions) if predictions else 0
         
         return {
             "region": request.region,
+            "producto": request.producto,
             "model_type": request.model_type,
             "predictions": predictions,
-            "summary": {
-                "total_predicted": round(total_predicted, 2),
-                "average_daily": round(average_daily, 2),
-                "days": len(predictions)
+            "summary": summary,
+            "overall_summary": {
+                "total_predicted": round(total_all, 2),
+                "average_daily": round(average_all, 2),
+                "total_days": len(predictions),
+                "combinations": len(summary)
             },
             "process_explanation": {
                 "step1": "Recolección de datos históricos de ventas",
                 "step2": "Preprocesamiento (normalización, codificación de fechas)",
                 "step3": "División en conjunto de entrenamiento y prueba",
-                "step4": f"Entrenamiento del modelo ({request.model_type})",
+                "step4": f"Entrenamiento del modelo ({request.model_type}) por producto-región",
                 "step5": "Evaluación del modelo (R², MSE)",
                 "step6": "Predicción de ventas futuras",
                 "step7": "Visualización de resultados"
@@ -156,4 +185,55 @@ async def predict_sales(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al predecir ventas: {str(e)}")
+
+@router.get("/historical-data")
+async def get_historical_data(
+    producto: Optional[str] = Query(None, description="Producto específico"),
+    region: Optional[str] = Query(None, description="Región específica"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Obtener datos históricos para gráficos"""
+    if current_user.plan != 'enterprise':
+        raise HTTPException(status_code=403, detail="Predicción de ventas disponible solo en plan Enterprise")
+    
+    try:
+        # Obtener datos del usuario
+        if current_user.id not in user_data_storage or 'dataframe' not in user_data_storage[current_user.id]:
+            raise HTTPException(status_code=400, detail="Primero debe cargar datos usando /upload")
+        
+        df = user_data_storage[current_user.id]['dataframe']
+        predictor = user_data_storage[current_user.id].get('predictor')
+        
+        if predictor:
+            historical_data = predictor.get_historical_data(df, producto, region)
+        else:
+            # Si no hay predictor, obtener datos directamente del DataFrame
+            df_filtered = df.copy()
+            if producto and producto.strip():
+                df_filtered = df_filtered[df_filtered['producto'] == producto]
+            if region and region.strip():
+                df_filtered = df_filtered[df_filtered['region'] == region]
+            
+            df_filtered['fecha'] = pd.to_datetime(df_filtered['fecha'])
+            df_filtered = df_filtered.sort_values('fecha')
+            
+            historical_data = []
+            for _, row in df_filtered.iterrows():
+                historical_data.append({
+                    "fecha": row['fecha'].strftime('%Y-%m-%d'),
+                    "producto": row['producto'],
+                    "region": row['region'],
+                    "ventas": float(row['ventas']),
+                    "valor": float(row['valor']) if 'valor' in row and pd.notna(row['valor']) else None
+                })
+        
+        return {
+            "historical_data": historical_data,
+            "total_records": len(historical_data),
+            "products": sorted(df['producto'].unique().tolist()) if 'producto' in df.columns else [],
+            "regions": sorted(df['region'].unique().tolist()) if 'region' in df.columns else []
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener datos históricos: {str(e)}")
 

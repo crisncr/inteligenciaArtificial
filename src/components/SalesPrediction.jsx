@@ -1,17 +1,45 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { salesPredictionAPI } from '../utils/api'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+import { Line } from 'react-chartjs-2'
+
+// Registrar componentes de Chart.js
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 function SalesPrediction({ user }) {
   const [salesFile, setSalesFile] = useState(null)
   const [salesData, setSalesData] = useState(null)
   const [region, setRegion] = useState('')
-  const [modelType, setModelType] = useState('linear_regression')
+  const [selectedProducts, setSelectedProducts] = useState([])
   const [trainResult, setTrainResult] = useState(null)
   const [predictions, setPredictions] = useState(null)
+  const [historicalData, setHistoricalData] = useState(null)
   const [startDate, setStartDate] = useState('')
   const [days, setDays] = useState(30)
   const [loading, setLoading] = useState(false)
   const [training, setTraining] = useState(false)
+  const [chart1Products, setChart1Products] = useState([])
+  const [chart2Product, setChart2Product] = useState('')
+  const [chart2Regions, setChart2Regions] = useState([])
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
@@ -25,6 +53,12 @@ function SalesPrediction({ user }) {
       setSalesData(result)
       if (result.regions && result.regions.length > 0) {
         setRegion(result.regions[0])
+      }
+      if (result.products && result.products.length > 0) {
+        setSelectedProducts([result.products[0]])
+        setChart1Products([result.products[0]])
+        setChart2Product(result.products[0])
+        setChart2Regions([result.regions[0]])
       }
     } catch (err) {
       console.error('Error al cargar datos:', err)
@@ -42,15 +76,31 @@ function SalesPrediction({ user }) {
 
     setTraining(true)
     setTrainResult(null)
+    setPredictions(null)
+    setHistoricalData(null)
 
     try {
-      const result = await salesPredictionAPI.train(salesFile, region, modelType)
+      const result = await salesPredictionAPI.train(salesFile, region, 'linear_regression')
       setTrainResult(result)
+      
+      // Cargar datos históricos después del entrenamiento
+      await loadHistoricalData()
     } catch (err) {
       console.error('Error al entrenar modelo:', err)
       alert(`Error: ${err.message}`)
     } finally {
       setTraining(false)
+    }
+  }
+
+  const loadHistoricalData = async () => {
+    if (!salesData) return
+    
+    try {
+      const data = await salesPredictionAPI.getHistoricalData()
+      setHistoricalData(data)
+    } catch (err) {
+      console.error('Error al cargar datos históricos:', err)
     }
   }
 
@@ -69,7 +119,13 @@ function SalesPrediction({ user }) {
     setPredictions(null)
 
     try {
-      const result = await salesPredictionAPI.predict(region, modelType, startDate, days)
+      const result = await salesPredictionAPI.predict(
+        chart2Regions.length > 0 ? chart2Regions[0] : null,
+        chart2Product || null,
+        'linear_regression',
+        startDate,
+        days
+      )
       setPredictions(result)
     } catch (err) {
       console.error('Error al predecir:', err)
@@ -86,12 +142,202 @@ function SalesPrediction({ user }) {
     return tomorrow.toISOString().split('T')[0]
   }
 
+  // Calcular regresión lineal para gráfico
+  const calculateLinearRegression = (x, y) => {
+    const n = x.length
+    const sumX = x.reduce((a, b) => a + b, 0)
+    const sumY = y.reduce((a, b) => a + b, 0)
+    const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0)
+    const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0)
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    const intercept = (sumY - slope * sumX) / n
+    
+    return { slope, intercept }
+  }
+
+  // Preparar datos para Gráfico 1: Ventas por región
+  const prepareChart1Data = () => {
+    if (!historicalData || !chart1Products.length) return null
+
+    const regions = salesData?.regions || []
+    const datasets = []
+
+    chart1Products.forEach((producto, idx) => {
+      const colors = [
+        'rgba(54, 162, 235, 1)',
+        'rgba(255, 99, 132, 1)',
+        'rgba(75, 192, 192, 1)',
+        'rgba(255, 206, 86, 1)',
+        'rgba(153, 102, 255, 1)',
+        'rgba(255, 159, 64, 1)'
+      ]
+      const color = colors[idx % colors.length]
+
+      // Agrupar datos por región para este producto
+      const regionData = {}
+      regions.forEach(reg => {
+        regionData[reg] = []
+      })
+
+      historicalData.historical_data
+        .filter(d => d.producto === producto)
+        .forEach(d => {
+          if (!regionData[d.region]) regionData[d.region] = []
+          regionData[d.region].push(d.ventas)
+        })
+
+      // Calcular promedio por región
+      const regionAverages = regions.map(reg => {
+        const ventas = regionData[reg] || []
+        return ventas.length > 0 ? ventas.reduce((a, b) => a + b, 0) / ventas.length : 0
+      })
+
+      // Calcular regresión lineal
+      const x = regions.map((_, i) => i)
+      const y = regionAverages
+      const regression = calculateLinearRegression(x, y)
+      const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
+
+      datasets.push({
+        label: `${producto} (Datos)`,
+        data: regionAverages,
+        borderColor: color,
+        backgroundColor: color.replace('1)', '0.2)'),
+        fill: false,
+        tension: 0.1
+      })
+
+      datasets.push({
+        label: `${producto} (Regresión)`,
+        data: regressionLine,
+        borderColor: color,
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0.1,
+        pointRadius: 0
+      })
+    })
+
+    return {
+      labels: regions,
+      datasets
+    }
+  }
+
+  // Preparar datos para Gráfico 2: Predicción diaria
+  const prepareChart2Data = () => {
+    if (!predictions || !chart2Product) return null
+
+    const filtered = predictions.predictions.filter(
+      p => p.producto === chart2Product && 
+           (chart2Regions.length === 0 || chart2Regions.includes(p.region))
+    )
+
+    if (filtered.length === 0) return null
+
+    // Agrupar por región
+    const byRegion = {}
+    filtered.forEach(p => {
+      if (!byRegion[p.region]) {
+        byRegion[p.region] = []
+      }
+      byRegion[p.region].push({
+        fecha: p.fecha,
+        ventas: p.ventas_predichas
+      })
+    })
+
+    const datasets = []
+    const colors = [
+      'rgba(54, 162, 235, 1)',
+      'rgba(255, 99, 132, 1)',
+      'rgba(75, 192, 192, 1)',
+      'rgba(255, 206, 86, 1)'
+    ]
+
+    let colorIdx = 0
+    Object.keys(byRegion).forEach(reg => {
+      const data = byRegion[reg].sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+      const labels = data.map(d => d.fecha)
+      const ventas = data.map(d => d.ventas)
+
+      // Calcular regresión lineal
+      const x = labels.map((_, i) => i)
+      const y = ventas
+      const regression = calculateLinearRegression(x, y)
+      const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
+
+      const color = colors[colorIdx % colors.length]
+      colorIdx++
+
+      datasets.push({
+        label: `${chart2Product} - ${reg} (Predicción)`,
+        data: ventas,
+        borderColor: color,
+        backgroundColor: color.replace('1)', '0.2)'),
+        fill: false,
+        tension: 0.1
+      })
+
+      datasets.push({
+        label: `${chart2Product} - ${reg} (Regresión)`,
+        data: regressionLine,
+        borderColor: color,
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0.1,
+        pointRadius: 0
+      })
+    })
+
+    const firstRegion = Object.keys(byRegion)[0]
+    const labels = byRegion[firstRegion]
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+      .map(d => d.fecha)
+
+    return {
+      labels,
+      datasets
+    }
+  }
+
+  const chart1Data = prepareChart1Data()
+  const chart2Data = prepareChart2Data()
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Gráfico de Regresión Lineal'
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: false
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (salesData && !historicalData) {
+      loadHistoricalData()
+    }
+  }, [salesData])
+
   return (
     <section className="dashboard-section">
       <div className="section-header">
         <h1>Predicción de Ventas</h1>
         <p className="section-subtitle">
-          Predicción de ventas por región usando IA (Regresión Lineal)
+          Predicción de ventas por producto y región usando IA (Regresión Lineal)
         </p>
       </div>
 
@@ -109,7 +355,7 @@ function SalesPrediction({ user }) {
             disabled={loading}
           />
           <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-            El archivo debe contener las columnas: fecha, region, ventas
+            El archivo debe contener las columnas: fecha, region, producto, valor, ventas
           </small>
         </div>
 
@@ -123,22 +369,27 @@ function SalesPrediction({ user }) {
               <div className="stat-value">{salesData.regions?.length || 0}</div>
               <div className="stat-label">Regiones</div>
             </div>
+            <div className="stat-card">
+              <div className="stat-value">{salesData.products?.length || 0}</div>
+              <div className="stat-label">Productos</div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Selector de Región */}
+      {/* Configuración del Modelo */}
       {salesData && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
           <h3>Configuración del Modelo</h3>
           <div className="form-field">
-            <label htmlFor="region">Región</label>
+            <label htmlFor="region">Región (opcional, para filtrar entrenamiento)</label>
             <select
               id="region"
               value={region}
               onChange={(e) => setRegion(e.target.value)}
               className="form-input"
             >
+              <option value="">Todas las regiones</option>
               {salesData.regions?.map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -147,14 +398,14 @@ function SalesPrediction({ user }) {
             </select>
           </div>
           <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px', marginBottom: '15px' }}>
-            Modelo: Regresión Lineal
+            Modelo: Regresión Lineal (entrenará un modelo por cada combinación producto-región)
           </small>
           <button 
             className="btn" 
             onClick={handleTrain} 
-            disabled={training || !region}
+            disabled={training}
           >
-            {training ? 'Entrenando modelo...' : 'Entrenar Modelo'}
+            {training ? 'Entrenando modelos...' : 'Entrenar Modelos'}
           </button>
         </div>
       )}
@@ -165,33 +416,112 @@ function SalesPrediction({ user }) {
           <h3>Resultados del Entrenamiento</h3>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-value">{trainResult.model_type}</div>
-              <div className="stat-label">Modelo</div>
+              <div className="stat-value">{trainResult.products_trained || 0}</div>
+              <div className="stat-label">Modelos Entrenados</div>
             </div>
-            {trainResult.r2_score && (
-              <div className="stat-card">
-                <div className="stat-value">{trainResult.r2_score.toFixed(3)}</div>
-                <div className="stat-label">R² Score</div>
-              </div>
-            )}
-            {trainResult.mse && (
-              <div className="stat-card">
-                <div className="stat-value">{trainResult.mse.toFixed(2)}</div>
-                <div className="stat-label">MSE</div>
-              </div>
-            )}
+            <div className="stat-card">
+              <div className="stat-value">{trainResult.average_r2_score?.toFixed(3) || 'N/A'}</div>
+              <div className="stat-label">R² Promedio</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{trainResult.average_mse?.toFixed(2) || 'N/A'}</div>
+              <div className="stat-label">MSE Promedio</div>
+            </div>
           </div>
           <div className="message" style={{ marginTop: '15px', background: 'rgba(110, 139, 255, 0.1)', padding: '15px', borderRadius: '8px' }}>
             <p><strong>Justificación:</strong> {trainResult.justification}</p>
+            {trainResult.products && (
+              <p style={{ marginTop: '10px' }}>
+                <strong>Productos entrenados:</strong> {trainResult.products.slice(0, 10).join(', ')}
+                {trainResult.products.length > 10 && ` y ${trainResult.products.length - 10} más`}
+              </p>
+            )}
           </div>
         </div>
       )}
 
-      {/* Predicción */}
+      {/* GRÁFICO 1: Ventas por Región */}
+      {trainResult && historicalData && (
+        <div className="api-form" style={{ marginBottom: '20px' }}>
+          <h3>Gráfico 1: Ventas por Región (con Regresión Lineal)</h3>
+          <div className="form-field" style={{ marginBottom: '15px' }}>
+            <label htmlFor="chart1-products">Seleccionar Productos (múltiple)</label>
+            <select
+              id="chart1-products"
+              multiple
+              value={chart1Products}
+              onChange={(e) => {
+                const selected = Array.from(e.target.selectedOptions, option => option.value)
+                setChart1Products(selected)
+              }}
+              className="form-input"
+              style={{ minHeight: '100px' }}
+            >
+              {salesData.products?.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+              Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos
+            </small>
+          </div>
+          
+          {chart1Data && (
+            <div style={{ height: '400px', marginTop: '20px' }}>
+              <Line data={chart1Data} options={chartOptions} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* GRÁFICO 2: Predicción Diaria */}
       {trainResult && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
-          <h3>Predecir Ventas Futuras</h3>
+          <h3>Gráfico 2: Predicción Diaria por Producto-Región</h3>
+          
           <div className="form-row">
+            <div className="form-field">
+              <label htmlFor="chart2-product">Producto</label>
+              <select
+                id="chart2-product"
+                value={chart2Product}
+                onChange={(e) => setChart2Product(e.target.value)}
+                className="form-input"
+              >
+                <option value="">Seleccionar producto</option>
+                {salesData.products?.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="form-field">
+              <label htmlFor="chart2-regions">Regiones (múltiple)</label>
+              <select
+                id="chart2-regions"
+                multiple
+                value={chart2Regions}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.selectedOptions, option => option.value)
+                  setChart2Regions(selected)
+                }}
+                className="form-input"
+                style={{ minHeight: '80px' }}
+              >
+                {salesData.regions?.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row" style={{ marginTop: '15px' }}>
             <div className="form-field">
               <label htmlFor="start-date">Fecha de Inicio</label>
               <input
@@ -215,50 +545,53 @@ function SalesPrediction({ user }) {
               />
             </div>
           </div>
+
           <button 
             className="btn" 
             onClick={handlePredict} 
-            disabled={loading || !startDate}
+            disabled={loading || !startDate || !chart2Product}
+            style={{ marginTop: '15px' }}
           >
-            {loading ? 'Prediciendo...' : 'Predecir Ventas'}
+            {loading ? 'Prediciendo...' : 'Generar Predicción y Gráfico'}
           </button>
+
+          {chart2Data && (
+            <div style={{ height: '400px', marginTop: '20px' }}>
+              <Line data={chart2Data} options={chartOptions} />
+            </div>
+          )}
         </div>
       )}
 
       {/* Resultados de la Predicción */}
       {predictions && (
         <div className="stats-panel">
-          <h3>Predicciones de Ventas</h3>
+          <h3>Resumen de Predicciones</h3>
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-value">{predictions.summary?.total_predicted?.toFixed(2) || 0}</div>
+              <div className="stat-value">{predictions.overall_summary?.total_predicted?.toFixed(2) || 0}</div>
               <div className="stat-label">Total Predicho</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{predictions.summary?.average_daily?.toFixed(2) || 0}</div>
+              <div className="stat-value">{predictions.overall_summary?.average_daily?.toFixed(2) || 0}</div>
               <div className="stat-label">Promedio Diario</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{predictions.summary?.days || 0}</div>
-              <div className="stat-label">Días</div>
+              <div className="stat-value">{predictions.overall_summary?.combinations || 0}</div>
+              <div className="stat-label">Combinaciones</div>
             </div>
           </div>
 
-          {predictions.predictions && predictions.predictions.length > 0 && (
-            <div className="history-list" style={{ marginTop: '20px' }}>
-              <h3>Predicciones Diarias</h3>
-              {predictions.predictions.slice(0, 10).map((pred, index) => (
-                <div key={index} className="history-item">
+          {predictions.summary && Object.keys(predictions.summary).length > 0 && (
+            <div style={{ marginTop: '20px' }}>
+              <h4>Resumen por Combinación</h4>
+              {Object.entries(predictions.summary).map(([key, value]) => (
+                <div key={key} className="history-item" style={{ marginTop: '10px' }}>
                   <div className="history-item-header">
-                    <span><strong>{pred.fecha}:</strong> {pred.ventas_predichas.toFixed(2)} ventas</span>
+                    <span><strong>{key}:</strong> Total: {value.total_predicted}, Promedio diario: {value.average_daily.toFixed(2)}</span>
                   </div>
                 </div>
               ))}
-              {predictions.predictions.length > 10 && (
-                <p style={{ marginTop: '10px', color: 'var(--text-secondary)' }}>
-                  ... y {predictions.predictions.length - 10} días más
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -269,4 +602,3 @@ function SalesPrediction({ user }) {
 }
 
 export default SalesPrediction
-
