@@ -39,7 +39,6 @@ function SalesPrediction({ user }) {
   const [training, setTraining] = useState(false)
   const [chart1Products, setChart1Products] = useState([])
   const [chart2Product, setChart2Product] = useState('')
-  const [chart2Regions, setChart2Regions] = useState([])
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
@@ -58,7 +57,6 @@ function SalesPrediction({ user }) {
         setSelectedProducts([result.products[0]])
         setChart1Products([result.products[0]])
         setChart2Product(result.products[0])
-        setChart2Regions([result.regions[0]])
       }
     } catch (err) {
       console.error('Error al cargar datos:', err)
@@ -120,7 +118,7 @@ function SalesPrediction({ user }) {
 
     try {
       const result = await salesPredictionAPI.predict(
-        chart2Regions.length > 0 ? chart2Regions[0] : null,
+        region || null,
         chart2Product || null,
         'linear_regression',
         startDate,
@@ -156,12 +154,15 @@ function SalesPrediction({ user }) {
     return { slope, intercept }
   }
 
-  // Preparar datos para Gráfico 1: Ventas por región
+  // Preparar datos para Gráfico 1: Ventas por producto (filtrado por región seleccionada)
   const prepareChart1Data = () => {
-    if (!historicalData || !chart1Products.length) return null
+    if (!historicalData || !chart1Products.length || !region) return null
 
-    const regions = salesData?.regions || []
+    // Filtrar datos por la región seleccionada
+    const filteredData = historicalData.historical_data.filter(d => d.region === region)
+    
     const datasets = []
+    const productAverages = []
 
     chart1Products.forEach((producto, idx) => {
       const colors = [
@@ -174,129 +175,99 @@ function SalesPrediction({ user }) {
       ]
       const color = colors[idx % colors.length]
 
-      // Agrupar datos por región para este producto
-      const regionData = {}
-      regions.forEach(reg => {
-        regionData[reg] = []
-      })
-
-      historicalData.historical_data
+      // Obtener ventas de este producto en la región seleccionada
+      const ventas = filteredData
         .filter(d => d.producto === producto)
-        .forEach(d => {
-          if (!regionData[d.region]) regionData[d.region] = []
-          regionData[d.region].push(d.ventas)
-        })
+        .map(d => d.ventas)
 
-      // Calcular promedio por región
-      const regionAverages = regions.map(reg => {
-        const ventas = regionData[reg] || []
-        return ventas.length > 0 ? ventas.reduce((a, b) => a + b, 0) / ventas.length : 0
-      })
+      // Calcular promedio de ventas para este producto
+      const promedio = ventas.length > 0 
+        ? ventas.reduce((a, b) => a + b, 0) / ventas.length 
+        : 0
 
-      // Calcular regresión lineal
-      const x = regions.map((_, i) => i)
-      const y = regionAverages
-      const regression = calculateLinearRegression(x, y)
-      const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
+      productAverages.push(promedio)
+    })
 
-      datasets.push({
-        label: `${producto} (Datos)`,
-        data: regionAverages,
-        borderColor: color,
-        backgroundColor: color.replace('1)', '0.2)'),
-        fill: false,
-        tension: 0.1
-      })
+    // Calcular regresión lineal sobre los productos
+    const x = chart1Products.map((_, i) => i)
+    const y = productAverages
+    const regression = calculateLinearRegression(x, y)
+    const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
 
-      datasets.push({
-        label: `${producto} (Regresión)`,
-        data: regressionLine,
-        borderColor: color,
-        backgroundColor: 'transparent',
-        borderDash: [5, 5],
-        fill: false,
-        tension: 0.1,
-        pointRadius: 0
-      })
+    datasets.push({
+      label: `Ventas (Datos) - ${region}`,
+      data: productAverages,
+      borderColor: 'rgba(54, 162, 235, 1)',
+      backgroundColor: 'rgba(54, 162, 235, 0.2)',
+      fill: false,
+      tension: 0.1
+    })
+
+    datasets.push({
+      label: `Ventas (Regresión Lineal) - ${region}`,
+      data: regressionLine,
+      borderColor: 'rgba(255, 99, 132, 1)',
+      backgroundColor: 'transparent',
+      borderDash: [5, 5],
+      fill: false,
+      tension: 0.1,
+      pointRadius: 0
     })
 
     return {
-      labels: regions,
+      labels: chart1Products,
       datasets
     }
   }
 
-  // Preparar datos para Gráfico 2: Predicción diaria
+  // Preparar datos para Gráfico 2: Predicción diaria (usando región seleccionada)
   const prepareChart2Data = () => {
-    if (!predictions || !chart2Product) return null
+    if (!predictions || !chart2Product || !region) return null
 
+    // Filtrar por producto y la región seleccionada al entrenar
     const filtered = predictions.predictions.filter(
-      p => p.producto === chart2Product && 
-           (chart2Regions.length === 0 || chart2Regions.includes(p.region))
+      p => p.producto === chart2Product && p.region === region
     )
 
     if (filtered.length === 0) return null
 
-    // Agrupar por región
-    const byRegion = {}
-    filtered.forEach(p => {
-      if (!byRegion[p.region]) {
-        byRegion[p.region] = []
-      }
-      byRegion[p.region].push({
+    // Ordenar por fecha
+    const data = filtered
+      .map(p => ({
         fecha: p.fecha,
         ventas: p.ventas_predichas
-      })
-    })
+      }))
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
 
-    const datasets = []
-    const colors = [
-      'rgba(54, 162, 235, 1)',
-      'rgba(255, 99, 132, 1)',
-      'rgba(75, 192, 192, 1)',
-      'rgba(255, 206, 86, 1)'
-    ]
+    const labels = data.map(d => d.fecha)
+    const ventas = data.map(d => d.ventas)
 
-    let colorIdx = 0
-    Object.keys(byRegion).forEach(reg => {
-      const data = byRegion[reg].sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-      const labels = data.map(d => d.fecha)
-      const ventas = data.map(d => d.ventas)
+    // Calcular regresión lineal
+    const x = labels.map((_, i) => i)
+    const y = ventas
+    const regression = calculateLinearRegression(x, y)
+    const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
 
-      // Calcular regresión lineal
-      const x = labels.map((_, i) => i)
-      const y = ventas
-      const regression = calculateLinearRegression(x, y)
-      const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
-
-      const color = colors[colorIdx % colors.length]
-      colorIdx++
-
-      datasets.push({
-        label: `${chart2Product} - ${reg} (Predicción)`,
+    const datasets = [
+      {
+        label: `${chart2Product} - ${region} (Predicción)`,
         data: ventas,
-        borderColor: color,
-        backgroundColor: color.replace('1)', '0.2)'),
+        borderColor: 'rgba(54, 162, 235, 1)',
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
         fill: false,
         tension: 0.1
-      })
-
-      datasets.push({
-        label: `${chart2Product} - ${reg} (Regresión)`,
+      },
+      {
+        label: `${chart2Product} - ${region} (Regresión Lineal)`,
         data: regressionLine,
-        borderColor: color,
+        borderColor: 'rgba(255, 99, 132, 1)',
         backgroundColor: 'transparent',
         borderDash: [5, 5],
         fill: false,
         tension: 0.1,
         pointRadius: 0
-      })
-    })
-
-    const firstRegion = Object.keys(byRegion)[0]
-    const labels = byRegion[firstRegion]
-      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-      .map(d => d.fecha)
+      }
+    ]
 
     return {
       labels,
@@ -440,10 +411,10 @@ function SalesPrediction({ user }) {
         </div>
       )}
 
-      {/* GRÁFICO 1: Ventas por Región */}
-      {trainResult && historicalData && (
+      {/* GRÁFICO 1: Ventas por Producto (Región seleccionada) */}
+      {trainResult && historicalData && region && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
-          <h3>Gráfico 1: Ventas por Región (con Regresión Lineal)</h3>
+          <h3>Gráfico 1: Ventas por Producto - Región: {region} (con Regresión Lineal)</h3>
           <div className="form-field" style={{ marginBottom: '15px' }}>
             <label htmlFor="chart1-products">Seleccionar Productos (múltiple)</label>
             <select
@@ -464,7 +435,7 @@ function SalesPrediction({ user }) {
               ))}
             </select>
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos
+              Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos. Muestra datos de la región: <strong>{region}</strong>
             </small>
           </div>
           
@@ -477,47 +448,52 @@ function SalesPrediction({ user }) {
       )}
 
       {/* GRÁFICO 2: Predicción Diaria */}
-      {trainResult && (
+      {trainResult && region && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
-          <h3>Gráfico 2: Predicción Diaria por Producto-Región</h3>
+          <h3>Gráfico 2: Predicción Diaria por Producto - Región: {region}</h3>
           
-          <div className="form-row">
+          <div className="form-field" style={{ marginBottom: '15px' }}>
+            <label htmlFor="chart2-product">Producto</label>
+            <select
+              id="chart2-product"
+              value={chart2Product}
+              onChange={(e) => setChart2Product(e.target.value)}
+              className="form-input"
+            >
+              <option value="">Seleccionar producto</option>
+              {salesData.products?.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+              Región: <strong>{region}</strong> (seleccionada al entrenar el modelo)
+            </small>
+          </div>
+
+          <div className="form-row" style={{ marginTop: '15px' }}>
             <div className="form-field">
-              <label htmlFor="chart2-product">Producto</label>
-              <select
-                id="chart2-product"
-                value={chart2Product}
-                onChange={(e) => setChart2Product(e.target.value)}
+              <label htmlFor="start-date">Fecha de Inicio</label>
+              <input
+                type="date"
+                id="start-date"
+                value={startDate || getTomorrowDate()}
+                onChange={(e) => setStartDate(e.target.value)}
                 className="form-input"
-              >
-                <option value="">Seleccionar producto</option>
-                {salesData.products?.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
-            
             <div className="form-field">
-              <label htmlFor="chart2-regions">Regiones (múltiple)</label>
-              <select
-                id="chart2-regions"
-                multiple
-                value={chart2Regions}
-                onChange={(e) => {
-                  const selected = Array.from(e.target.selectedOptions, option => option.value)
-                  setChart2Regions(selected)
-                }}
+              <label htmlFor="days">Días a Predecir</label>
+              <input
+                type="number"
+                id="days"
+                value={days}
+                onChange={(e) => setDays(parseInt(e.target.value) || 30)}
                 className="form-input"
-                style={{ minHeight: '80px' }}
-              >
-                {salesData.regions?.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+                min="1"
+                max="365"
+              />
             </div>
           </div>
 
