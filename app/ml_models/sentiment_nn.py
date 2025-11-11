@@ -282,16 +282,24 @@ class SentimentNeuralNetwork:
         if not text or len(text.strip()) < 2:
             return text
         
-        # En producción, usar detección simple basada en caracteres para ahorrar memoria
+        # En producción, usar detección mejorada para ahorrar memoria pero ser más precisa
         if self.is_production:
-            # Detección simple: si tiene muchas letras comunes en inglés, probablemente es inglés
-            # Esto evita cargar langdetect que consume mucha memoria
             text_lower = text.lower()
-            common_english_words = ['the', 'and', 'was', 'were', 'this', 'that', 'with', 'from', 'have', 'has']
+            
+            # Primero verificar si tiene palabras típicamente españolas (más confiable)
+            common_spanish_words = ['el', 'la', 'de', 'que', 'y', 'en', 'un', 'es', 'se', 'no', 'te', 'lo', 'le', 'los', 'las', 'del', 'con', 'por', 'para', 'muy', 'más', 'está', 'están', 'fue', 'fueron', 'excelente', 'bueno', 'malo', 'servicio', 'producto', 'comida', 'atención']
+            spanish_word_count = sum(1 for word in common_spanish_words if word in text_lower)
+            
+            # Si tiene muchas palabras españolas, NO traducir (ya está en español)
+            if spanish_word_count >= 2:
+                return text  # Ya está en español, no traducir
+            
+            # Si no tiene palabras españolas, verificar si tiene palabras inglesas
+            common_english_words = ['the', 'and', 'was', 'were', 'this', 'that', 'with', 'from', 'have', 'has', 'is', 'are', 'was', 'were', 'good', 'bad', 'excellent', 'service', 'product', 'food', 'attention']
             english_word_count = sum(1 for word in common_english_words if word in text_lower)
             
-            # Si tiene muchas palabras comunes en inglés, intentar traducir
-            if english_word_count >= 2:
+            # Solo traducir si tiene palabras inglesas Y no tiene palabras españolas
+            if english_word_count >= 2 and spanish_word_count == 0:
                 translator = self._get_translator()
                 if translator:
                     try:
@@ -300,7 +308,7 @@ class SentimentNeuralNetwork:
                             return translated
                     except Exception:
                         pass
-            # Si no parece inglés o falla la traducción, devolver original
+            # Si no parece inglés o falla la traducción, devolver original (probablemente español)
             return text
         
         # En desarrollo, usar detección completa de idioma
