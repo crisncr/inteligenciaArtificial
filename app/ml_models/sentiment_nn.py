@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import numpy as np
 from typing import Dict, List, Tuple
 import pickle
@@ -204,6 +205,18 @@ class SentimentNeuralNetwork:
         text = re.sub(r'\s+', ' ', text)
         
         return text.strip()
+    
+    def _remove_accents(self, text: str) -> str:
+        """
+        Elimina tildes y caracteres diacríticos para normalizar comparaciones.
+        Mantiene letras base para que 'acción' y 'accion' se traten igual.
+        """
+        if not text:
+            return ""
+        
+        normalized = unicodedata.normalize('NFD', text)
+        without_marks = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
+        return unicodedata.normalize('NFC', without_marks)
     
     def prepare_data(self, texts: List[str], labels: List[str] = None) -> Tuple:
         """
@@ -870,6 +883,19 @@ class SentimentNeuralNetwork:
             return 'neutral'
         
         text_lower = text.lower()
+        text_plain = self._remove_accents(text_lower)
+        
+        def keyword_presence(keyword_pairs):
+            matched_keys = set()
+            count = 0
+            for original_kw, normalized_kw in keyword_pairs:
+                key = normalized_kw or original_kw
+                if not key or key in matched_keys:
+                    continue
+                if (original_kw and original_kw in text_lower) or (normalized_kw and normalized_kw in text_plain):
+                    matched_keys.add(key)
+                    count += 1
+            return count
         
         # Palabras clave positivas (EXPANDIDO)
         positive_keywords = [
@@ -886,6 +912,10 @@ class SentimentNeuralNetwork:
             'fácil', 'facil', 'fácil de usar', 'facil de usar',
             'atención rápida', 'atencion rapida', 'atención eficiente', 'atencion eficiente',
             'rápida y eficiente', 'rapida y eficiente', 'rápido y eficiente', 'rapido y eficiente'
+        ]
+        positive_keywords_pairs = [
+            (kw.lower(), self._remove_accents(kw.lower()))
+            for kw in positive_keywords
         ]
         
         # Palabras clave negativas (EXPANDIDO para detectar mejor los negativos)
@@ -938,22 +968,32 @@ class SentimentNeuralNetwork:
             'no vale', 'no vale la pena', 'no vale la calidad', 'no vale el precio',
             'no es bueno', 'no es buena', 'no es excelente', 'no es genial'
         ]
+        negative_keywords_pairs = [
+            (kw.lower(), self._remove_accents(kw.lower()))
+            for kw in negative_keywords
+        ]
         
         # Contar palabras positivas y negativas primero
-        positive_count = sum(1 for keyword in positive_keywords if keyword in text_lower)
-        negative_count = sum(1 for keyword in negative_keywords if keyword in text_lower)
+        positive_count = keyword_presence(positive_keywords_pairs)
+        negative_count = keyword_presence(negative_keywords_pairs)
         
         # Detectar negaciones que cambian el sentido (ej: "no es bueno" = negativo)
         negation_words = ['no', 'nunca', 'jamás', 'jamas', 'tampoco', 'ni']
-        words = text_lower.split()
+        words = text_plain.split()
         has_negation_near_positive = False
         has_negation_with_value = False  # Para "no vale"
         
         # Buscar patrones específicos de negación
         text_lower_clean = ' ' + text_lower + ' '  # Agregar espacios para búsqueda exacta
+        text_plain_clean = ' ' + text_plain + ' '
         
         # Detectar "no vale" (ej: "no vale la calidad", "no vale la pena")
-        if ' no vale ' in text_lower_clean or text_lower.startswith('no vale ') or text_lower.endswith(' no vale'):
+        if (
+            ' no vale ' in text_lower_clean
+            or ' no vale ' in text_plain_clean
+            or text_plain.startswith('no vale ')
+            or text_plain.endswith(' no vale')
+        ):
             has_negation_with_value = True
             negative_count += 3  # Peso alto para este patrón
         
@@ -964,6 +1004,7 @@ class SentimentNeuralNetwork:
                 context_start = max(0, i-4)
                 context_end = min(len(words), i+5)
                 context = ' '.join(words[context_start:context_end])
+                context_plain = context
                 
                 # Palabras positivas que pueden ser negadas
                 positive_words_to_check = ['bueno', 'buena', 'excelente', 'genial', 'perfecto', 
@@ -971,7 +1012,8 @@ class SentimentNeuralNetwork:
                                          'valio', 'recomendable', 'útil', 'util']
                 
                 for pos_word in positive_words_to_check:
-                    if pos_word in context:
+                    pos_word_plain = self._remove_accents(pos_word)
+                    if pos_word in context or pos_word_plain in context_plain:
                         has_negation_near_positive = True
                         break
                 
@@ -979,55 +1021,55 @@ class SentimentNeuralNetwork:
                     break
         
         # Detectar frases con "muy" + adjetivo positivo/negativo
-        if 'muy ' in text_lower:
-            muy_index = text_lower.find('muy ')
+        if 'muy ' in text_plain:
+            muy_index = text_plain.find('muy ')
             if muy_index != -1:
                 # Buscar adjetivo después de "muy" (hasta 5 palabras para capturar contexto)
-                rest_of_text = text_lower[muy_index + 4:].split()[0:5]
+                rest_of_text = text_plain[muy_index + 4:].split()[0:5]
                 rest_text = ' '.join(rest_of_text)
                 
                 # Adjetivos positivos con "muy"
                 muy_positivos = ['amable', 'satisfecho', 'satisfecha', 'contento', 'contenta', 
-                               'bueno', 'buena', 'bien', 'fácil', 'facil', 'feliz', 'excelente',
+                               'bueno', 'buena', 'bien', 'facil', 'feliz', 'excelente',
                                'buen', 'satisfactorio', 'satisfactoria']
                 if any(adj in rest_text for adj in muy_positivos):
                     positive_count += 3  # Peso alto para "muy + positivo"
                 
                 # Adjetivos negativos con "muy"
-                muy_negativos = ['malo', 'mala', 'mal', 'pésimo', 'pesimo', 'pésima', 'pesima',
+                muy_negativos = ['malo', 'mala', 'mal', 'pesimo', 'pesima',
                                'decepcionado', 'decepcionada', 'insatisfecho', 'insatisfecha']
                 if any(adj in rest_text for adj in muy_negativos):
                     negative_count += 3  # Peso alto para "muy + negativo"
         
         # Detectar patrones específicos positivos en contexto
         # "atención al cliente" + adjetivo positivo
-        if 'atención' in text_lower or 'atencion' in text_lower:
-            if any(pos in text_lower for pos in ['amable', 'rápida', 'rapida', 'eficiente', 'buena', 'excelente']):
+        if 'atencion' in text_plain:
+            if any(pos in text_plain for pos in ['amable', 'rapida', 'eficiente', 'buena', 'excelente']):
                 positive_count += 2
         
         # "diseño" + verbo positivo (ej: "me encantó el diseño")
-        if 'diseño' in text_lower or 'diseno' in text_lower:
-            if any(pos in text_lower for pos in ['encantó', 'encanto', 'encanta', 'excelente', 'bueno', 'bonito']):
+        if 'diseno' in text_plain:
+            if any(pos in text_plain for pos in ['encanto', 'encanta', 'excelente', 'bueno', 'bonito']):
                 positive_count += 2
         
         # "proceso" + adjetivo positivo (ej: "fácil proceso")
-        if 'proceso' in text_lower:
-            if any(pos in text_lower for pos in ['fácil', 'facil', 'rápido', 'rapido', 'sencillo', 'bueno']):
+        if 'proceso' in text_plain:
+            if any(pos in text_plain for pos in ['facil', 'rapido', 'sencillo', 'bueno']):
                 positive_count += 2
         
         # "compra" + adjetivo positivo (ej: "fácil compra", "buena compra")
-        if 'compra' in text_lower:
-            if any(pos in text_lower for pos in ['fácil', 'facil', 'buena', 'buen', 'satisfecho', 'contento']):
+        if 'compra' in text_plain:
+            if any(pos in text_plain for pos in ['facil', 'buena', 'buen', 'satisfecho', 'contento']):
                 positive_count += 2
         
         # "resultado" + adjetivo positivo (ej: "satisfecho con el resultado")
-        if 'resultado' in text_lower:
-            if any(pos in text_lower for pos in ['satisfecho', 'satisfecha', 'contento', 'contenta', 'bueno', 'excelente']):
+        if 'resultado' in text_plain:
+            if any(pos in text_plain for pos in ['satisfecho', 'satisfecha', 'contento', 'contenta', 'bueno', 'excelente']):
                 positive_count += 2
         
         # "app" o "aplicación" + adjetivo positivo (ej: "app fácil de usar")
-        if 'app' in text_lower or 'aplicación' in text_lower or 'aplicacion' in text_lower:
-            if any(pos in text_lower for pos in ['fácil', 'facil', 'rápida', 'rapida', 'eficiente', 'buena']):
+        if 'app' in text_plain or 'aplicacion' in text_plain:
+            if any(pos in text_plain for pos in ['facil', 'rapida', 'eficiente', 'buena']):
                 positive_count += 2
         
         # Si hay negación con "vale", es definitivamente negativo
@@ -1039,8 +1081,8 @@ class SentimentNeuralNetwork:
             negative_count += 3  # Peso alto para negaciones
         
         # Detectar "pésima experiencia" o variantes
-        if 'pésima experiencia' in text_lower or 'pesima experiencia' in text_lower or \
-           'pésima' in text_lower and 'experiencia' in text_lower:
+        if 'pesima experiencia' in text_plain or \
+           ('pesima' in text_plain and 'experiencia' in text_plain):
             negative_count += 2
         
         # Determinar sentimiento con lógica mejorada
