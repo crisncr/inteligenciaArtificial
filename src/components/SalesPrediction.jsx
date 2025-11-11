@@ -154,68 +154,95 @@ function SalesPrediction({ user }) {
     return { slope, intercept }
   }
 
-  // Preparar datos para Gráfico 1: Ventas por producto (filtrado por región seleccionada)
+  // Preparar datos para Gráfico 1: Ventas por días (evolución temporal)
   const prepareChart1Data = () => {
     if (!historicalData || !chart1Products.length || !region) return null
 
-    // Filtrar datos por la región seleccionada
-    const filteredData = historicalData.historical_data.filter(d => d.region === region)
+    // Filtrar datos por la región seleccionada y productos seleccionados
+    const filteredData = historicalData.historical_data.filter(
+      d => d.region === region && chart1Products.includes(d.producto)
+    )
+    
+    if (filteredData.length === 0) return null
+
+    // Obtener todas las fechas únicas y ordenarlas (como fechas, no strings)
+    const allDates = [...new Set(filteredData.map(d => d.fecha))]
+      .sort((a, b) => new Date(a) - new Date(b))
     
     const datasets = []
-    const productAverages = []
+    const colors = [
+      'rgba(54, 162, 235, 1)',
+      'rgba(255, 99, 132, 1)',
+      'rgba(75, 192, 192, 1)',
+      'rgba(255, 206, 86, 1)',
+      'rgba(153, 102, 255, 1)',
+      'rgba(255, 159, 64, 1)'
+    ]
 
     chart1Products.forEach((producto, idx) => {
-      const colors = [
-        'rgba(54, 162, 235, 1)',
-        'rgba(255, 99, 132, 1)',
-        'rgba(75, 192, 192, 1)',
-        'rgba(255, 206, 86, 1)',
-        'rgba(153, 102, 255, 1)',
-        'rgba(255, 159, 64, 1)'
-      ]
       const color = colors[idx % colors.length]
 
-      // Obtener ventas de este producto en la región seleccionada
-      const ventas = filteredData
+      // Agrupar datos por fecha para este producto
+      const dataByDate = {}
+      filteredData
         .filter(d => d.producto === producto)
-        .map(d => d.ventas)
+        .forEach(d => {
+          if (!dataByDate[d.fecha]) {
+            dataByDate[d.fecha] = []
+          }
+          dataByDate[d.fecha].push(d.ventas)
+        })
 
-      // Calcular promedio de ventas para este producto
-      const promedio = ventas.length > 0 
-        ? ventas.reduce((a, b) => a + b, 0) / ventas.length 
-        : 0
+      // Crear array de ventas por fecha (promedio si hay múltiples registros el mismo día)
+      const ventas = allDates.map(fecha => {
+        const ventasDelDia = dataByDate[fecha] || []
+        return ventasDelDia.length > 0 
+          ? ventasDelDia.reduce((a, b) => a + b, 0) / ventasDelDia.length 
+          : null
+      })
 
-      productAverages.push(promedio)
-    })
+      // Calcular regresión lineal
+      const validIndices = ventas.map((v, i) => v !== null ? i : null).filter(i => i !== null)
+      const validVentas = ventas.filter(v => v !== null)
+      
+      if (validVentas.length > 0) {
+        const x = validIndices
+        const y = validVentas
+        const regression = calculateLinearRegression(x, y)
+        const regressionLine = allDates.map((_, i) => {
+          if (ventas[i] !== null) {
+            return regression.slope * i + regression.intercept
+          }
+          return null
+        })
 
-    // Calcular regresión lineal sobre los productos
-    const x = chart1Products.map((_, i) => i)
-    const y = productAverages
-    const regression = calculateLinearRegression(x, y)
-    const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
+        // Datos reales
+        datasets.push({
+          label: `${producto} (Datos)`,
+          data: ventas,
+          borderColor: color,
+          backgroundColor: color.replace('1)', '0.2)'),
+          fill: false,
+          tension: 0.1,
+          pointRadius: 3
+        })
 
-    datasets.push({
-      label: `Ventas (Datos) - ${region}`,
-      data: productAverages,
-      borderColor: 'rgba(54, 162, 235, 1)',
-      backgroundColor: 'rgba(54, 162, 235, 0.2)',
-      fill: false,
-      tension: 0.1
-    })
-
-    datasets.push({
-      label: `Ventas (Regresión Lineal) - ${region}`,
-      data: regressionLine,
-      borderColor: 'rgba(255, 99, 132, 1)',
-      backgroundColor: 'transparent',
-      borderDash: [5, 5],
-      fill: false,
-      tension: 0.1,
-      pointRadius: 0
+        // Línea de regresión
+        datasets.push({
+          label: `${producto} (Regresión)`,
+          data: regressionLine,
+          borderColor: color,
+          backgroundColor: 'transparent',
+          borderDash: [5, 5],
+          fill: false,
+          tension: 0.1,
+          pointRadius: 0
+        })
+      }
     })
 
     return {
-      labels: chart1Products,
+      labels: allDates,
       datasets
     }
   }
@@ -411,10 +438,10 @@ function SalesPrediction({ user }) {
         </div>
       )}
 
-      {/* GRÁFICO 1: Ventas por Producto (Región seleccionada) */}
+      {/* GRÁFICO 1: Ventas por Días (Evolución Temporal) */}
       {trainResult && historicalData && region && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
-          <h3>Gráfico 1: Ventas por Producto - Región: {region} (con Regresión Lineal)</h3>
+          <h3>Gráfico 1: Ventas por Días - Región: {region} (con Regresión Lineal)</h3>
           <div className="form-field" style={{ marginBottom: '15px' }}>
             <label htmlFor="chart1-products">Seleccionar Productos (múltiple)</label>
             <select
@@ -435,13 +462,38 @@ function SalesPrediction({ user }) {
               ))}
             </select>
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos. Muestra datos de la región: <strong>{region}</strong>
+              Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos. Muestra evolución temporal de ventas por día en la región: <strong>{region}</strong>
             </small>
           </div>
           
           {chart1Data && (
             <div style={{ height: '400px', marginTop: '20px' }}>
-              <Line data={chart1Data} options={chartOptions} />
+              <Line data={chart1Data} options={{
+                ...chartOptions,
+                plugins: {
+                  ...chartOptions.plugins,
+                  title: {
+                    display: true,
+                    text: `Evolución de Ventas por Día - ${region}`
+                  }
+                },
+                scales: {
+                  ...chartOptions.scales,
+                  x: {
+                    title: {
+                      display: true,
+                      text: 'Fecha'
+                    }
+                  },
+                  y: {
+                    title: {
+                      display: true,
+                      text: 'Ventas'
+                    },
+                    beginAtZero: false
+                  }
+                }
+              }} />
             </div>
           )}
         </div>
