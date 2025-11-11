@@ -750,44 +750,68 @@ class SentimentNeuralNetwork:
             raise ValueError("La lista de textos no puede estar vacía")
         
         try:
+            import time
+            predict_start = time.time()
+            
+            print(f"🧠 [PREDICT] Iniciando predicción de {len(texts)} textos")
+            
             # 0. Usar textos directamente sin traducción (más rápido, evita timeout)
             # NOTA: El modelo fue entrenado con español, pero puede analizar inglés directamente
             # La traducción se eliminó para mejorar rendimiento y evitar timeout en Render
             original_texts = texts.copy()
             
             # 1. Preparar datos: Convertir texto a números (NO clasifica, solo convierte)
+            print(f"📝 [PREDICT] Preparando datos (limpieza y tokenización)...")
+            prep_start = time.time()
             X = self.prepare_data(texts)
+            prep_time = time.time() - prep_start
+            print(f"✅ [PREDICT] Datos preparados en {prep_time:.2f}s - Shape: {X.shape}")
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
+                print(f"❌ [PREDICT] Error: No se pudieron preparar los datos")
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
             # Optimización de memoria en producción: batch size más eficiente
             batch_size = 8 if not self.is_production else 4
+            print(f"⚙️  [PREDICT] Batch size para modelo: {batch_size}")
             
             # 2. 🧠 AQUÍ ES DONDE LA RED NEURONAL CLASIFICA
             # La red neuronal LSTM procesa los números y devuelve probabilidades
             # Ejemplo: [0.1, 0.8, 0.1] = 80% negativo, 10% positivo, 10% neutral
             # NO hay reglas hardcodeadas, TODO es aprendizaje neuronal
+            print(f"🧠 [PREDICT] Ejecutando modelo LSTM...")
+            model_start = time.time()
             predictions = self.model.predict(X, batch_size=batch_size, verbose=0)
+            model_time = time.time() - model_start
+            print(f"✅ [PREDICT] Modelo ejecutado en {model_time:.2f}s - Predictions shape: {predictions.shape}")
             
             # Validar predicciones
             if predictions is None or len(predictions) == 0:
+                print(f"❌ [PREDICT] Error: Modelo no devolvió predicciones")
                 raise ValueError("El modelo no devolvió predicciones")
             
             # 3. Procesar predicciones de la red neuronal
+            print(f"🔄 [PREDICT] Procesando predicciones...")
+            process_start = time.time()
             # np.argmax encuentra la clase con mayor probabilidad (la que eligió la red neuronal)
             predicted_classes = np.argmax(predictions, axis=1)
             # Convertir número de clase a etiqueta (ej: 1 -> "negativo")
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
             # Obtener la confianza (probabilidad máxima)
             confidence = np.max(predictions, axis=1)
+            process_time = time.time() - process_start
+            print(f"✅ [PREDICT] Predicciones procesadas en {process_time:.2f}s")
             
             # Limpiar memoria inmediatamente después de obtener predicciones
+            print(f"🧹 [PREDICT] Limpiando memoria...")
             import gc
             del X  # Liberar memoria de datos de entrada
+            del predictions  # Liberar predicciones después de procesarlas
             gc.collect()
+            print(f"✅ [PREDICT] Memoria limpiada")
             
+            print(f"🔄 [PREDICT] Generando resultados finales...")
             results = []
             for i, original_text in enumerate(original_texts):
                 if i >= len(predicted_labels):
@@ -844,13 +868,29 @@ class SentimentNeuralNetwork:
             raise ValueError(error_msg)
     
     def predict_single(self, text: str) -> Dict:
-        """Predecir sentimiento de un solo texto"""
+        """Predecir sentimiento de un solo texto - Con logs detallados"""
+        import time
+        single_start = time.time()
+        print(f"🔍 [PREDICT_SINGLE] Iniciando análisis de texto único - Texto: '{text[:50]}...'")
+        
         try:
+            # Usar predict() con lista de un elemento
             results = self.predict([text])
+            
             if not results or len(results) == 0:
+                print(f"❌ [PREDICT_SINGLE] Error: No se obtuvieron resultados")
                 raise ValueError("No se obtuvieron resultados de la predicción")
-            return results[0]
+            
+            single_time = time.time() - single_start
+            result = results[0]
+            sentiment = result.get('sentiment', 'unknown')
+            confidence = result.get('confidence', 0.0)
+            print(f"✅ [PREDICT_SINGLE] Análisis completado en {single_time:.2f}s - Sentimiento: {sentiment}, Confianza: {confidence:.3f}")
+            
+            return result
         except Exception as e:
+            single_time = time.time() - single_start
+            print(f"❌ [PREDICT_SINGLE] Error después de {single_time:.2f}s: {str(e)}")
             raise
     
     def load_model(self, model_path: str = 'app/ml_models/sentiment_model.keras'):

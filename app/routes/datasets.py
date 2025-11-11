@@ -346,20 +346,41 @@ async def analyze_batch(
     db: Session = Depends(get_db)
 ):
     """Analizar múltiples textos con red neuronal - Procesamiento en lotes para evitar timeout"""
+    import time
+    request_start = time.time()
+    
     texts = request.texts
+    user_id = current_user.id
+    user_email = current_user.email
+    
+    print(f"=" * 80)
+    print(f"📊 [BATCH] Iniciando análisis batch - Usuario: {user_email} (ID: {user_id})")
+    print(f"📊 [BATCH] Total de textos: {len(texts)}")
+    print(f"📊 [BATCH] Plan: {current_user.plan}")
+    print(f"=" * 80)
+    
     if current_user.plan == 'free' and len(texts) > 100:
+        print(f"❌ [BATCH] Error: Plan free excede límite (100 textos)")
         raise HTTPException(status_code=403, detail="Plan free permite máximo 100 comentarios")
     
     if len(texts) == 0:
+        print(f"❌ [BATCH] Error: Lista de textos vacía")
         raise HTTPException(status_code=400, detail="No hay textos para analizar")
     
     try:
         # Usar el modelo global desde sentiment.py para evitar reentrenarlo
+        print(f"⏳ [BATCH] Obteniendo modelo...")
+        model_start = time.time()
         from app.sentiment import _get_or_create_model
         model = _get_or_create_model()
+        model_time = time.time() - model_start
+        print(f"✅ [BATCH] Modelo obtenido en {model_time:.2f}s")
         
         if not model or not model.is_trained:
+            print(f"❌ [BATCH] Error: Modelo no disponible - is_trained={model.is_trained if model else 'None'}")
             raise HTTPException(status_code=500, detail="El modelo de red neuronal no está disponible. Por favor, intenta de nuevo en unos momentos.")
+        
+        print(f"✅ [BATCH] Modelo validado - is_trained={model.is_trained}, model_exists={model.model is not None}")
         
         # MEJORA: Procesar en lotes para evitar timeout (502)
         # Sin traducción, podemos procesar más textos por lote
@@ -367,23 +388,39 @@ async def analyze_batch(
         batch_size = 50
         all_results = []
         
-        print(f"🔍 [DEBUG] Analizando {len(texts)} textos en lotes de {batch_size}")
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        print(f"📦 [BATCH] Procesando {len(texts)} textos en {total_batches} lote(s) de {batch_size} textos")
+        print(f"-" * 80)
         
         # Procesar en lotes para evitar timeout
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i+batch_size]
             batch_num = (i // batch_size) + 1
-            total_batches = (len(texts) + batch_size - 1) // batch_size
             
-            print(f"🔍 [DEBUG] Procesando lote {batch_num}/{total_batches} ({len(batch)} textos)")
+            print(f"🔄 [BATCH] Lote {batch_num}/{total_batches}: Procesando {len(batch)} textos...")
+            batch_start = time.time()
             
             try:
                 # Analizar lote
+                predict_start = time.time()
                 batch_results = model.predict(batch)
+                predict_time = time.time() - predict_start
+                batch_time = time.time() - batch_start
+                
                 all_results.extend(batch_results)
-                print(f"✅ [DEBUG] Lote {batch_num} completado: {len(batch_results)} resultados")
+                print(f"✅ [BATCH] Lote {batch_num} completado en {batch_time:.2f}s (predicción: {predict_time:.2f}s) - {len(batch_results)} resultados")
+                
+                # Mostrar distribución del lote
+                batch_pos = sum(1 for r in batch_results if r.get('sentiment') == 'positivo')
+                batch_neg = sum(1 for r in batch_results if r.get('sentiment') == 'negativo')
+                batch_neu = sum(1 for r in batch_results if r.get('sentiment') == 'neutral')
+                print(f"   📊 Lote {batch_num}: Pos={batch_pos}, Neg={batch_neg}, Neu={batch_neu}")
+                
             except Exception as e:
-                print(f"❌ [DEBUG] Error en lote {batch_num}: {str(e)}")
+                batch_time = time.time() - batch_start
+                print(f"❌ [BATCH] Error en lote {batch_num} después de {batch_time:.2f}s: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 # Continuar con siguiente lote en lugar de fallar completamente
                 # Agregar resultados de error para este lote
                 for text in batch:
@@ -394,13 +431,27 @@ async def analyze_batch(
                         "error": str(e)
                     })
         
+        print(f"-" * 80)
+        
         # Log de los primeros resultados
-        for i, result in enumerate(all_results[:3]):
-            print(f"🔍 [DEBUG] Resultado {i+1}: texto='{result.get('text', '')[:50]}...', sentiment={result.get('sentiment')}, confidence={result.get('confidence', 0):.3f}")
+        print(f"📋 [BATCH] Primeros 3 resultados:")
+        for i, result in enumerate(all_results[:3], 1):
+            text_preview = result.get('text', '')[:50]
+            sentiment = result.get('sentiment', 'unknown')
+            confidence = result.get('confidence', 0.0)
+            print(f"   [{i}] {sentiment:8s} (conf: {confidence:.3f}) - '{text_preview}...'")
         
         positive_count = sum(1 for r in all_results if r.get('sentiment') == 'positivo')
         negative_count = sum(1 for r in all_results if r.get('sentiment') == 'negativo')
         neutral_count = sum(1 for r in all_results if r.get('sentiment') == 'neutral')
+        error_count = sum(1 for r in all_results if r.get('sentiment') == 'error')
+        
+        total_time = time.time() - request_start
+        
+        print(f"=" * 80)
+        print(f"✅ [BATCH] Análisis completado en {total_time:.2f}s")
+        print(f"📊 [BATCH] Resumen: Total={len(all_results)}, Pos={positive_count}, Neg={negative_count}, Neu={neutral_count}, Errors={error_count}")
+        print(f"=" * 80)
         
         return {
             "total": len(all_results),
@@ -415,7 +466,8 @@ async def analyze_batch(
             }
         }
     except Exception as e:
-        print(f"❌ [DEBUG] Error general en analyze-batch: {str(e)}")
+        total_time = time.time() - request_start
+        print(f"❌ [BATCH] Error general después de {total_time:.2f}s: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al analizar textos: {str(e)}")
