@@ -33,12 +33,12 @@ function SalesPrediction({ user }) {
   const [trainResult, setTrainResult] = useState(null)
   const [predictions, setPredictions] = useState(null)
   const [historicalData, setHistoricalData] = useState(null)
-  const [startDate, setStartDate] = useState('')
   const [days, setDays] = useState(30)
   const [loading, setLoading] = useState(false)
   const [training, setTraining] = useState(false)
   const [chart1Products, setChart1Products] = useState([])
   const [chart2Product, setChart2Product] = useState('')
+  const [availableProducts, setAvailableProducts] = useState([])
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
@@ -76,12 +76,14 @@ function SalesPrediction({ user }) {
     setTrainResult(null)
     setPredictions(null)
     setHistoricalData(null)
+    setAvailableProducts([])
 
     try {
       const result = await salesPredictionAPI.train(salesFile, region, 'linear_regression')
       setTrainResult(result)
       
       // Cargar datos históricos después del entrenamiento
+      // loadHistoricalData ya filtra los productos disponibles
       await loadHistoricalData()
     } catch (err) {
       console.error('Error al entrenar modelo:', err)
@@ -97,21 +99,58 @@ function SalesPrediction({ user }) {
     try {
       const data = await salesPredictionAPI.getHistoricalData()
       setHistoricalData(data)
+      
+      // Filtrar productos disponibles de la región seleccionada
+      if (region && data.historical_data) {
+        const regionProducts = [...new Set(
+          data.historical_data
+            .filter(d => d.region === region)
+            .map(d => d.producto)
+        )].sort()
+        setAvailableProducts(regionProducts)
+        
+        // Actualizar selecciones si no hay productos seleccionados
+        if (regionProducts.length > 0 && chart1Products.length === 0) {
+          setChart1Products([regionProducts[0]])
+          setChart2Product(regionProducts[0])
+        }
+      }
     } catch (err) {
       console.error('Error al cargar datos históricos:', err)
     }
   }
 
   const handlePredict = async () => {
-    if (!startDate) {
-      alert('Selecciona una fecha de inicio')
-      return
-    }
-
     if (!trainResult) {
       alert('Primero entrena el modelo')
       return
     }
+
+    if (!chart2Product) {
+      alert('Selecciona un producto')
+      return
+    }
+
+    if (!historicalData || !historicalData.historical_data || historicalData.historical_data.length === 0) {
+      alert('No hay datos históricos disponibles')
+      return
+    }
+
+    // Obtener la última fecha histórica para este producto y región
+    const lastDate = historicalData.historical_data
+      .filter(d => d.region === region && d.producto === chart2Product)
+      .map(d => new Date(d.fecha))
+      .sort((a, b) => b - a)[0]
+
+    if (!lastDate || isNaN(lastDate.getTime())) {
+      alert('No hay datos históricos para este producto en esta región')
+      return
+    }
+
+    // Calcular fecha de inicio (día siguiente al último histórico)
+    const startDate = new Date(lastDate)
+    startDate.setDate(startDate.getDate() + 1)
+    const startDateStr = startDate.toISOString().split('T')[0]
 
     setLoading(true)
     setPredictions(null)
@@ -121,7 +160,7 @@ function SalesPrediction({ user }) {
         region || null,
         chart2Product || null,
         'linear_regression',
-        startDate,
+        startDateStr,
         days
       )
       setPredictions(result)
@@ -201,22 +240,13 @@ function SalesPrediction({ user }) {
           : null
       })
 
-      // Calcular regresión lineal
-      const validIndices = ventas.map((v, i) => v !== null ? i : null).filter(i => i !== null)
-      const validVentas = ventas.filter(v => v !== null)
+      // Calcular regresión lineal - MEJORADO: requiere mínimo 2 puntos
+      const validData = ventas
+        .map((v, i) => v !== null ? { x: i, y: v } : null)
+        .filter(d => d !== null)
       
-      if (validVentas.length > 0) {
-        const x = validIndices
-        const y = validVentas
-        const regression = calculateLinearRegression(x, y)
-        const regressionLine = allDates.map((_, i) => {
-          if (ventas[i] !== null) {
-            return regression.slope * i + regression.intercept
-          }
-          return null
-        })
-
-        // Datos reales
+      // Datos reales (siempre mostrar si hay al menos 1 punto)
+      if (validData.length > 0) {
         datasets.push({
           label: `${producto} (Datos)`,
           data: ventas,
@@ -227,17 +257,31 @@ function SalesPrediction({ user }) {
           pointRadius: 3
         })
 
-        // Línea de regresión
-        datasets.push({
-          label: `${producto} (Regresión)`,
-          data: regressionLine,
-          borderColor: color,
-          backgroundColor: 'transparent',
-          borderDash: [5, 5],
-          fill: false,
-          tension: 0.1,
-          pointRadius: 0
-        })
+        // Línea de regresión (solo si hay mínimo 2 puntos)
+        if (validData.length >= 2) {
+          const x = validData.map(d => d.x)
+          const y = validData.map(d => d.y)
+          const regression = calculateLinearRegression(x, y)
+          
+          const regressionLine = allDates.map((_, i) => {
+            const validPoint = validData.find(d => d.x === i)
+            if (validPoint) {
+              return regression.slope * i + regression.intercept
+            }
+            return null
+          })
+
+          datasets.push({
+            label: `${producto} (Regresión)`,
+            data: regressionLine,
+            borderColor: color,
+            backgroundColor: 'transparent',
+            borderDash: [5, 5],
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0
+          })
+        }
       }
     })
 
@@ -247,44 +291,88 @@ function SalesPrediction({ user }) {
     }
   }
 
-  // Preparar datos para Gráfico 2: Predicción diaria (usando región seleccionada)
+  // Preparar datos para Gráfico 2: Combinar histórico + predicciones
   const prepareChart2Data = () => {
-    if (!predictions || !chart2Product || !region) return null
+    if (!chart2Product || !region) return null
+    
+    // Obtener datos históricos del producto
+    const historical = historicalData?.historical_data
+      ?.filter(d => d.producto === chart2Product && d.region === region)
+      .map(d => ({
+        fecha: d.fecha,
+        ventas: d.ventas,
+        tipo: 'histórico'
+      }))
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha)) || []
 
-    // Filtrar por producto y la región seleccionada al entrenar
-    const filtered = predictions.predictions.filter(
-      p => p.producto === chart2Product && p.region === region
-    )
-
-    if (filtered.length === 0) return null
-
-    // Ordenar por fecha
-    const data = filtered
+    // Obtener predicciones
+    const predicted = predictions?.predictions
+      ?.filter(p => p.producto === chart2Product && p.region === region)
       .map(p => ({
         fecha: p.fecha,
-        ventas: p.ventas_predichas
+        ventas: p.ventas_predichas,
+        tipo: 'predicción'
       }))
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha)) || []
+
+    if (historical.length === 0 && predicted.length === 0) return null
+
+    // Combinar y ordenar por fecha
+    const allData = [...historical, ...predicted]
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
 
-    const labels = data.map(d => d.fecha)
-    const ventas = data.map(d => d.ventas)
+    const labels = allData.map(d => d.fecha)
+    const ventasHistoricas = allData.map(d => d.tipo === 'histórico' ? d.ventas : null)
+    const ventasPredichas = allData.map(d => d.tipo === 'predicción' ? d.ventas : null)
 
-    // Calcular regresión lineal
-    const x = labels.map((_, i) => i)
-    const y = ventas
-    const regression = calculateLinearRegression(x, y)
-    const regressionLine = x.map(xi => regression.slope * xi + regression.intercept)
+    // Calcular regresión lineal solo sobre datos históricos
+    const historicalVentas = historical.map(d => d.ventas)
+    let regressionLine = null
+    if (historicalVentas.length >= 2) {
+      const x = historicalVentas.map((_, i) => i)
+      const y = historicalVentas
+      const regression = calculateLinearRegression(x, y)
+      regressionLine = allData.map((_, i) => {
+        if (i < historical.length) {
+          return regression.slope * i + regression.intercept
+        }
+        // Extender regresión a predicciones
+        return regression.slope * i + regression.intercept
+      })
+    }
 
-    const datasets = [
-      {
-        label: `${chart2Product} - ${region} (Predicción)`,
-        data: ventas,
+    const datasets = []
+    
+    // Datos históricos
+    if (historical.length > 0) {
+      datasets.push({
+        label: `${chart2Product} - ${region} (Histórico)`,
+        data: ventasHistoricas,
         borderColor: 'rgba(54, 162, 235, 1)',
         backgroundColor: 'rgba(54, 162, 235, 0.2)',
         fill: false,
-        tension: 0.1
-      },
-      {
+        tension: 0.1,
+        pointRadius: 3
+      })
+    }
+
+    // Predicciones
+    if (predicted.length > 0) {
+      datasets.push({
+        label: `${chart2Product} - ${region} (Predicción)`,
+        data: ventasPredichas,
+        borderColor: 'rgba(255, 206, 86, 1)',
+        backgroundColor: 'rgba(255, 206, 86, 0.2)',
+        fill: false,
+        tension: 0.1,
+        pointRadius: 3,
+        borderDash: [3, 3]
+      })
+    }
+
+    // Regresión lineal
+    if (regressionLine) {
+      datasets.push({
         label: `${chart2Product} - ${region} (Regresión Lineal)`,
         data: regressionLine,
         borderColor: 'rgba(255, 99, 132, 1)',
@@ -293,8 +381,8 @@ function SalesPrediction({ user }) {
         fill: false,
         tension: 0.1,
         pointRadius: 0
-      }
-    ]
+      })
+    }
 
     return {
       labels,
@@ -455,7 +543,11 @@ function SalesPrediction({ user }) {
               className="form-input"
               style={{ minHeight: '100px' }}
             >
-              {salesData.products?.map((p) => (
+              {availableProducts.length > 0 ? availableProducts.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              )) : salesData.products?.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>
@@ -463,6 +555,7 @@ function SalesPrediction({ user }) {
             </select>
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
               Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos. Muestra evolución temporal de ventas por día en la región: <strong>{region}</strong>
+              {availableProducts.length > 0 && ` (${availableProducts.length} productos disponibles)`}
             </small>
           </div>
           
@@ -513,7 +606,11 @@ function SalesPrediction({ user }) {
               className="form-input"
             >
               <option value="">Seleccionar producto</option>
-              {salesData.products?.map((p) => (
+              {availableProducts.length > 0 ? availableProducts.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              )) : salesData.products?.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>
@@ -521,63 +618,30 @@ function SalesPrediction({ user }) {
             </select>
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
               Región: <strong>{region}</strong> (seleccionada al entrenar el modelo)
+              {availableProducts.length > 0 && ` - ${availableProducts.length} productos disponibles`}
             </small>
           </div>
 
-          <div className="form-row" style={{ marginTop: '15px' }}>
-            <div className="form-field">
-              <label htmlFor="start-date">Fecha de Inicio</label>
-              <input
-                type="date"
-                id="start-date"
-                value={startDate || getTomorrowDate()}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="form-input"
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="days">Días a Predecir</label>
-              <input
-                type="number"
-                id="days"
-                value={days}
-                onChange={(e) => setDays(parseInt(e.target.value) || 30)}
-                className="form-input"
-                min="1"
-                max="365"
-              />
-            </div>
-          </div>
-
-          <div className="form-row" style={{ marginTop: '15px' }}>
-            <div className="form-field">
-              <label htmlFor="start-date">Fecha de Inicio</label>
-              <input
-                type="date"
-                id="start-date"
-                value={startDate || getTomorrowDate()}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="form-input"
-              />
-            </div>
-            <div className="form-field">
-              <label htmlFor="days">Días a Predecir</label>
-              <input
-                type="number"
-                id="days"
-                value={days}
-                onChange={(e) => setDays(parseInt(e.target.value) || 30)}
-                className="form-input"
-                min="1"
-                max="365"
-              />
-            </div>
+          <div className="form-field" style={{ marginTop: '15px' }}>
+            <label htmlFor="days">Días a Predecir</label>
+            <input
+              type="number"
+              id="days"
+              value={days}
+              onChange={(e) => setDays(parseInt(e.target.value) || 30)}
+              className="form-input"
+              min="1"
+              max="365"
+            />
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+              Las predicciones comenzarán desde el día siguiente al último dato histórico disponible
+            </small>
           </div>
 
           <button 
             className="btn" 
             onClick={handlePredict} 
-            disabled={loading || !startDate || !chart2Product}
+            disabled={loading || !chart2Product}
             style={{ marginTop: '15px' }}
           >
             {loading ? 'Prediciendo...' : 'Generar Predicción y Gráfico'}
