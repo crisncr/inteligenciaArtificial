@@ -6,7 +6,37 @@ import pickle
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+
+# Detectar si estamos en producción ANTES de importar TensorFlow
+_is_production_env = os.getenv('RENDER') == 'true' or os.getenv('ENVIRONMENT') == 'production'
+
+# Configurar TensorFlow para usar menos memoria ANTES de importar
+if _is_production_env:
+    # Configurar variables de entorno para TensorFlow antes de importar
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+
 import tensorflow as tf
+
+# Optimización de memoria para TensorFlow (especialmente en producción)
+if _is_production_env:
+    # Configurar TensorFlow para usar menos memoria en producción
+    try:
+        # Limitar el crecimiento de memoria de GPU (si existe)
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        if gpus:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+    except Exception:
+        pass  # No hay GPU o error al configurar
+    
+    # Configurar TensorFlow para usar memoria de manera más eficiente
+    try:
+        # Deshabilitar optimizaciones que consumen mucha memoria
+        tf.config.optimizer.set_jit(False)  # Deshabilitar JIT compilation (ahorra memoria)
+    except Exception:
+        pass  # Fallback si no está disponible
+
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 from tensorflow.keras.preprocessing.text import Tokenizer
@@ -78,6 +108,8 @@ class SentimentNeuralNetwork:
         self.label_encoder = LabelEncoder()
         self.model = None
         self.is_trained = False
+        # Detectar si estamos en producción (Render) para optimizaciones de memoria
+        self.is_production = os.getenv('RENDER') == 'true' or os.getenv('ENVIRONMENT') == 'production'
         
     def clean_text(self, text: str) -> str:
         """
@@ -252,7 +284,7 @@ class SentimentNeuralNetwork:
         if labels:
             # Si hay etiquetas, estamos entrenando, ajustar tokenizer
             self.tokenizer.fit_on_texts(cleaned_texts)
-            if len(self.tokenizer.word_index) > 0:
+            if len(self.tokenizer.word_index) > 0 and not self.is_production:
                 print(f"🔍 [DEBUG] Tokenizer entrenado: vocab_size={len(self.tokenizer.word_index)}")
         elif not hasattr(self.tokenizer, 'word_index') or not self.tokenizer.word_index:
             raise ValueError("El tokenizer no está entrenado. Debe entrenar el modelo primero.")
@@ -261,11 +293,23 @@ class SentimentNeuralNetwork:
         # Ejemplo: "excelente servicio" -> [5, 23] (números, no sentimientos)
         sequences = self.tokenizer.texts_to_sequences(cleaned_texts)
         
+        # Limpiar memoria: liberar cleaned_texts después de tokenizar
+        if self.is_production:
+            del cleaned_texts
+            import gc
+            gc.collect()
+        
         # Asegurar que todas las secuencias tengan al menos un elemento (OOV token)
         sequences = [seq if seq else [1] for seq in sequences]
         
         # Hacer padding (rellenar secuencias para que tengan la misma longitud)
         padded_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post', truncating='post')
+        
+        # Limpiar memoria: liberar sequences después de padding
+        if self.is_production:
+            del sequences
+            import gc
+            gc.collect()
         
         if labels:
             # 3. Label encoder: Convertir etiquetas a números (SOLO para entrenamiento)
@@ -602,19 +646,19 @@ class SentimentNeuralNetwork:
         try:
             # 1. Preparar datos: Convertir texto a números (NO clasifica, solo convierte)
             X = self.prepare_data(texts)
-            # Limpiar memoria inmediatamente después de preparar datos
-            import gc
-            gc.collect()
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
+            # Optimización de memoria en producción: batch size más eficiente
+            batch_size = 8 if not self.is_production else 4
+            
             # 2. 🧠 AQUÍ ES DONDE LA RED NEURONAL CLASIFICA
             # La red neuronal LSTM procesa los números y devuelve probabilidades
             # Ejemplo: [0.1, 0.8, 0.1] = 80% negativo, 10% positivo, 10% neutral
             # NO hay reglas hardcodeadas, TODO es aprendizaje neuronal
-            predictions = self.model.predict(X, batch_size=1, verbose=0)
+            predictions = self.model.predict(X, batch_size=batch_size, verbose=0)
             
             # Validar predicciones
             if predictions is None or len(predictions) == 0:
@@ -627,6 +671,11 @@ class SentimentNeuralNetwork:
             predicted_labels = self.label_encoder.inverse_transform(predicted_classes)
             # Obtener la confianza (probabilidad máxima)
             confidence = np.max(predictions, axis=1)
+            
+            # Limpiar memoria inmediatamente después de obtener predicciones
+            import gc
+            del X  # Liberar memoria de datos de entrada
+            gc.collect()
             
             results = []
             for i, text in enumerate(texts):
@@ -658,7 +707,12 @@ class SentimentNeuralNetwork:
                     'confidence': round(score, 3)
                 })
             
-            print(f"✅ [DEBUG] Predicción completada: {len(results)} resultado(s)")
+            # Limpiar memoria después de procesar resultados
+            del predictions, predicted_classes, predicted_labels, confidence
+            gc.collect()
+            
+            if not self.is_production:
+                print(f"✅ [DEBUG] Predicción completada: {len(results)} resultado(s)")
             return results
             
         except ValueError as e:
@@ -714,23 +768,27 @@ class SentimentNeuralNetwork:
             """Descargar archivo desde URL - Optimizado para memoria"""
             try:
                 import requests
-                print(f"📥 Descargando {os.path.basename(filepath)} desde GitHub Releases...")
+                if not self.is_production:
+                    print(f"📥 Descargando {os.path.basename(filepath)} desde GitHub Releases...")
                 # Timeout más corto y stream para ahorrar memoria
                 response = requests.get(url, timeout=30, stream=True)
                 response.raise_for_status()
                 
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                total_size = int(response.headers.get('content-length', 0))
                 downloaded = 0
                 
-                # Descargar en chunks pequeños para ahorrar memoria
+                # Descargar en chunks pequeños para ahorrar memoria (optimizado para producción)
+                chunk_size = 4096 if self.is_production else 8192  # Chunks más pequeños en producción
                 with open(filepath, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
+                    for chunk in response.iter_content(chunk_size=chunk_size):
                         if chunk:
                             f.write(chunk)
                             downloaded += len(chunk)
                         # Limpiar memoria periódicamente durante la descarga
-                        if downloaded % (1024 * 1024) == 0:  # Cada 1MB
+                        if self.is_production and downloaded % (512 * 1024) == 0:  # Cada 512KB en producción
+                            import gc
+                            gc.collect()
+                        elif not self.is_production and downloaded % (1024 * 1024) == 0:  # Cada 1MB en desarrollo
                             import gc
                             gc.collect()
                 
@@ -739,12 +797,14 @@ class SentimentNeuralNetwork:
                 del response
                 gc.collect()
                 
-                file_size_kb = downloaded / 1024
-                print(f"✅ {os.path.basename(filepath)} descargado correctamente ({file_size_kb:.1f} KB)")
+                if not self.is_production:
+                    file_size_kb = downloaded / 1024
+                    print(f"✅ {os.path.basename(filepath)} descargado correctamente ({file_size_kb:.1f} KB)")
                 return True
             except Exception as e:
                 print(f"⚠️ No se pudo descargar {os.path.basename(filepath)}: {str(e)}")
-                print(f"🔍 URL intentada: {url}")
+                if not self.is_production:
+                    print(f"🔍 URL intentada: {url}")
                 try:
                     if os.path.exists(filepath):
                         os.remove(filepath)
@@ -766,10 +826,12 @@ class SentimentNeuralNetwork:
         
         # Descargar archivos faltantes
         if missing_files:
-            print(f"📥 Descargando {len(missing_files)} archivo(s) del modelo pre-entrenado desde GitHub Releases...")
+            if not self.is_production:
+                print(f"📥 Descargando {len(missing_files)} archivo(s) del modelo pre-entrenado desde GitHub Releases...")
             downloaded_count = 0
             for name, url, filepath in missing_files:
-                print(f"📥 Descargando {name}...")
+                if not self.is_production:
+                    print(f"📥 Descargando {name}...")
                 if download_file(url, filepath):
                     downloaded_count += 1
                 else:
@@ -795,36 +857,49 @@ class SentimentNeuralNetwork:
                     f"entrena el modelo localmente y súbelo a GitHub Releases."
                 )
             else:
-                print("✅ Todos los archivos del modelo se descargaron correctamente desde GitHub Releases")
-                print("✅ El modelo NO se entrenará, se usará el modelo pre-entrenado")
+                if not self.is_production:
+                    print("✅ Todos los archivos del modelo se descargaron correctamente desde GitHub Releases")
+                    print("✅ El modelo NO se entrenará, se usará el modelo pre-entrenado")
         
         # Intentar cargar modelo existente (local o descargado)
         if os.path.exists(model_path) and os.path.exists(tokenizer_path) and os.path.exists(label_encoder_path):
             try:
-                # Cargar modelo en formato .keras (compatible con Keras 3.x)
-                try:
-                    # Intentar cargar directamente (formato .keras es más compatible)
-                    self.model = load_model(model_path)
-                except Exception as load_error:
-                    # Si falla, intentar cargar sin compilación
-                    self.model = load_model(model_path, compile=False)
-                    # Recompilar el modelo
-                    from tensorflow.keras.optimizers import Adam
-                    self.model.compile(
-                        optimizer=Adam(learning_rate=0.001),
-                        loss='sparse_categorical_crossentropy',
-                        metrics=['accuracy']
-                    )
+                # Optimización de memoria: En producción, cargar sin compilación inicial
+                # La compilación se hace solo cuando se necesita (en predict)
+                if self.is_production:
+                    # En producción: cargar sin compilación para ahorrar memoria
+                    # TensorFlow compilará automáticamente cuando sea necesario
+                    try:
+                        self.model = load_model(model_path, compile=False)
+                    except Exception:
+                        # Si falla, intentar con compilación
+                        self.model = load_model(model_path)
+                else:
+                    # En desarrollo: cargar normalmente
+                    try:
+                        self.model = load_model(model_path)
+                    except Exception as load_error:
+                        # Si falla, intentar cargar sin compilación y recompilar
+                        self.model = load_model(model_path, compile=False)
+                        from tensorflow.keras.optimizers import Adam
+                        self.model.compile(
+                            optimizer=Adam(learning_rate=0.001),
+                            loss='sparse_categorical_crossentropy',
+                            metrics=['accuracy']
+                        )
                 
                 # Cargar tokenizer y label encoder (optimizado para memoria)
                 with open(tokenizer_path, 'rb') as f:
                     self.tokenizer = pickle.load(f)
                 
+                # Limpiar memoria inmediatamente después de cargar tokenizer
+                import gc
+                gc.collect()
+                
                 with open(label_encoder_path, 'rb') as f:
                     self.label_encoder = pickle.load(f)
                 
-                # Limpiar memoria después de cargar
-                import gc
+                # Limpiar memoria después de cargar todo
                 gc.collect()
                 
                 # Verificar que el modelo está correctamente cargado
@@ -835,8 +910,23 @@ class SentimentNeuralNetwork:
                 if not hasattr(self.label_encoder, 'classes_') or len(self.label_encoder.classes_) == 0:
                     raise ValueError("El label encoder no se cargó correctamente")
                 
+                # En producción: compilar el modelo solo si no está compilado
+                # Esto ahorra memoria durante la carga inicial
+                if self.is_production and not self.model.compiled:
+                    from tensorflow.keras.optimizers import Adam
+                    self.model.compile(
+                        optimizer=Adam(learning_rate=0.001),
+                        loss='sparse_categorical_crossentropy',
+                        metrics=['accuracy']
+                    )
+                    # Limpiar memoria después de compilar
+                    gc.collect()
+                
                 # Marcar modelo como entrenado (sin validación con predicción para mejor rendimiento)
                 self.is_trained = True
+                
+                # Limpiar memoria final
+                gc.collect()
                 
                 return
             except Exception as e:
