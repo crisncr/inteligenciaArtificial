@@ -576,12 +576,28 @@ class SentimentNeuralNetwork:
             y = y[indices]
             print(f"✅ [DEBUG] Datos mezclados: {len(X)} muestras")
         
-        # SIEMPRE entrenar sin validación para máxima velocidad y menor uso de memoria
-        # Con pocos datos, la validación no es necesaria y solo ralentiza
-        X_train, y_train = X, y
-        X_val, y_val = X, y
-        use_validation = False
-        print(f"🔍 [DEBUG] Entrenando SIN validación para máxima velocidad y menor memoria")
+        # Dividir datos en entrenamiento (80%) y validación (20%)
+        # Esto mejora la generalización y detecta overfitting
+        print(f"🔍 [DEBUG] Dividiendo datos en 80% entrenamiento / 20% validación...")
+        try:
+            # Intentar con stratify para mantener proporción de clases
+            X_train, X_val, y_train, y_val = train_test_split(
+                X, y, 
+                test_size=0.2, 
+                random_state=42,
+                stratify=y  # Mantener proporción de clases en ambos conjuntos
+            )
+        except ValueError as e:
+            # Si stratify falla (pocos datos o clases desbalanceadas), dividir sin stratify
+            print(f"⚠️ [DEBUG] No se pudo usar stratify: {str(e)}")
+            print(f"⚠️ [DEBUG] Dividiendo sin stratify (puede haber desbalance en validación)...")
+            X_train, X_val, y_train, y_val = train_test_split(
+                X, y, 
+                test_size=0.2, 
+                random_state=42
+            )
+        use_validation = True
+        print(f"✅ [DEBUG] Datos divididos: {len(X_train)} entrenamiento ({len(X_train)/len(X)*100:.1f}%), {len(X_val)} validación ({len(X_val)/len(X)*100:.1f}%)")
         
         vocab_size = len(self.tokenizer.word_index)
         num_classes = len(self.label_encoder.classes_)
@@ -637,9 +653,14 @@ class SentimentNeuralNetwork:
         # El modelo se construirá automáticamente en el primer fit()
         print("🔍 [DEBUG] El modelo se construirá automáticamente en el primer fit()")
         
-        # Entrenamiento SIMPLIFICADO - sin validación, sin callbacks, máximo velocidad
-        print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
-        print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+        # Entrenamiento con validación para mejor generalización
+        if use_validation:
+            print("🔍 [DEBUG] Llamando a model.fit() CON validación (80/20)...")
+            print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+            print(f"🔍 [DEBUG] X_val shape: {X_val.shape}, y_val shape: {y_val.shape}")
+        else:
+            print("🔍 [DEBUG] Llamando a model.fit() sin validación...")
+            print(f"🔍 [DEBUG] X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
         print(f"🔍 [DEBUG] Parámetros: epochs={actual_epochs}, batch_size={actual_batch_size}, samples={len(X_train)}")
         
         # Flush stdout para asegurar que los logs se muestren
@@ -654,7 +675,15 @@ class SentimentNeuralNetwork:
         try:
             # Entrenamiento con verbose para ver accuracy
             fit_kwargs['verbose'] = 1  # Mostrar progress para ver si está aprendiendo
-            history = self.model.fit(X_train, y_train, **fit_kwargs)
+            if use_validation:
+                # Agregar validación al entrenamiento
+                history = self.model.fit(
+                    X_train, y_train,
+                    validation_data=(X_val, y_val),
+                    **fit_kwargs
+                )
+            else:
+                history = self.model.fit(X_train, y_train, **fit_kwargs)
             fit_time = time.time() - fit_start
             print(f"✅ [DEBUG] model.fit() completado en {fit_time:.2f}s")
             
@@ -665,6 +694,22 @@ class SentimentNeuralNetwork:
                 print(f"📊 [DEBUG] Accuracy final del entrenamiento: {final_accuracy:.4f}")
                 if final_loss:
                     print(f"📊 [DEBUG] Loss final del entrenamiento: {final_loss:.4f}")
+                
+                # Si hay validación, mostrar métricas de validación
+                if use_validation and 'val_accuracy' in history.history:
+                    val_accuracy = history.history['val_accuracy'][-1]
+                    val_loss = history.history['val_loss'][-1] if 'val_loss' in history.history else None
+                    print(f"📊 [DEBUG] Accuracy final de validación: {val_accuracy:.4f}")
+                    if val_loss:
+                        print(f"📊 [DEBUG] Loss final de validación: {val_loss:.4f}")
+                    
+                    # Detectar overfitting (diferencia grande entre train y val)
+                    accuracy_diff = abs(final_accuracy - val_accuracy)
+                    if accuracy_diff > 0.15:
+                        print(f"⚠️ [DEBUG] ADVERTENCIA: Posible overfitting - Diferencia train/val: {accuracy_diff:.4f}")
+                    else:
+                        print(f"✅ [DEBUG] Modelo generaliza bien - Diferencia train/val: {accuracy_diff:.4f}")
+                
                 if final_accuracy < 0.6:
                     print(f"⚠️ [DEBUG] ADVERTENCIA: Accuracy baja ({final_accuracy:.4f}), el modelo podría no estar aprendiendo bien")
                 elif final_accuracy < 0.8:
@@ -811,6 +856,8 @@ class SentimentNeuralNetwork:
             gc.collect()
             print(f"✅ [PREDICT] Memoria limpiada")
             
+            # Inicializar results_start ANTES de generar resultados
+            results_start = time.time()
             print(f"🔄 [PREDICT] Generando resultados finales...")
             results = []
             for i, original_text in enumerate(original_texts):
