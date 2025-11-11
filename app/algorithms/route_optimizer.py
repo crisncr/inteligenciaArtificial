@@ -13,10 +13,20 @@ class Point:
         return math.sqrt((self.lat - other.lat)**2 + (self.lng - other.lng)**2)
 
 class RouteOptimizer:
-    def __init__(self, points: List[Dict]):
-        """Inicializar optimizador con puntos"""
+    def __init__(self, points: List[Dict], distances: Optional[Dict[Tuple[int, int], float]] = None):
+        """Inicializar optimizador con puntos y distancias opcionales"""
         self.points = [Point(p['name'], p['lat'], p['lng']) for p in points]
-        self.distances = self._calculate_distances()
+        
+        # Si se proporcionan distancias pre-calculadas (de Distance Matrix), usarlas
+        if distances:
+            # Convertir distancias de Distance Matrix a formato simple (solo distancia en km)
+            self.distances = {
+                (i, j): dist_data.get('distance_km', dist_data.get('distance', 0))
+                if isinstance(dist_data, dict) else dist_data
+                for (i, j), dist_data in distances.items()
+            }
+        else:
+            self.distances = self._calculate_distances()
     
     def _calculate_distances(self) -> Dict[Tuple[int, int], float]:
         """Calcular distancias entre todos los puntos"""

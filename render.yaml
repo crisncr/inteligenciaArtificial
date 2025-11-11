@@ -67,5 +67,5 @@ services:
         optional: true
       - key: GOOGLE_MAPS_API_KEY
         sync: false
-        description: "API key de Google Maps (requiere habilitar Geocoding API y Places API)"
+        description: "API key de Google Maps (requiere habilitar: Geocoding API, Places API, Distance Matrix API, Directions API y Roads API)"
 

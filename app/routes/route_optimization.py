@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from pydantic import BaseModel
 import httpx
 import re
 import os
+import math
 from datetime import datetime
 from app.database import get_db
 from app.auth import get_current_user
@@ -49,14 +50,97 @@ NOMINATIM_GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 
-# Constante de OSRM (OpenStreetMap Routing Machine) - Rutas reales por calles
-# Formato: https://router.project-osrm.org/route/v1/{profile}/{coordinates}
-# coordinates: lng1,lat1;lng2,lat2
-OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving"
-OSRM_NEAREST_URL = "https://router.project-osrm.org/nearest/v1/driving"  # Para snap a calle
+# Constantes de Google Maps API
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+GOOGLE_PLACES_AUTOCOMPLETE_URL = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+GOOGLE_PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
+GOOGLE_DISTANCE_MATRIX_URL = "https://maps.googleapis.com/maps/api/distancematrix/json"
+GOOGLE_DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+GOOGLE_ROADS_SNAP_URL = "https://roads.googleapis.com/v1/snapToRoads"
+
+async def geocode_address_google(address: str) -> Dict:
+    """Geocodificar dirección usando Google Maps API"""
+    if not GOOGLE_MAPS_API_KEY:
+        raise ValueError("Google Maps API key no configurada")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                GOOGLE_GEOCODE_URL,
+                params={
+                    "address": address,
+                    "key": GOOGLE_MAPS_API_KEY,
+                    "language": "es",
+                    "region": "cl"  # Priorizar Chile
+                },
+                timeout=15.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get("status") == "OK" and len(data.get("results", [])) > 0:
+                    result = data["results"][0]
+                    location = result["geometry"]["location"]
+                    lat = location["lat"]
+                    lng = location["lng"]
+                    formatted_address = result.get("formatted_address", address)
+                    
+                    # Extraer componentes de la dirección
+                    address_components = result.get("address_components", [])
+                    address_line1 = ""
+                    address_line2 = ""
+                    city = ""
+                    country = ""
+                    
+                    for component in address_components:
+                        types = component.get("types", [])
+                        if "street_number" in types or "route" in types:
+                            if address_line1:
+                                address_line1 += " " + component["long_name"]
+                            else:
+                                address_line1 = component["long_name"]
+                        elif "locality" in types or "administrative_area_level_1" in types:
+                            city = component["long_name"]
+                        elif "country" in types:
+                            country = component["long_name"]
+                        elif "sublocality" in types or "postal_code" in types:
+                            if address_line2:
+                                address_line2 += ", " + component["long_name"]
+                            else:
+                                address_line2 = component["long_name"]
+                    
+                    return {
+                        "lat": lat,
+                        "lng": lng,
+                        "display_name": formatted_address,
+                        "address_line1": address_line1 or formatted_address.split(",")[0] if formatted_address else "",
+                        "address_line2": address_line2,
+                        "city": city,
+                        "country": country
+                    }
+                else:
+                    raise ValueError(f"Google Maps API no encontró resultados: {data.get('status', 'UNKNOWN_ERROR')}")
+            else:
+                raise ValueError(f"Error HTTP {response.status_code} al geocodificar con Google Maps")
+                
+    except Exception as e:
+        print(f"Error al geocodificar con Google Maps: {str(e)}")
+        raise
 
 async def geocode_address(address: str) -> Dict:
-    """Geocodificar dirección usando Nominatim (OpenStreetMap) - Normaliza número adelante/atrás"""
+    """Geocodificar dirección - Usa Google Maps si está disponible, sino Nominatim"""
+    # Intentar primero con Google Maps si la API key está configurada
+    if GOOGLE_MAPS_API_KEY:
+        try:
+            print(f"Geocodificando con Google Maps: {address}")
+            return await geocode_address_google(address)
+        except Exception as e:
+            print(f"Google Maps falló, usando Nominatim como fallback: {str(e)}")
+            # Continuar con Nominatim como fallback
+    
+    # Usar Nominatim (OpenStreetMap) - Normaliza número adelante/atrás
     try:
         # Normalizar dirección base
         normalized_address = normalize_address(address)
@@ -155,8 +239,119 @@ async def geocode_address(address: str) -> Dict:
         traceback.print_exc()
         raise ValueError(error_msg)
 
+async def autocomplete_address_google(query: str) -> List[Dict]:
+    """Autocompletar dirección usando Google Places API"""
+    if not GOOGLE_MAPS_API_KEY:
+        raise ValueError("Google Maps API key no configurada")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Primero obtener predicciones de autocompletado
+            response = await client.get(
+                GOOGLE_PLACES_AUTOCOMPLETE_URL,
+                params={
+                    "input": query,
+                    "key": GOOGLE_MAPS_API_KEY,
+                    "language": "es",
+                    "components": "country:cl",  # Priorizar Chile
+                    "types": "address"  # Solo direcciones
+                },
+                timeout=8.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get("status") == "OK" and len(data.get("predictions", [])) > 0:
+                    predictions = data["predictions"][:8]  # Limitar a 8 resultados
+                    results = []
+                    
+                    # Para cada predicción, obtener detalles completos
+                    for prediction in predictions:
+                        place_id = prediction.get("place_id")
+                        description = prediction.get("description", "")
+                        
+                        # Obtener detalles del lugar para coordenadas
+                        details_response = await client.get(
+                            GOOGLE_PLACES_DETAILS_URL,
+                            params={
+                                "place_id": place_id,
+                                "key": GOOGLE_MAPS_API_KEY,
+                                "language": "es",
+                                "fields": "geometry,formatted_address,address_components"
+                            },
+                            timeout=8.0
+                        )
+                        
+                        if details_response.status_code == 200:
+                            details_data = details_response.json()
+                            if details_data.get("status") == "OK":
+                                place_details = details_data.get("result", {})
+                                location = place_details.get("geometry", {}).get("location", {})
+                                lat = location.get("lat", 0)
+                                lng = location.get("lng", 0)
+                                formatted_address = place_details.get("formatted_address", description)
+                                
+                                # Extraer componentes
+                                address_components = place_details.get("address_components", [])
+                                address_line1 = ""
+                                address_line2 = ""
+                                city = ""
+                                country = ""
+                                
+                                for component in address_components:
+                                    types = component.get("types", [])
+                                    if "street_number" in types or "route" in types:
+                                        if address_line1:
+                                            address_line1 += " " + component["long_name"]
+                                        else:
+                                            address_line1 = component["long_name"]
+                                    elif "locality" in types or "administrative_area_level_1" in types:
+                                        city = component["long_name"]
+                                    elif "country" in types:
+                                        country = component["long_name"]
+                                    elif "sublocality" in types or "postal_code" in types:
+                                        if address_line2:
+                                            address_line2 += ", " + component["long_name"]
+                                        else:
+                                            address_line2 = component["long_name"]
+                                
+                                results.append({
+                                    "text": description,
+                                    "display_name": formatted_address,
+                                    "address_line1": address_line1 or formatted_address.split(",")[0] if formatted_address else "",
+                                    "address_line2": address_line2,
+                                    "city": city,
+                                    "country": country,
+                                    "lat": lat,
+                                    "lng": lng,
+                                    "importance": 1.0  # Google no proporciona importancia, usar valor por defecto
+                                })
+                    
+                    return results
+                else:
+                    return []
+            else:
+                return []
+                
+    except Exception as e:
+        print(f"Error al autocompletar con Google Maps: {str(e)}")
+        return []
+
 async def autocomplete_address(query: str) -> List[Dict]:
-    """Autocompletar dirección usando Nominatim Search (OpenStreetMap) - Actualizado 2025"""
+    """Autocompletar dirección - Usa Google Maps si está disponible, sino Nominatim"""
+    # Intentar primero con Google Maps si la API key está configurada
+    if GOOGLE_MAPS_API_KEY:
+        try:
+            print(f"Autocompletando con Google Maps: {query}")
+            results = await autocomplete_address_google(query)
+            if results:
+                return results
+        except Exception as e:
+            print(f"Google Maps falló, usando Nominatim como fallback: {str(e)}")
+            # Continuar con Nominatim como fallback
+    
+    # Usar Nominatim Search (OpenStreetMap) - Actualizado 2025
     try:
         if not query or len(query) < 2:  # Reducir a 2 caracteres para más respuestas
             return []
@@ -255,19 +450,151 @@ async def autocomplete_address(query: str) -> List[Dict]:
         traceback.print_exc()
         return []
 
-async def snap_to_road(lat: float, lng: float) -> tuple[float, float]:
-    """Ajustar coordenadas al punto más cercano en una calle usando OSRM Nearest"""
+async def get_distance_matrix_google(points: List[Dict]) -> Dict[Tuple[int, int], Dict]:
+    """Obtener matriz de distancias usando Google Distance Matrix API"""
+    if not GOOGLE_MAPS_API_KEY:
+        return {}
+    
+    if len(points) < 2:
+        return {}
+    
     try:
-        print(f"🔧 Snap to road: ajustando ({lat}, {lng}) a la calle más cercana")
+        max_points = 25  # Límite de Google
+        all_distances = {}
+        
+        origins = [f"{p['lat']},{p['lng']}" for p in points]
+        destinations = origins.copy()
         
         async with httpx.AsyncClient() as client:
-            # OSRM Nearest usa formato: lng,lat (longitud primero)
-            url = f"{OSRM_NEAREST_URL}/{lng},{lat}"
-            
+            for i in range(0, len(points), max_points):
+                end_i = min(i + max_points, len(points))
+                origins_chunk = origins[i:end_i]
+                
+                for j in range(0, len(points), max_points):
+                    end_j = min(j + max_points, len(points))
+                    destinations_chunk = destinations[j:end_j]
+                    
+                    print(f"🔄 Distance Matrix: calculando {len(origins_chunk)}x{len(destinations_chunk)} distancias")
+                    
+                    response = await client.get(
+                        GOOGLE_DISTANCE_MATRIX_URL,
+                        params={
+                            "origins": "|".join(origins_chunk),
+                            "destinations": "|".join(destinations_chunk),
+                            "key": GOOGLE_MAPS_API_KEY,
+                            "mode": "driving",
+                            "language": "es",
+                            "units": "metric"
+                        },
+                        timeout=30.0
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if data.get("status") == "OK":
+                            rows = data.get("rows", [])
+                            
+                            for row_idx, row in enumerate(rows):
+                                origin_idx = i + row_idx
+                                elements = row.get("elements", [])
+                                
+                                for col_idx, element in enumerate(elements):
+                                    dest_idx = j + col_idx
+                                    
+                                    if origin_idx != dest_idx:
+                                        status = element.get("status")
+                                        
+                                        if status == "OK":
+                                            distance_meters = element.get("distance", {}).get("value", 0)
+                                            duration_seconds = element.get("duration", {}).get("value", 0)
+                                            distance_km = distance_meters / 1000
+                                            
+                                            all_distances[(origin_idx, dest_idx)] = {
+                                                "distance_meters": distance_meters,
+                                                "distance_km": distance_km,
+                                                "duration_seconds": duration_seconds,
+                                                "duration_minutes": duration_seconds / 60
+                                            }
+                                        else:
+                                            # Fallback a euclidiana si hay error
+                                            print(f"⚠️ Distance Matrix error ({origin_idx}, {dest_idx}): {status}")
+                                            p1 = points[origin_idx]
+                                            p2 = points[dest_idx]
+                                            euclidean_km = math.sqrt(
+                                                (p1['lat'] - p2['lat'])**2 + (p1['lng'] - p2['lng'])**2
+                                            ) * 111
+                                            all_distances[(origin_idx, dest_idx)] = {
+                                                "distance_meters": euclidean_km * 1000,
+                                                "distance_km": euclidean_km,
+                                                "duration_seconds": euclidean_km * 60,
+                                                "duration_minutes": euclidean_km
+                                            }
+        
+        print(f"✅ Distance Matrix: {len(all_distances)} distancias calculadas")
+        return all_distances
+        
+    except Exception as e:
+        print(f"❌ Error en Distance Matrix API: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+def decode_polyline(encoded: str) -> List[List[float]]:
+    """Decodificar polyline de Google Maps a lista de coordenadas [lat, lng]"""
+    coordinates = []
+    index = 0
+    lat = 0
+    lng = 0
+    
+    while index < len(encoded):
+        shift = 0
+        result = 0
+        
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        
+        dlat = ~(result >> 1) if (result & 1) != 0 else (result >> 1)
+        lat += dlat
+        
+        shift = 0
+        result = 0
+        
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        
+        dlng = ~(result >> 1) if (result & 1) != 0 else (result >> 1)
+        lng += dlng
+        
+        coordinates.append([lat / 1e5, lng / 1e5])
+    
+    return coordinates
+
+async def snap_to_road_google(lat: float, lng: float) -> tuple[float, float]:
+    """Ajustar coordenadas al punto más cercano en una calle usando Google Roads API"""
+    if not GOOGLE_MAPS_API_KEY:
+        return lat, lng
+    
+    try:
+        print(f"🔧 Google Roads: ajustando ({lat}, {lng}) a la calle más cercana")
+        
+        async with httpx.AsyncClient() as client:
             response = await client.get(
-                url,
+                GOOGLE_ROADS_SNAP_URL,
                 params={
-                    "number": 1,  # Solo necesitamos el punto más cercano
+                    "path": f"{lat},{lng}",
+                    "key": GOOGLE_MAPS_API_KEY,
+                    "interpolate": "true"
                 },
                 timeout=10.0
             )
@@ -275,78 +602,81 @@ async def snap_to_road(lat: float, lng: float) -> tuple[float, float]:
             if response.status_code == 200:
                 data = response.json()
                 
-                if data.get("code") == "Ok" and data.get("waypoints") and len(data["waypoints"]) > 0:
-                    waypoint = data["waypoints"][0]
-                    snapped_lat = waypoint["location"][1]  # OSRM devuelve [lng, lat]
-                    snapped_lng = waypoint["location"][0]
+                if data.get("snappedPoints") and len(data["snappedPoints"]) > 0:
+                    snapped_point = data["snappedPoints"][0]
+                    location = snapped_point.get("location", {})
+                    snapped_lat = location.get("latitude", lat)
+                    snapped_lng = location.get("longitude", lng)
                     
-                    distance = waypoint.get("distance", 0)
-                    print(f"✅ Snap to road exitoso: ({lat}, {lng}) -> ({snapped_lat}, {snapped_lng}), distancia: {distance:.2f}m")
+                    print(f"✅ Google Roads snap exitoso: ({lat}, {lng}) -> ({snapped_lat}, {snapped_lng})")
                     
                     return snapped_lat, snapped_lng
                 else:
-                    print(f"⚠️ Snap to road: no se encontró punto cercano, usando coordenadas originales")
+                    print(f"⚠️ Google Roads: no se encontró punto cercano, usando coordenadas originales")
                     return lat, lng
             else:
-                print(f"⚠️ Snap to road: error HTTP {response.status_code}, usando coordenadas originales")
+                print(f"⚠️ Google Roads: error HTTP {response.status_code}, usando coordenadas originales")
                 return lat, lng
                 
     except Exception as e:
-        print(f"⚠️ Error en snap to road: {str(e)}, usando coordenadas originales")
+        print(f"⚠️ Error en Google Roads snap: {str(e)}, usando coordenadas originales")
         return lat, lng
 
-async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, alternatives: int = 2, snap_destination: bool = True) -> List[Dict]:
-    """Obtener rutas reales por calles usando OSRM (OpenStreetMap Routing Machine)"""
+# Alias para compatibilidad
+async def snap_to_road(lat: float, lng: float) -> tuple[float, float]:
+    """Alias para snap_to_road_google"""
+    return await snap_to_road_google(lat, lng)
+
+async def get_google_directions(lat1: float, lng1: float, lat2: float, lng2: float, alternatives: int = 2) -> List[Dict]:
+    """Obtener rutas reales por calles usando Google Directions API"""
+    if not GOOGLE_MAPS_API_KEY:
+        return []
+    
     try:
-        print(f"🔵 OSRM: Obteniendo rutas desde ({lat1}, {lng1}) hasta ({lat2}, {lng2})")
-        
-        # Ajustar el punto de destino a la calle más cercana para evitar que termine dentro de edificios
-        if snap_destination:
-            lat2, lng2 = await snap_to_road(lat2, lng2)
-            print(f"🔵 OSRM: Punto de destino ajustado a calle: ({lat2}, {lng2})")
+        print(f"🗺️ Google Directions: Obteniendo rutas desde ({lat1}, {lng1}) hasta ({lat2}, {lng2})")
         
         async with httpx.AsyncClient() as client:
-            # OSRM usa formato: lng,lat (longitud primero) y las coordenadas van en la URL
-            coordinates = f"{lng1},{lat1};{lng2},{lat2}"
-            # URL correcta: https://router.project-osrm.org/route/v1/driving/{coordinates}?alternatives=2&steps=true&geometries=geojson&overview=full
-            url = f"{OSRM_ROUTE_URL}/{coordinates}"
-            
-            print(f"🔵 OSRM URL completa: {url}")
-            print(f"🔵 Parámetros: alternatives={alternatives}, steps=true, geometries=geojson, overview=full")
+            origin = f"{lat1},{lng1}"
+            destination = f"{lat2},{lng2}"
             
             response = await client.get(
-                url,
+                GOOGLE_DIRECTIONS_URL,
                 params={
-                    "alternatives": alternatives,  # Obtener rutas alternativas
-                    "steps": "true",  # Incluir pasos detallados
-                    "geometries": "geojson",  # Formato GeoJSON
-                    "overview": "full",  # Vista completa de la ruta
-                    "annotations": "true"  # Incluir distancia y tiempo
+                    "origin": origin,
+                    "destination": destination,
+                    "key": GOOGLE_MAPS_API_KEY,
+                    "alternatives": "true" if alternatives > 0 else "false",
+                    "mode": "driving",
+                    "language": "es",
+                    "units": "metric",
+                    "region": "cl"
                 },
                 timeout=20.0
             )
             
-            print(f"🔵 OSRM Response Status: {response.status_code}")
+            print(f"🗺️ Google Directions Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"🔵 OSRM Response Data: {data.get('code', 'No code')}, Routes: {len(data.get('routes', []))}")
                 
-                if data.get("code") == "Ok" and data.get("routes"):
+                if data.get("status") == "OK" and data.get("routes"):
                     routes = []
-                    for idx, route in enumerate(data["routes"]):
-                        distance_meters = route.get("distance", 0)
-                        duration_seconds = route.get("duration", 0)
+                    for idx, route in enumerate(data["routes"][:3]):  # Máximo 3 rutas
+                        leg = route["legs"][0]  # Primera pierna (solo hay una para origen-destino)
+                        
+                        distance_meters = leg.get("distance", {}).get("value", 0)
+                        duration_seconds = leg.get("duration", {}).get("value", 0)
                         distance_km = distance_meters / 1000
                         duration_minutes = duration_seconds / 60
                         
-                        geometry = route.get("geometry", {})
-                        coordinates_list = geometry.get("coordinates", [])
+                        # Extraer coordenadas del polyline
+                        overview_polyline = route.get("overview_polyline", {})
+                        encoded_polyline = overview_polyline.get("points", "")
                         
-                        print(f"🔵 Ruta {idx + 1}: {len(coordinates_list)} coordenadas, {distance_km:.2f} km, {duration_minutes:.2f} min")
+                        # Decodificar polyline a coordenadas
+                        coordinates_list = decode_polyline(encoded_polyline)
                         
-                        # Convertir coordenadas de [lng, lat] a [lat, lng] para Leaflet
-                        route_coordinates = [[coord[1], coord[0]] for coord in coordinates_list]
+                        print(f"🗺️ Ruta {idx + 1}: {len(coordinates_list)} coordenadas, {distance_km:.2f} km, {duration_minutes:.2f} min")
                         
                         routes.append({
                             "route_number": idx + 1,
@@ -354,36 +684,40 @@ async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, al
                             "duration_minutes": round(duration_minutes, 2),
                             "distance_meters": round(distance_meters, 2),
                             "duration_seconds": round(duration_seconds, 2),
-                            "coordinates": route_coordinates,
+                            "coordinates": coordinates_list,  # Ya viene en formato [lat, lng]
                             "description": f"Ruta {idx + 1}: {round(distance_km, 2)} km, {round(duration_minutes, 2)} min"
                         })
                     
                     # Ordenar por distancia (las más cortas primero)
                     routes.sort(key=lambda x: x["distance_km"])
                     
-                    # Limitar a las 3 mejores
-                    routes = routes[:3]
-                    
                     # Renumerar rutas
                     for idx, route in enumerate(routes):
                         route["route_number"] = idx + 1
                     
-                    print(f"✅ OSRM: Se obtuvieron {len(routes)} rutas")
+                    print(f"✅ Google Directions: Se obtuvieron {len(routes)} rutas")
                     return routes
                 else:
-                    error_msg = data.get('message', 'Unknown error')
-                    print(f"❌ OSRM: Error en respuesta - Code: {data.get('code', 'Unknown')}, Message: {error_msg}")
+                    error_msg = data.get('error_message', data.get('status', 'Unknown error'))
+                    print(f"❌ Google Directions: Error - Status: {data.get('status', 'Unknown')}, Message: {error_msg}")
                     return []
             else:
                 error_text = response.text[:200] if hasattr(response, 'text') else 'No error text'
-                print(f"❌ OSRM: Error HTTP {response.status_code}: {error_text}")
+                print(f"❌ Google Directions: Error HTTP {response.status_code}: {error_text}")
                 return []
                 
     except Exception as e:
-        print(f"❌ Error al obtener rutas de OSRM: {str(e)}")
+        print(f"❌ Error al obtener rutas de Google Directions: {str(e)}")
         import traceback
         traceback.print_exc()
         return []
+
+# Alias para compatibilidad
+async def get_osrm_routes(lat1: float, lng1: float, lat2: float, lng2: float, alternatives: int = 2, snap_destination: bool = True) -> List[Dict]:
+    """Alias para get_google_directions (compatibilidad con código existente)"""
+    if snap_destination:
+        lat2, lng2 = await snap_to_road(lat2, lng2)
+    return await get_google_directions(lat1, lng1, lat2, lng2, alternatives)
 
 def normalize_plan(plan: str) -> str:
     """Normalizar plan a minúsculas sin espacios"""
@@ -497,7 +831,7 @@ async def optimize_route(
                     detail=f"Punto '{point.name}' debe tener dirección o coordenadas (lat, lng)"
                 )
         
-        # Si hay exactamente 2 puntos, usar OSRM para rutas reales por calles
+        # Si hay exactamente 2 puntos, usar Google Directions API
         if len(points_with_coords) == 2:
             start_point = points_with_coords[0]
             end_point = points_with_coords[1]
@@ -506,26 +840,21 @@ async def optimize_route(
             original_end_lat = end_point["lat"]
             original_end_lng = end_point["lng"]
             
-            # Ajustar el punto de destino a la calle más cercana (snap to road)
-            # Esto evita que la ruta termine dentro de edificios
+            # Ajustar el punto de destino a la calle más cercana
             snapped_end_lat, snapped_end_lng = await snap_to_road(original_end_lat, original_end_lng)
             
-            # Obtener las 3 mejores rutas usando OSRM (rutas reales por calles)
-            # snap_destination=False porque ya lo hicimos manualmente arriba
-            osrm_routes = await get_osrm_routes(
+            # Obtener rutas usando Google Directions API
+            google_routes = await get_google_directions(
                 start_point["lat"], 
                 start_point["lng"],
                 snapped_end_lat, 
                 snapped_end_lng,
-                alternatives=2,  # Obtener 2 alternativas + la principal = 3 rutas
-                snap_destination=False  # Ya lo hicimos manualmente
+                alternatives=2
             )
             
-            if osrm_routes and len(osrm_routes) > 0:
-                # Construir respuesta con las 3 mejores rutas
-                # Usar las coordenadas ajustadas para el punto de destino
+            if google_routes and len(google_routes) > 0:
                 result = {
-                    "routes": osrm_routes,
+                    "routes": google_routes,
                     "points_info": [
                         {
                             "name": start_point["name"],
@@ -538,23 +867,32 @@ async def optimize_route(
                             "name": end_point["name"],
                             "address": end_point.get("address"),
                             "display_name": end_point.get("display_name"),
-                            "lat": snapped_end_lat,  # Usar coordenadas ajustadas a la calle
-                            "lng": snapped_end_lng,  # Usar coordenadas ajustadas a la calle
-                            "original_lat": original_end_lat,  # Guardar coordenadas originales por referencia
+                            "lat": snapped_end_lat,
+                            "lng": snapped_end_lng,
+                            "original_lat": original_end_lat,
                             "original_lng": original_end_lng
                         }
                     ],
-                    "algorithm": "OSRM (Rutas reales por calles)",
+                    "algorithm": "Google Directions API",
                     "is_direct_route": True,
-                    "has_osrm_routes": True
+                    "has_osrm_routes": True  # Mantener para compatibilidad
                 }
                 
                 return result
             else:
-                # Si OSRM falla, usar algoritmo tradicional como fallback
-                print("OSRM no devolvió rutas, usando algoritmo tradicional como fallback")
+                # Si Google Directions falla, usar algoritmo tradicional como fallback
+                print("Google Directions no devolvió rutas, usando algoritmo tradicional como fallback")
                 points_for_optimizer = [{"name": p["name"], "lat": p["lat"], "lng": p["lng"]} for p in points_with_coords]
-                optimizer = RouteOptimizer(points_for_optimizer)
+                
+                # Intentar usar Distance Matrix si está disponible
+                distance_matrix = None
+                if GOOGLE_MAPS_API_KEY:
+                    try:
+                        distance_matrix = await get_distance_matrix_google(points_for_optimizer)
+                    except Exception as e:
+                        print(f"⚠️ Error al obtener Distance Matrix: {str(e)}")
+                
+                optimizer = RouteOptimizer(points_for_optimizer, distance_matrix)
                 result = optimizer.astar(0)
                 result["points_info"] = [
                     {
@@ -568,9 +906,23 @@ async def optimize_route(
                 ]
                 result["has_osrm_routes"] = False
         else:
-            # Para múltiples puntos, usar algoritmo tradicional (TSP)
+            # Para múltiples puntos, usar algoritmo tradicional (TSP) con Distance Matrix
             points_for_optimizer = [{"name": p["name"], "lat": p["lat"], "lng": p["lng"]} for p in points_with_coords]
-            optimizer = RouteOptimizer(points_for_optimizer)
+            
+            # Usar Distance Matrix API si está disponible
+            distance_matrix = None
+            if GOOGLE_MAPS_API_KEY and len(points_for_optimizer) > 1:
+                try:
+                    print("🔄 Calculando distancias reales con Google Distance Matrix API...")
+                    distance_matrix = await get_distance_matrix_google(points_for_optimizer)
+                    if distance_matrix:
+                        print(f"✅ Usando distancias reales de Google Maps ({len(distance_matrix)} pares)")
+                    else:
+                        print("⚠️ Distance Matrix vacío, usando distancia euclidiana")
+                except Exception as e:
+                    print(f"⚠️ Error al obtener Distance Matrix: {str(e)}, usando distancia euclidiana")
+            
+            optimizer = RouteOptimizer(points_for_optimizer, distance_matrix)
             
             if request.algorithm == "astar":
                 result = optimizer.astar(request.start_point)
@@ -581,7 +933,6 @@ async def optimize_route(
             else:
                 raise HTTPException(status_code=400, detail="Algoritmo no válido. Use 'astar', 'dijkstra' o 'tsp'")
             
-            # Agregar información de direcciones a la respuesta
             result["points_info"] = [
                 {
                     "name": p["name"],
