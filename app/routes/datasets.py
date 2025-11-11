@@ -345,7 +345,7 @@ async def analyze_batch(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Analizar múltiples textos con red neuronal - Parte 1"""
+    """Analizar múltiples textos con red neuronal - Procesamiento en lotes para evitar timeout"""
     texts = request.texts
     if current_user.plan == 'free' and len(texts) > 100:
         raise HTTPException(status_code=403, detail="Plan free permite máximo 100 comentarios")
@@ -361,35 +361,62 @@ async def analyze_batch(
         if not model or not model.is_trained:
             raise HTTPException(status_code=500, detail="El modelo de red neuronal no está disponible. Por favor, intenta de nuevo en unos momentos.")
         
-        # Log de los primeros textos que se van a analizar
-        print(f"🔍 [DEBUG] Analizando {len(texts)} textos")
-        for i, text in enumerate(texts[:3]):
-            print(f"🔍 [DEBUG] Texto {i+1} a analizar: {text[:80]}...")
+        # MEJORA: Procesar en lotes pequeños para evitar timeout (502)
+        # Render tiene timeout de ~30 segundos, procesar en lotes de 10 textos
+        batch_size = 10
+        all_results = []
         
-        # Analizar textos
-        results = model.predict(texts)
+        print(f"🔍 [DEBUG] Analizando {len(texts)} textos en lotes de {batch_size}")
+        
+        # Procesar en lotes para evitar timeout
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i+batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (len(texts) + batch_size - 1) // batch_size
+            
+            print(f"🔍 [DEBUG] Procesando lote {batch_num}/{total_batches} ({len(batch)} textos)")
+            
+            try:
+                # Analizar lote
+                batch_results = model.predict(batch)
+                all_results.extend(batch_results)
+                print(f"✅ [DEBUG] Lote {batch_num} completado: {len(batch_results)} resultados")
+            except Exception as e:
+                print(f"❌ [DEBUG] Error en lote {batch_num}: {str(e)}")
+                # Continuar con siguiente lote en lugar de fallar completamente
+                # Agregar resultados de error para este lote
+                for text in batch:
+                    all_results.append({
+                        "text": text,
+                        "sentiment": "error",
+                        "confidence": 0.0,
+                        "error": str(e)
+                    })
         
         # Log de los primeros resultados
-        for i, result in enumerate(results[:3]):
+        for i, result in enumerate(all_results[:3]):
             print(f"🔍 [DEBUG] Resultado {i+1}: texto='{result.get('text', '')[:50]}...', sentiment={result.get('sentiment')}, confidence={result.get('confidence', 0):.3f}")
         
-        positive_count = sum(1 for r in results if r['sentiment'] == 'positivo')
-        negative_count = sum(1 for r in results if r['sentiment'] == 'negativo')
-        neutral_count = sum(1 for r in results if r['sentiment'] == 'neutral')
+        positive_count = sum(1 for r in all_results if r.get('sentiment') == 'positivo')
+        negative_count = sum(1 for r in all_results if r.get('sentiment') == 'negativo')
+        neutral_count = sum(1 for r in all_results if r.get('sentiment') == 'neutral')
         
         return {
-            "total": len(results),
-            "results": results,
+            "total": len(all_results),
+            "results": all_results,
             "summary": {
                 "positive": positive_count,
                 "negative": negative_count,
                 "neutral": neutral_count,
-                "positive_percent": round((positive_count / len(results)) * 100, 2),
-                "negative_percent": round((negative_count / len(results)) * 100, 2),
-                "neutral_percent": round((neutral_count / len(results)) * 100, 2)
+                "positive_percent": round((positive_count / len(all_results)) * 100, 2) if len(all_results) > 0 else 0,
+                "negative_percent": round((negative_count / len(all_results)) * 100, 2) if len(all_results) > 0 else 0,
+                "neutral_percent": round((neutral_count / len(all_results)) * 100, 2) if len(all_results) > 0 else 0
             }
         }
     except Exception as e:
+        print(f"❌ [DEBUG] Error general en analyze-batch: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al analizar textos: {str(e)}")
 
 @router.post("/search")
