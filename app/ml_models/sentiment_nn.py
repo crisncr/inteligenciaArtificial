@@ -989,7 +989,7 @@ class SentimentNeuralNetwork:
         
         # Palabras clave positivas (EXPANDIDO)
         positive_keywords = [
-            'excelente', 'bueno', 'buena', 'genial', 'perfecto', 'perfecta',
+            'excelente', 'bueno', 'buena', 'genial', 'perfecto', 'perfecta', 'perfectamente',
             'increíble', 'maravilloso', 'fantástico', 'delicioso', 'deliciosa',
             'agradable', 'acogedor', 'acogedora', 'limpio', 'limpia', 'bonito', 'bonita',
             'recomiendo', 'recomendado', 'recomendada', 'satisfecho', 'satisfecha',
@@ -1001,7 +1001,8 @@ class SentimentNeuralNetwork:
             # Palabras adicionales para casos específicos
             'fácil', 'facil', 'fácil de usar', 'facil de usar',
             'atención rápida', 'atencion rapida', 'atención eficiente', 'atencion eficiente',
-            'rápida y eficiente', 'rapida y eficiente', 'rápido y eficiente', 'rapido y eficiente'
+            'rápida y eficiente', 'rapida y eficiente', 'rápido y eficiente', 'rapido y eficiente',
+            'funcionó', 'funciono', 'funcionó bien', 'funciono bien'
         ]
         positive_keywords_pairs = [
             (kw.lower(), self._remove_accents(kw.lower()))
@@ -1162,6 +1163,116 @@ class SentimentNeuralNetwork:
             if any(pos in text_plain for pos in ['facil', 'rapida', 'eficiente', 'buena']):
                 positive_count += 2
         
+        # DETECCIÓN MEJORADA DE PATRONES POSITIVOS ESPECÍFICOS
+        
+        # Detectar "funcionó" + adjetivo positivo (ej: "funcionó perfectamente")
+        if 'funciono' in text_plain or 'funcionó' in text_lower:
+            if any(pos in text_plain for pos in ['perfectamente', 'perfecto', 'bien', 'excelente', 'correctamente']):
+                positive_count += 3  # Peso muy alto para este patrón
+        
+        # Detectar "todo" + adjetivo positivo (ej: "todo perfecto", "todo funcionó perfectamente")
+        if 'todo' in text_plain:
+            if any(pos in text_plain for pos in ['perfecto', 'perfecta', 'perfectamente', 'bien', 'excelente', 'funciono', 'funcionó']):
+                positive_count += 3  # Peso muy alto para este patrón
+        
+        # Detectar "recomendable" con más peso (ej: "muy recomendable")
+        if 'recomendable' in text_plain:
+            positive_count += 2  # Peso adicional para "recomendable"
+            # Si tiene "muy recomendable", peso aún mayor
+            if 'muy recomendable' in text_plain:
+                positive_count += 2  # Peso extra
+        
+        # Detectar "experiencia" + adjetivo positivo (ej: "muy buena experiencia general")
+        if 'experiencia' in text_plain:
+            if any(pos in text_plain for pos in ['buena', 'buen', 'excelente', 'perfecta', 'genial', 'maravillosa']):
+                positive_count += 2
+            # Si tiene "muy buena experiencia", peso aún mayor
+            if 'muy buena experiencia' in text_plain or 'muy buen experiencia' in text_plain:
+                positive_count += 3  # Peso muy alto
+        
+        # DETECCIÓN MEJORADA DE PATRONES NEGATIVOS ESPECÍFICOS
+        
+        # Detectar "llegó tarde" y "llegó frío" (ej: "el pedido llegó tarde y frío")
+        if 'llegó' in text_lower or 'llego' in text_plain:
+            if 'tarde' in text_plain:
+                negative_count += 3  # Peso alto
+            if 'frio' in text_plain or 'frío' in text_lower:
+                negative_count += 2  # Peso adicional
+            # Si tiene ambos, peso aún mayor
+            if 'tarde' in text_plain and ('frio' in text_plain or 'frío' in text_lower):
+                negative_count += 2  # Peso extra
+        
+        # Detectar "llegó en mal estado" (ej: "el producto llegó en mal estado")
+        if 'llegó en mal estado' in text_lower or 'llego en mal estado' in text_plain:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+        elif ('llegó' in text_lower or 'llego' in text_plain) and 'mal estado' in text_plain:
+            negative_count += 3  # Peso alto
+        
+        # Detectar "se demoró demasiado" (ej: "el envío se demoró demasiado")
+        if 'se demoro demasiado' in text_plain or 'se demoró demasiado' in text_lower:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+        elif 'demoro demasiado' in text_plain or 'demoró demasiado' in text_lower:
+            negative_count += 3  # Peso alto
+        
+        # Detectar "llegó incompleto" (ej: "el pedido llegó incompleto")
+        if 'llegó incompleto' in text_lower or 'llego incompleto' in text_plain:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+        elif ('llegó' in text_lower or 'llego' in text_plain) and 'incompleto' in text_plain:
+            negative_count += 3  # Peso alto
+        
+        # Detectar "lleno de errores" (ej: "la página web estaba llena de errores")
+        if 'lleno de errores' in text_plain or 'llena de errores' in text_plain:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+        elif 'errores' in text_plain and ('lleno' in text_plain or 'llena' in text_plain):
+            negative_count += 3  # Peso alto
+        
+        # Detectar "se perdió" (ej: "el envío se perdió en el camino")
+        if 'se perdio' in text_plain or 'se perdió' in text_lower:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+            # Si tiene "en el camino", peso aún mayor
+            if 'en el camino' in text_plain:
+                negative_count += 2
+        
+        # Detectar "nunca volveré" y variantes (ej: "nunca volveré a comprar aquí")
+        if 'nunca volvere' in text_plain or 'nunca volveré' in text_lower:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+            # Si tiene "nunca volveré a comprar", peso aún mayor
+            if 'comprar' in text_plain or 'compraria' in text_plain:
+                negative_count += 2
+        
+        # Detectar "grosero" y "poco atento" (ej: "el personal fue grosero y poco atento")
+        if 'grosero' in text_plain or 'grosera' in text_plain:
+            negative_count += 3  # Peso alto
+            # Si también tiene "poco atento", peso aún mayor
+            if 'poco atento' in text_plain or 'poca atencion' in text_plain:
+                negative_count += 2
+        
+        # Detectar "defectos visibles" (ej: "el producto tenía defectos visibles")
+        if 'defectos' in text_plain or 'defecto' in text_plain:
+            negative_count += 2  # Peso base
+            # Si tiene "visibles" o "tenía defectos", peso mayor
+            if 'visibles' in text_plain or 'tenia defectos' in text_plain or 'tenía defectos' in text_lower:
+                negative_count += 2
+        
+        # Detectar "nunca respondió" (ej: "el servicio técnico nunca respondió")
+        if 'nunca respondio' in text_plain or 'nunca respondió' in text_lower:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+            # Si tiene "servicio técnico", peso aún mayor
+            if 'servicio tecnico' in text_plain or 'servicio técnico' in text_lower:
+                negative_count += 2
+        
+        # Detectar "llegó con retraso" (ej: "la comida llegó con retraso")
+        if 'llegó con retraso' in text_lower or 'llego con retraso' in text_plain:
+            negative_count += 3  # Peso alto
+        elif ('llegó' in text_lower or 'llego' in text_plain) and 'retraso' in text_plain:
+            negative_count += 3  # Peso alto si tiene "llegó" y "retraso"
+        
+        # Detectar "llegó roto" (ej: "el producto llegó roto")
+        if 'llegó roto' in text_lower or 'llego roto' in text_plain:
+            negative_count += 4  # Peso muy alto - es definitivamente negativo
+        elif ('llegó' in text_lower or 'llego' in text_plain) and ('roto' in text_plain or 'rota' in text_plain):
+            negative_count += 3  # Peso alto si tiene "llegó" y "roto"
+        
         # Si hay negación con "vale", es definitivamente negativo
         if has_negation_with_value:
             return 'negativo'
@@ -1178,8 +1289,8 @@ class SentimentNeuralNetwork:
         # Determinar sentimiento con lógica mejorada
         # Si hay indicadores negativos claros, priorizar negativo
         if negative_count > 0:
-            # Si hay más negativos que positivos, o si hay al menos 2 negativos, es negativo
-            if negative_count > positive_count or negative_count >= 2:
+            # Si hay más negativos que positivos, o si hay al menos 1 negativo, es negativo
+            if negative_count > positive_count or negative_count >= 1:
                 return 'negativo'
             # Si hay negativos pero también muchos positivos, puede ser positivo
             elif positive_count > negative_count * 2:
