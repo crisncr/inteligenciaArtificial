@@ -110,6 +110,9 @@ class SentimentNeuralNetwork:
         self.is_trained = False
         # Detectar si estamos en producción (Render) para optimizaciones de memoria
         self.is_production = os.getenv('RENDER') == 'true' or os.getenv('ENVIRONMENT') == 'production'
+        # Cache para traductor (lazy loading para ahorrar memoria)
+        self._translator = None
+        self._translator_loaded = False
         
     def clean_text(self, text: str) -> str:
         """
@@ -250,16 +253,58 @@ class SentimentNeuralNetwork:
         without_marks = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
         return unicodedata.normalize('NFC', without_marks)
     
+    def _get_translator(self):
+        """Obtener traductor con lazy loading para ahorrar memoria"""
+        if self._translator_loaded and self._translator is not None:
+            return self._translator
+        
+        try:
+            from deep_translator import GoogleTranslator
+            # Crear traductor una sola vez y reutilizarlo
+            self._translator = GoogleTranslator(source='auto', target='es')
+            self._translator_loaded = True
+            return self._translator
+        except ImportError:
+            if not self.is_production:
+                print("⚠️ deep-translator no instalado. Instala con: pip install deep-translator langdetect")
+            return None
+        except Exception as e:
+            if not self.is_production:
+                print(f"⚠️ Error al inicializar traductor: {e}")
+            return None
+    
     def _translate_to_spanish(self, text: str) -> str:
         """
         Traducir texto en inglés a español para análisis de sentimientos.
+        Optimizado para usar menos memoria en producción.
         Si el texto ya está en español, lo devuelve sin cambios.
         """
         if not text or len(text.strip()) < 2:
             return text
         
+        # En producción, usar detección simple basada en caracteres para ahorrar memoria
+        if self.is_production:
+            # Detección simple: si tiene muchas letras comunes en inglés, probablemente es inglés
+            # Esto evita cargar langdetect que consume mucha memoria
+            text_lower = text.lower()
+            common_english_words = ['the', 'and', 'was', 'were', 'this', 'that', 'with', 'from', 'have', 'has']
+            english_word_count = sum(1 for word in common_english_words if word in text_lower)
+            
+            # Si tiene muchas palabras comunes en inglés, intentar traducir
+            if english_word_count >= 2:
+                translator = self._get_translator()
+                if translator:
+                    try:
+                        translated = translator.translate(text)
+                        if translated and len(translated.strip()) > 0 and translated != text:
+                            return translated
+                    except Exception:
+                        pass
+            # Si no parece inglés o falla la traducción, devolver original
+            return text
+        
+        # En desarrollo, usar detección completa de idioma
         try:
-            from deep_translator import GoogleTranslator
             from langdetect import detect, LangDetectException
             
             # Detectar idioma
@@ -268,33 +313,34 @@ class SentimentNeuralNetwork:
                 # Si ya está en español, no traducir
                 if detected_lang == 'es':
                     return text
-                # Si está en inglés, traducir
-                if detected_lang == 'en':
-                    translator = GoogleTranslator(source='en', target='es')
+                # Si está en inglés u otro idioma, traducir
+                translator = self._get_translator()
+                if translator:
                     translated = translator.translate(text)
                     if translated and len(translated.strip()) > 0:
                         return translated
-                    return text
-                # Para otros idiomas, intentar traducir desde auto-detección
-                translator = GoogleTranslator(source='auto', target='es')
-                translated = translator.translate(text)
-                if translated and len(translated.strip()) > 0:
-                    return translated
                 return text
             except LangDetectException:
-                # Si no se puede detectar, intentar traducir de todos modos (puede ser inglés)
+                # Si no se puede detectar, intentar traducir de todos modos
+                translator = self._get_translator()
+                if translator:
+                    try:
+                        translated = translator.translate(text)
+                        if translated and len(translated.strip()) > 0:
+                            return translated
+                    except:
+                        pass
+                return text
+        except ImportError:
+            # Si langdetect no está instalado, usar método simple
+            translator = self._get_translator()
+            if translator:
                 try:
-                    translator = GoogleTranslator(source='auto', target='es')
                     translated = translator.translate(text)
                     if translated and len(translated.strip()) > 0:
                         return translated
                 except:
                     pass
-                return text
-        except ImportError:
-            # Si no está instalado, devolver texto original
-            if not self.is_production:
-                print("⚠️ deep-translator o langdetect no instalado. Instala con: pip install deep-translator langdetect")
             return text
         except Exception as e:
             # En caso de error, devolver texto original
@@ -697,13 +743,23 @@ class SentimentNeuralNetwork:
         
         try:
             # 0. Traducir textos en inglés a español antes de analizar
+            # Optimizado para producción: traducir en batch y limpiar memoria
             translated_texts = []
             original_texts = []  # Guardar textos originales
             
-            for text in texts:
-                original_texts.append(text)
-                translated = self._translate_to_spanish(text)
-                translated_texts.append(translated)
+            # Traducir en lotes pequeños para ahorrar memoria en producción
+            batch_size = 10 if not self.is_production else 5
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i+batch_size]
+                for text in batch:
+                    original_texts.append(text)
+                    translated = self._translate_to_spanish(text)
+                    translated_texts.append(translated)
+                
+                # Limpiar memoria después de cada batch en producción
+                if self.is_production and i + batch_size < len(texts):
+                    import gc
+                    gc.collect()
             
             # 1. Preparar datos: Convertir texto traducido a números (NO clasifica, solo convierte)
             X = self.prepare_data(translated_texts)
@@ -770,6 +826,9 @@ class SentimentNeuralNetwork:
             
             # Limpiar memoria después de procesar resultados
             del predictions, predicted_classes, predicted_labels, confidence
+            # Limpiar también textos traducidos si estamos en producción
+            if self.is_production:
+                del translated_texts
             gc.collect()
             
             if not self.is_production:
