@@ -13,6 +13,9 @@ from app.ml_models.sentiment_nn import SentimentNeuralNetwork
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
+class AnalyzeBatchRequest(BaseModel):
+    texts: List[str]
+
 class SearchRequest(BaseModel):
     query: str
     texts: List[str]
@@ -338,11 +341,12 @@ async def upload_dataset(
 
 @router.post("/analyze-batch")
 async def analyze_batch(
-    texts: List[str],
+    request: AnalyzeBatchRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Analizar múltiples textos con red neuronal - Parte 1"""
+    texts = request.texts
     if current_user.plan == 'free' and len(texts) > 100:
         raise HTTPException(status_code=403, detail="Plan free permite máximo 100 comentarios")
     

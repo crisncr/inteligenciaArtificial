@@ -264,7 +264,7 @@ export const datasetsAPI = {
   analyzeBatch: async (texts) => {
     return apiRequest('/api/datasets/analyze-batch', {
       method: 'POST',
-      body: JSON.stringify(texts),
+      body: JSON.stringify({ texts }),
     })
   },
 
