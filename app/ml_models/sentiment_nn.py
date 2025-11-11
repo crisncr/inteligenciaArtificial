@@ -798,7 +798,9 @@ class SentimentNeuralNetwork:
             import time
             predict_start = time.time()
             
-            print(f"🧠 [PREDICT] Iniciando predicción de {len(texts)} textos")
+            # Reducir logs en producción para ahorrar memoria
+            if not self.is_production:
+                print(f"🧠 [PREDICT] Iniciando predicción de {len(texts)} textos")
             
             # 0. Usar textos directamente sin traducción (más rápido, evita timeout)
             # NOTA: El modelo fue entrenado con español, pero puede analizar inglés directamente
@@ -806,30 +808,35 @@ class SentimentNeuralNetwork:
             original_texts = texts.copy()
             
             # 1. Preparar datos: Convertir texto a números (NO clasifica, solo convierte)
-            print(f"📝 [PREDICT] Preparando datos (limpieza y tokenización)...")
+            if not self.is_production:
+                print(f"📝 [PREDICT] Preparando datos (limpieza y tokenización)...")
             prep_start = time.time()
             X = self.prepare_data(texts)
             prep_time = time.time() - prep_start
-            print(f"✅ [PREDICT] Datos preparados en {prep_time:.2f}s - Shape: {X.shape}")
+            if not self.is_production:
+                print(f"✅ [PREDICT] Datos preparados en {prep_time:.2f}s - Shape: {X.shape}")
             
             # Verificar que tenemos datos válidos
             if X.shape[0] == 0:
                 print(f"❌ [PREDICT] Error: No se pudieron preparar los datos")
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
-            # Optimización de memoria en producción: batch size más eficiente
-            batch_size = 8 if not self.is_production else 4
-            print(f"⚙️  [PREDICT] Batch size para modelo: {batch_size}")
+            # Optimización de memoria en producción: batch size más pequeño
+            batch_size = 8 if not self.is_production else 2  # Reducido de 4 a 2 para ahorrar memoria
+            if not self.is_production:
+                print(f"⚙️  [PREDICT] Batch size para modelo: {batch_size}")
             
             # 2. 🧠 AQUÍ ES DONDE LA RED NEURONAL CLASIFICA
             # La red neuronal LSTM procesa los números y devuelve probabilidades
             # Ejemplo: [0.1, 0.8, 0.1] = 80% negativo, 10% positivo, 10% neutral
             # NO hay reglas hardcodeadas, TODO es aprendizaje neuronal
-            print(f"🧠 [PREDICT] Ejecutando modelo LSTM...")
+            if not self.is_production:
+                print(f"🧠 [PREDICT] Ejecutando modelo LSTM...")
             model_start = time.time()
             predictions = self.model.predict(X, batch_size=batch_size, verbose=0)
             model_time = time.time() - model_start
-            print(f"✅ [PREDICT] Modelo ejecutado en {model_time:.2f}s - Predictions shape: {predictions.shape}")
+            if not self.is_production:
+                print(f"✅ [PREDICT] Modelo ejecutado en {model_time:.2f}s - Predictions shape: {predictions.shape}")
             
             # Validar predicciones
             if predictions is None or len(predictions) == 0:
@@ -837,7 +844,8 @@ class SentimentNeuralNetwork:
                 raise ValueError("El modelo no devolvió predicciones")
             
             # 3. Procesar predicciones de la red neuronal
-            print(f"🔄 [PREDICT] Procesando predicciones...")
+            if not self.is_production:
+                print(f"🔄 [PREDICT] Procesando predicciones...")
             process_start = time.time()
             # np.argmax encuentra la clase con mayor probabilidad (la que eligió la red neuronal)
             predicted_classes = np.argmax(predictions, axis=1)
@@ -846,19 +854,23 @@ class SentimentNeuralNetwork:
             # Obtener la confianza (probabilidad máxima)
             confidence = np.max(predictions, axis=1)
             process_time = time.time() - process_start
-            print(f"✅ [PREDICT] Predicciones procesadas en {process_time:.2f}s")
+            if not self.is_production:
+                print(f"✅ [PREDICT] Predicciones procesadas en {process_time:.2f}s")
             
             # Limpiar memoria inmediatamente después de obtener predicciones
-            print(f"🧹 [PREDICT] Limpiando memoria...")
+            if not self.is_production:
+                print(f"🧹 [PREDICT] Limpiando memoria...")
             import gc
             del X  # Liberar memoria de datos de entrada
             del predictions  # Liberar predicciones después de procesarlas
             gc.collect()
-            print(f"✅ [PREDICT] Memoria limpiada")
+            if not self.is_production:
+                print(f"✅ [PREDICT] Memoria limpiada")
             
             # Inicializar results_start ANTES de generar resultados
             results_start = time.time()
-            print(f"🔄 [PREDICT] Generando resultados finales...")
+            if not self.is_production:
+                print(f"🔄 [PREDICT] Generando resultados finales...")
             results = []
             for i, original_text in enumerate(original_texts):
                 if i >= len(predicted_labels):
@@ -889,64 +901,74 @@ class SentimentNeuralNetwork:
                     'confidence': round(score, 3)
                 })
             
-            # Limpiar memoria después de procesar resultados
+            # Limpiar memoria después de procesar resultados (CRÍTICO para 512 MB)
             del predicted_classes, predicted_labels, confidence
-            # Limpiar también textos traducidos si estamos en producción
+            # Limpiar también textos originales en producción
             if self.is_production:
                 del original_texts
             gc.collect()
             
             results_time = time.time() - results_start
             total_predict_time = time.time() - predict_start
-            print(f"✅ [PREDICT] Resultados generados en {results_time:.2f}s")
-            print(f"✅ [PREDICT] Predicción total completada en {total_predict_time:.2f}s - {len(results)} resultado(s)")
-            
-            # Mostrar distribución de sentimientos
-            pos_count = sum(1 for r in results if r.get('sentiment') == 'positivo')
-            neg_count = sum(1 for r in results if r.get('sentiment') == 'negativo')
-            neu_count = sum(1 for r in results if r.get('sentiment') == 'neutral')
-            print(f"📊 [PREDICT] Distribución: Pos={pos_count}, Neg={neg_count}, Neu={neu_count}")
+            # Solo logs esenciales en producción
+            if not self.is_production:
+                print(f"✅ [PREDICT] Resultados generados en {results_time:.2f}s")
+                print(f"✅ [PREDICT] Predicción total completada en {total_predict_time:.2f}s - {len(results)} resultado(s)")
+                # Mostrar distribución de sentimientos
+                pos_count = sum(1 for r in results if r.get('sentiment') == 'positivo')
+                neg_count = sum(1 for r in results if r.get('sentiment') == 'negativo')
+                neu_count = sum(1 for r in results if r.get('sentiment') == 'neutral')
+                print(f"📊 [PREDICT] Distribución: Pos={pos_count}, Neg={neg_count}, Neu={neu_count}")
             
             return results
             
         except ValueError as e:
             # Re-lanzar ValueError con mensaje claro
             error_msg = str(e)
-            print(f"❌ [DEBUG] ValueError en predict: {error_msg}")
-            import traceback
-            traceback.print_exc()
+            if not self.is_production:
+                print(f"❌ [DEBUG] ValueError en predict: {error_msg}")
+                import traceback
+                traceback.print_exc()
             raise ValueError(error_msg)
         except Exception as e:
             error_msg = f"Error en predicción de red neuronal: {str(e)}"
-            print(f"❌ [DEBUG] Exception en predict: {error_msg}")
-            import traceback
-            traceback.print_exc()
+            # Solo logs de error en producción si es crítico
+            if not self.is_production:
+                print(f"❌ [DEBUG] Exception en predict: {error_msg}")
+                import traceback
+                traceback.print_exc()
             raise ValueError(error_msg)
     
     def predict_single(self, text: str) -> Dict:
         """Predecir sentimiento de un solo texto - Con logs detallados"""
         import time
         single_start = time.time()
-        print(f"🔍 [PREDICT_SINGLE] Iniciando análisis de texto único - Texto: '{text[:50]}...'")
+        # Reducir logs en producción
+        if not self.is_production:
+            print(f"🔍 [PREDICT_SINGLE] Iniciando análisis de texto único - Texto: '{text[:50]}...'")
         
         try:
             # Usar predict() con lista de un elemento
             results = self.predict([text])
             
             if not results or len(results) == 0:
-                print(f"❌ [PREDICT_SINGLE] Error: No se obtuvieron resultados")
+                if not self.is_production:
+                    print(f"❌ [PREDICT_SINGLE] Error: No se obtuvieron resultados")
                 raise ValueError("No se obtuvieron resultados de la predicción")
             
             single_time = time.time() - single_start
             result = results[0]
             sentiment = result.get('sentiment', 'unknown')
             confidence = result.get('confidence', 0.0)
-            print(f"✅ [PREDICT_SINGLE] Análisis completado en {single_time:.2f}s - Sentimiento: {sentiment}, Confianza: {confidence:.3f}")
+            if not self.is_production:
+                print(f"✅ [PREDICT_SINGLE] Análisis completado en {single_time:.2f}s - Sentimiento: {sentiment}, Confianza: {confidence:.3f}")
             
             return result
         except Exception as e:
             single_time = time.time() - single_start
-            print(f"❌ [PREDICT_SINGLE] Error después de {single_time:.2f}s: {str(e)}")
+            # Solo mostrar errores críticos en producción
+            if not self.is_production:
+                print(f"❌ [PREDICT_SINGLE] Error después de {single_time:.2f}s: {str(e)}")
             raise
     
     def load_model(self, model_path: str = 'app/ml_models/sentiment_model.keras'):

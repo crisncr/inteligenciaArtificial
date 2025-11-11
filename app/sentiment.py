@@ -108,46 +108,60 @@ def analyze_sentiment(text: str) -> Dict[str, object]:
     import time
     start_time = time.time()
     
-    print(f"🔍 [SENTIMENT] Iniciando análisis individual - Texto: '{text[:50]}...'")
+    # Reducir logs en producción para ahorrar memoria
+    import os
+    is_production = os.getenv('RENDER') == 'true' or os.getenv('ENVIRONMENT') == 'production'
+    
+    if not is_production:
+        print(f"🔍 [SENTIMENT] Iniciando análisis individual - Texto: '{text[:50]}...'")
     
     if not text or not text.strip():
-        print(f"❌ [SENTIMENT] Error: Texto vacío")
+        if not is_production:
+            print(f"❌ [SENTIMENT] Error: Texto vacío")
         raise Exception("El texto a analizar no puede estar vacío")
     
     try:
-        print(f"⏳ [SENTIMENT] Obteniendo modelo...")
+        if not is_production:
+            print(f"⏳ [SENTIMENT] Obteniendo modelo...")
         model_start = time.time()
         # Obtener modelo (puede lanzar excepción si no está listo)
         model = _get_or_create_model()
         model_time = time.time() - model_start
-        print(f"✅ [SENTIMENT] Modelo obtenido en {model_time:.2f}s")
+        if not is_production:
+            print(f"✅ [SENTIMENT] Modelo obtenido en {model_time:.2f}s")
         
         # Validación rápida (solo si es necesario)
         if model is None or not model.is_trained or not model.model:
-            print(f"❌ [SENTIMENT] Error: Modelo no disponible")
+            if not is_production:
+                print(f"❌ [SENTIMENT] Error: Modelo no disponible")
             raise Exception(
                 "El modelo de red neuronal no está disponible. "
                 "Por favor, espera unos momentos e intenta de nuevo."
             )
         
-        print(f"✅ [SENTIMENT] Modelo validado - is_trained={model.is_trained}, model_exists={model.model is not None}")
+        if not is_production:
+            print(f"✅ [SENTIMENT] Modelo validado - is_trained={model.is_trained}, model_exists={model.model is not None}")
         
         # Hacer predicción con la red neuronal LSTM
-        print(f"🧠 [SENTIMENT] Iniciando predicción con LSTM...")
+        if not is_production:
+            print(f"🧠 [SENTIMENT] Iniciando predicción con LSTM...")
         predict_start = time.time()
         result = model.predict_single(text)
         predict_time = time.time() - predict_start
-        print(f"✅ [SENTIMENT] Predicción completada en {predict_time:.2f}s")
+        if not is_production:
+            print(f"✅ [SENTIMENT] Predicción completada en {predict_time:.2f}s")
         
         # Validación mínima del resultado
         if not result or 'sentiment' not in result:
-            print(f"❌ [SENTIMENT] Error: Resultado inválido")
+            if not is_production:
+                print(f"❌ [SENTIMENT] Error: Resultado inválido")
             raise Exception("El modelo no devolvió un resultado válido")
         
         total_time = time.time() - start_time
         sentiment = result.get('sentiment', 'unknown')
         confidence = result.get('confidence', 0.0)
-        print(f"✅ [SENTIMENT] Análisis completado en {total_time:.2f}s - Sentimiento: {sentiment}, Confianza: {confidence:.3f}")
+        if not is_production:
+            print(f"✅ [SENTIMENT] Análisis completado en {total_time:.2f}s - Sentimiento: {sentiment}, Confianza: {confidence:.3f}")
         
         # Marcar que se usó red neuronal (NO diccionario)
         result['method'] = 'neural_network'
