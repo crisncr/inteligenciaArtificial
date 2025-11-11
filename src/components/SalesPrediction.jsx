@@ -91,7 +91,7 @@ function SalesPrediction({ user }) {
       <div className="section-header">
         <h1>Predicción de Ventas</h1>
         <p className="section-subtitle">
-          Predicción de ventas por región usando IA (Regresión Lineal / Red Neuronal)
+          Predicción de ventas por región usando IA (Regresión Lineal)
         </p>
       </div>
 
@@ -127,39 +127,28 @@ function SalesPrediction({ user }) {
         )}
       </div>
 
-      {/* Selector de Región y Modelo */}
+      {/* Selector de Región */}
       {salesData && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
           <h3>Configuración del Modelo</h3>
-          <div className="form-row">
-            <div className="form-field">
-              <label htmlFor="region">Región</label>
-              <select
-                id="region"
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="form-input"
-              >
-                {salesData.regions?.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-field">
-              <label htmlFor="model-type">Tipo de Modelo</label>
-              <select
-                id="model-type"
-                value={modelType}
-                onChange={(e) => setModelType(e.target.value)}
-                className="form-input"
-              >
-                <option value="linear_regression">Regresión Lineal</option>
-                <option value="neural_network">Red Neuronal</option>
-              </select>
-            </div>
+          <div className="form-field">
+            <label htmlFor="region">Región</label>
+            <select
+              id="region"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              className="form-input"
+            >
+              {salesData.regions?.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
           </div>
+          <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px', marginBottom: '15px' }}>
+            Modelo: Regresión Lineal
+          </small>
           <button 
             className="btn" 
             onClick={handleTrain} 

@@ -43,7 +43,10 @@ async def upload_sales_data(
         raise HTTPException(status_code=400, detail=f"El archivo debe contener las columnas: {', '.join(required_columns)}")
     
     # Almacenar datos del usuario (en producción usar BD)
-    user_data_storage[current_user.id] = df.to_dict('records')
+    # Inicializar como diccionario para poder agregar predictor después
+    if current_user.id not in user_data_storage:
+        user_data_storage[current_user.id] = {}
+    user_data_storage[current_user.id]['data'] = df.to_dict('records')
     
     return {
         "total": len(df),
@@ -58,7 +61,7 @@ async def upload_sales_data(
 async def train_model(
     file: UploadFile = File(...),
     region: Optional[str] = Query(None, description="Región para filtrar los datos"),
-    model_type: str = Query("linear_regression", description="Tipo de modelo: linear_regression o neural_network"),
+    model_type: str = Query("linear_regression", description="Tipo de modelo: solo linear_regression"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -84,15 +87,13 @@ async def train_model(
     else:
         region = None
     
+    # Solo permitir regresión lineal
+    if model_type != "linear_regression":
+        raise HTTPException(status_code=400, detail="Solo se permite el modelo de Regresión Lineal")
+    
     try:
         predictor = SalesPredictor()
-        
-        if model_type == "linear_regression":
-            result = predictor.train_linear_regression(df, region)
-        elif model_type == "neural_network":
-            result = predictor.train_neural_network(df, region, epochs=50)
-        else:
-            raise HTTPException(status_code=400, detail="Tipo de modelo no válido. Use 'linear_regression' o 'neural_network'")
+        result = predictor.train_linear_regression(df, region)
         
         # Almacenar predictor entrenado (en producción usar BD o caché)
         if current_user.id not in user_data_storage:
