@@ -843,14 +843,23 @@ class SentimentNeuralNetwork:
                 })
             
             # Limpiar memoria después de procesar resultados
-            del predictions, predicted_classes, predicted_labels, confidence
+            del predicted_classes, predicted_labels, confidence
             # Limpiar también textos traducidos si estamos en producción
             if self.is_production:
-                del translated_texts
+                del original_texts
             gc.collect()
             
-            if not self.is_production:
-                print(f"✅ [DEBUG] Predicción completada: {len(results)} resultado(s)")
+            results_time = time.time() - results_start
+            total_predict_time = time.time() - predict_start
+            print(f"✅ [PREDICT] Resultados generados en {results_time:.2f}s")
+            print(f"✅ [PREDICT] Predicción total completada en {total_predict_time:.2f}s - {len(results)} resultado(s)")
+            
+            # Mostrar distribución de sentimientos
+            pos_count = sum(1 for r in results if r.get('sentiment') == 'positivo')
+            neg_count = sum(1 for r in results if r.get('sentiment') == 'negativo')
+            neu_count = sum(1 for r in results if r.get('sentiment') == 'neutral')
+            print(f"📊 [PREDICT] Distribución: Pos={pos_count}, Neg={neg_count}, Neu={neu_count}")
+            
             return results
             
         except ValueError as e:
