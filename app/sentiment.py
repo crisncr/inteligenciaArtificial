@@ -48,9 +48,9 @@ def _get_or_create_model():
     if _model_lock:
         import time
         import os
-        # En producción (Render), esperar más tiempo para dar chance a que cargue el modelo
+        # En producción (Render), esperar menos tiempo para evitar timeout
         is_production = os.getenv('RENDER') == 'true' or os.getenv('ENVIRONMENT') == 'production'
-        max_wait = 30 if is_production else 90  # En producción 30 segundos (aumentado de 10)
+        max_wait = 10 if is_production else 90  # En producción solo 10 segundos
         waited = 0
         while _model_lock and waited < max_wait:
             time.sleep(1)
