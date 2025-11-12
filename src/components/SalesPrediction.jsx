@@ -531,30 +531,83 @@ function SalesPrediction({ user }) {
         <div className="api-form" style={{ marginBottom: '20px' }}>
           <h3>Gráfico 1: Ventas por Días - Región: {region} (con Regresión Lineal)</h3>
           <div className="form-field" style={{ marginBottom: '15px' }}>
-            <label htmlFor="chart1-products">Seleccionar Productos (múltiple)</label>
+            <label htmlFor="chart1-product-select">Seleccionar Producto</label>
             <select
-              id="chart1-products"
-              multiple
-              value={chart1Products}
+              id="chart1-product-select"
+              value=""
               onChange={(e) => {
-                const selected = Array.from(e.target.selectedOptions, option => option.value)
-                setChart1Products(selected)
+                const selectedProduct = e.target.value
+                if (selectedProduct && !chart1Products.includes(selectedProduct)) {
+                  setChart1Products([...chart1Products, selectedProduct])
+                }
+                e.target.value = "" // Resetear el selector
               }}
-                className="form-input"
-              style={{ minHeight: '100px' }}
+              className="form-input"
             >
-              {availableProducts.length > 0 ? availableProducts.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              )) : salesData.products?.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
+              <option value="">Seleccionar producto</option>
+              {availableProducts.length > 0 ? availableProducts
+                .filter(p => !chart1Products.includes(p))
+                .map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                )) : salesData.products?.filter(p => !chart1Products.includes(p)).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
             </select>
+            {chart1Products.length > 0 && (
+              <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {chart1Products.map((producto) => (
+                  <div
+                    key={producto}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      background: 'rgba(110, 139, 255, 0.2)',
+                      border: '1px solid rgba(110, 139, 255, 0.4)',
+                      borderRadius: '8px',
+                      fontSize: '0.9em',
+                      color: 'var(--primary)'
+                    }}
+                  >
+                    <span>{producto}</span>
+                    <button
+                      type="button"
+                      onClick={() => setChart1Products(chart1Products.filter(p => p !== producto))}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--primary)',
+                        cursor: 'pointer',
+                        fontSize: '16px',
+                        padding: '0',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '50%',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(110, 139, 255, 0.3)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
-              Mantén presionado Ctrl (o Cmd en Mac) para seleccionar múltiples productos. Muestra evolución temporal de ventas por día en la región: <strong>{region}</strong>
+              Selecciona productos uno por uno para agregarlos al gráfico. Muestra evolución temporal de ventas por día en la región: <strong>{region}</strong>
               {availableProducts.length > 0 && ` (${availableProducts.length} productos disponibles)`}
             </small>
           </div>

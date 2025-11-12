@@ -4166,23 +4166,24 @@ select.form-input[multiple]:hover {
   
   /* Inputs aún más grandes en móviles pequeños */
   .route-map-container .form-input {
-    font-size: 22px !important;
-    padding: 22px 20px !important;
-    min-height: 68px !important;
+    font-size: 24px !important;
+    padding: 26px 22px !important;
+    min-height: 76px !important;
   }
   
   .route-map-container .form-input::placeholder {
-    font-size: 20px !important;
+    font-size: 22px !important;
   }
   
   .route-map-container .form-field label {
-    font-size: 1.15em !important;
+    font-size: 1.2em !important;
+    margin-bottom: 14px !important;
   }
   
   .route-map-container .form-field button {
-    padding: 18px !important;
-    font-size: 18px !important;
-    min-height: 56px !important;
+    padding: 20px !important;
+    font-size: 19px !important;
+    min-height: 60px !important;
   }
 }
 
@@ -4229,15 +4230,15 @@ select.form-input[multiple]:hover {
     z-index: 10000 !important; /* Asegurar que esté por encima */
   }
   
-  /* Ajustar inputs para móviles - MÁS GRANDES Y FÁCILES DE USAR */
+  /* Ajustar inputs para móviles - MUY GRANDES Y FÁCILES DE USAR */
   .route-map-container .form-input {
-    font-size: 20px !important; /* Aún más grande para móviles */
-    padding: 20px 18px !important; /* Más padding vertical y horizontal */
+    font-size: 22px !important; /* Muy grande para móviles */
+    padding: 24px 20px !important; /* Mucho más padding vertical y horizontal */
     -webkit-appearance: none;
     appearance: none;
-    border-radius: 12px !important;
-    min-height: 64px !important; /* Altura mínima más grande para fácil toque */
-    line-height: 1.6 !important;
+    border-radius: 14px !important;
+    min-height: 72px !important; /* Altura mínima muy grande para fácil toque */
+    line-height: 1.7 !important;
     border: 2px solid rgba(110, 139, 255, 0.3) !important;
     background: var(--panel) !important;
     color: var(--text) !important;
@@ -4248,12 +4249,12 @@ select.form-input[multiple]:hover {
   .route-map-container .form-input:focus {
     border-color: var(--primary) !important;
     outline: none !important;
-    box-shadow: 0 0 0 4px rgba(110, 139, 255, 0.25) !important;
+    box-shadow: 0 0 0 5px rgba(110, 139, 255, 0.3) !important;
     background: rgba(10, 14, 26, 0.8) !important;
   }
   
   .route-map-container .form-input::placeholder {
-    font-size: 18px !important;
+    font-size: 20px !important;
     color: var(--text-secondary) !important;
     opacity: 0.7 !important;
   }
