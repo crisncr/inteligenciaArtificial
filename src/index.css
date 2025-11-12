@@ -2562,34 +2562,58 @@ select.form-input:hover {
   background-color: rgba(10, 14, 26, 0.7);
 }
 
-/* Selectores múltiples - diseño azul */
+/* Selectores múltiples - diseño azul (igual que selectores simples, sin flecha) */
 .form-field select[multiple],
-.form-input[multiple] {
+.form-input[multiple],
+select.form-input[multiple] {
+  width: 100%;
   background: rgba(10, 14, 26, 0.6);
+  color: var(--text);
   border: 1px solid rgba(110, 139, 255, 0.3);
   border-radius: 12px;
   padding: 12px 16px;
   min-height: 100px;
-  background-image: none;
+  font-family: inherit;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none; /* Sin flecha para selectores múltiples */
   padding-right: 16px;
 }
 
 .form-field select[multiple]:focus,
-.form-input[multiple]:focus {
+.form-input[multiple]:focus,
+select.form-input[multiple]:focus {
+  outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(110, 139, 255, 0.2);
   background-color: rgba(10, 14, 26, 0.8);
+  background-image: none; /* Sin flecha para selectores múltiples */
+}
+
+.form-field select[multiple]:hover,
+.form-input[multiple]:hover,
+select.form-input[multiple]:hover {
+  border-color: rgba(110, 139, 255, 0.5);
+  background-color: rgba(10, 14, 26, 0.7);
 }
 
 .form-field select[multiple] option {
   background: rgba(10, 14, 26, 0.9);
   color: var(--text);
-  padding: 8px 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin: 2px 0;
 }
 
-.form-field select[multiple] option:checked {
-  background: rgba(110, 139, 255, 0.3);
-  color: var(--primary);
+.form-field select[multiple] option:checked,
+.form-field select[multiple] option:selected {
+  background: rgba(110, 139, 255, 0.3) !important;
+  color: var(--primary) !important;
+  font-weight: 600;
 }
 
 .message {
@@ -4139,6 +4163,27 @@ select.form-input:hover {
     line-height: 32px !important;
     font-size: 18px !important;
   }
+  
+  /* Inputs aún más grandes en móviles pequeños */
+  .route-map-container .form-input {
+    font-size: 22px !important;
+    padding: 22px 20px !important;
+    min-height: 68px !important;
+  }
+  
+  .route-map-container .form-input::placeholder {
+    font-size: 20px !important;
+  }
+  
+  .route-map-container .form-field label {
+    font-size: 1.15em !important;
+  }
+  
+  .route-map-container .form-field button {
+    padding: 18px !important;
+    font-size: 18px !important;
+    min-height: 56px !important;
+  }
 }
 
 /* Responsive para tablets */
@@ -4186,22 +4231,31 @@ select.form-input:hover {
   
   /* Ajustar inputs para móviles - MÁS GRANDES Y FÁCILES DE USAR */
   .route-map-container .form-input {
-    font-size: 18px !important; /* Más grande para móviles */
-    padding: 18px 16px !important; /* Más padding vertical */
+    font-size: 20px !important; /* Aún más grande para móviles */
+    padding: 20px 18px !important; /* Más padding vertical y horizontal */
     -webkit-appearance: none;
     appearance: none;
-    border-radius: 10px !important;
-    min-height: 56px !important; /* Altura mínima para fácil toque */
-    line-height: 1.5 !important;
+    border-radius: 12px !important;
+    min-height: 64px !important; /* Altura mínima más grande para fácil toque */
+    line-height: 1.6 !important;
     border: 2px solid rgba(110, 139, 255, 0.3) !important;
     background: var(--panel) !important;
     color: var(--text) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   
   .route-map-container .form-input:focus {
     border-color: var(--primary) !important;
     outline: none !important;
-    box-shadow: 0 0 0 3px rgba(110, 139, 255, 0.2) !important;
+    box-shadow: 0 0 0 4px rgba(110, 139, 255, 0.25) !important;
+    background: rgba(10, 14, 26, 0.8) !important;
+  }
+  
+  .route-map-container .form-input::placeholder {
+    font-size: 18px !important;
+    color: var(--text-secondary) !important;
+    opacity: 0.7 !important;
   }
   
   /* Ajustar labels - más grandes y visibles */
