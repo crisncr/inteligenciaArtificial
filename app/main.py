@@ -292,6 +292,12 @@ async def startup_event():
     # NO entrenar en producción para ahorrar memoria
     def precargar_modelo():
         try:
+            import time
+            # Delay de 3s antes de cargar el modelo para no bloquear Render
+            # Esto permite que el servidor se inicialice completamente antes de cargar el modelo
+            print("⏳ Esperando 3 segundos antes de cargar el modelo (para permitir inicialización completa del servidor)...")
+            time.sleep(3)
+            
             from app.sentiment import _train_model_async
             print("🚀 Precargando red neuronal LSTM en background...")
             print("📋 NOTA: El modelo debe estar descargado desde GitHub Releases")

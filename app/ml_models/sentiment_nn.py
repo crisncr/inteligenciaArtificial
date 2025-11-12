@@ -641,12 +641,13 @@ class SentimentNeuralNetwork:
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
         print(f"📊 Shape de X_train: {X_train.shape}, Shape de y_train: {y_train.shape}")
         
-        # Callbacks simples para entrenamiento
+        # Callbacks para entrenamiento con progreso detallado
+        progress_callback = TrainingProgressCallback()
         fit_kwargs = {
             'epochs': actual_epochs,
             'batch_size': actual_batch_size,
             'verbose': 1,  # Mostrar progress (se cambia a 1 en fit())
-            'callbacks': []  # Sin callbacks complejos para velocidad
+            'callbacks': [progress_callback]  # Callback para mostrar progreso de batches
         }
         
         # NO construir modelo explícitamente - ahorra memoria
@@ -997,55 +998,168 @@ class SentimentNeuralNetwork:
         )
         
         def download_file(url: str, filepath: str) -> bool:
-            """Descargar archivo desde URL - Optimizado para memoria"""
-            try:
-                import requests
-                if not self.is_production:
-                    print(f"📥 Descargando {os.path.basename(filepath)} desde GitHub Releases...")
-                # Timeout más corto y stream para ahorrar memoria
-                response = requests.get(url, timeout=30, stream=True)
-                response.raise_for_status()
-                
-                os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                downloaded = 0
-                
-                # Descargar en chunks pequeños para ahorrar memoria (optimizado para producción)
-                chunk_size = 4096 if self.is_production else 8192  # Chunks más pequeños en producción
-                with open(filepath, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=chunk_size):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                        # Limpiar memoria periódicamente durante la descarga
-                        if self.is_production and downloaded % (512 * 1024) == 0:  # Cada 512KB en producción
-                            import gc
-                            gc.collect()
-                        elif not self.is_production and downloaded % (1024 * 1024) == 0:  # Cada 1MB en desarrollo
-                            import gc
-                            gc.collect()
-                
-                # Limpiar memoria después de descargar
-                import gc
-                del response
-                gc.collect()
-                
-                if not self.is_production:
-                    file_size_kb = downloaded / 1024
-                    print(f"✅ {os.path.basename(filepath)} descargado correctamente ({file_size_kb:.1f} KB)")
-                return True
-            except Exception as e:
-                print(f"⚠️ No se pudo descargar {os.path.basename(filepath)}: {str(e)}")
-                if not self.is_production:
-                    print(f"🔍 URL intentada: {url}")
+            """
+            Descargar archivo desde URL con mejoras:
+            - Timeout aumentado: 180s (3 minutos)
+            - Reintentos: hasta 3 intentos con espera progresiva
+            - Verificación de tamaño: valida que la descarga esté completa
+            - Progreso en producción: muestra progreso cada 10% para archivos grandes
+            - Mejor manejo de errores: distingue timeouts de errores de conexión
+            """
+            import requests
+            import time
+            import gc
+            
+            max_retries = 3
+            timeout_seconds = 180  # 3 minutos
+            retry_delays = [5, 10, 20]  # Espera progresiva: 5s, 10s, 20s
+            
+            for attempt in range(max_retries):
                 try:
-                    if os.path.exists(filepath):
-                        os.remove(filepath)
-                except:
-                    pass
-                # Limpiar memoria en caso de error
-                import gc
-                gc.collect()
-                return False
+                    if not self.is_production:
+                        if attempt > 0:
+                            print(f"🔄 Reintento {attempt + 1}/{max_retries} para {os.path.basename(filepath)}...")
+                        else:
+                            print(f"📥 Descargando {os.path.basename(filepath)} desde GitHub Releases...")
+                    
+                    # Obtener información del archivo primero (HEAD request para obtener content-length)
+                    try:
+                        head_response = requests.head(url, timeout=30, allow_redirects=True)
+                        expected_size = head_response.headers.get('content-length')
+                        if expected_size:
+                            expected_size = int(expected_size)
+                            if not self.is_production:
+                                file_size_mb = expected_size / (1024 * 1024)
+                                print(f"📊 Tamaño esperado: {file_size_mb:.2f} MB")
+                        else:
+                            expected_size = None
+                    except Exception as head_error:
+                        # Si falla HEAD, continuar sin verificación de tamaño
+                        expected_size = None
+                        if not self.is_production:
+                            print(f"⚠️ No se pudo obtener tamaño del archivo: {head_error}")
+                    
+                    # Descargar con timeout aumentado y stream para ahorrar memoria
+                    response = requests.get(url, timeout=timeout_seconds, stream=True)
+                    response.raise_for_status()
+                    
+                    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                    downloaded = 0
+                    last_progress = 0
+                    
+                    # Descargar en chunks pequeños para ahorrar memoria (optimizado para producción)
+                    chunk_size = 4096 if self.is_production else 8192
+                    with open(filepath, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=chunk_size):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                            
+                            # Mostrar progreso cada 10% en producción (solo si conocemos el tamaño)
+                            if expected_size and self.is_production:
+                                progress = int((downloaded / expected_size) * 100)
+                                if progress >= last_progress + 10:
+                                    print(f"📥 Progreso: {progress}% ({downloaded / (1024*1024):.2f} MB / {expected_size / (1024*1024):.2f} MB)")
+                                    last_progress = progress
+                            
+                            # Limpiar memoria periódicamente durante la descarga
+                            if self.is_production and downloaded % (512 * 1024) == 0:
+                                gc.collect()
+                            elif not self.is_production and downloaded % (1024 * 1024) == 0:
+                                gc.collect()
+                    
+                    # Verificar que la descarga esté completa
+                    if expected_size and downloaded != expected_size:
+                        raise ValueError(
+                            f"Descarga incompleta: descargado {downloaded} bytes, esperado {expected_size} bytes "
+                            f"({downloaded / (1024*1024):.2f} MB / {expected_size / (1024*1024):.2f} MB)"
+                        )
+                    
+                    # Limpiar memoria después de descargar
+                    del response
+                    gc.collect()
+                    
+                    if not self.is_production:
+                        file_size_kb = downloaded / 1024
+                        if file_size_kb > 1024:
+                            file_size_mb = file_size_kb / 1024
+                            print(f"✅ {os.path.basename(filepath)} descargado correctamente ({file_size_mb:.2f} MB)")
+                        else:
+                            print(f"✅ {os.path.basename(filepath)} descargado correctamente ({file_size_kb:.1f} KB)")
+                    else:
+                        if expected_size:
+                            print(f"✅ {os.path.basename(filepath)} descargado correctamente ({downloaded / (1024*1024):.2f} MB)")
+                        else:
+                            print(f"✅ {os.path.basename(filepath)} descargado correctamente")
+                    
+                    return True
+                    
+                except requests.exceptions.Timeout as e:
+                    error_type = "Timeout"
+                    error_msg = f"Timeout después de {timeout_seconds}s"
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delays[attempt]
+                        print(f"⏱️ {error_type} al descargar {os.path.basename(filepath)}: {error_msg}")
+                        print(f"🔄 Esperando {wait_time}s antes del siguiente intento...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"❌ {error_type} al descargar {os.path.basename(filepath)} después de {max_retries} intentos: {error_msg}")
+                        if not self.is_production:
+                            print(f"🔍 URL intentada: {url}")
+                
+                except requests.exceptions.ConnectionError as e:
+                    error_type = "Error de conexión"
+                    error_msg = str(e)
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delays[attempt]
+                        print(f"🌐 {error_type} al descargar {os.path.basename(filepath)}: {error_msg}")
+                        print(f"🔄 Esperando {wait_time}s antes del siguiente intento...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"❌ {error_type} al descargar {os.path.basename(filepath)} después de {max_retries} intentos: {error_msg}")
+                        if not self.is_production:
+                            print(f"🔍 URL intentada: {url}")
+                
+                except requests.exceptions.RequestException as e:
+                    error_type = "Error de solicitud"
+                    error_msg = str(e)
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delays[attempt]
+                        print(f"⚠️ {error_type} al descargar {os.path.basename(filepath)}: {error_msg}")
+                        print(f"🔄 Esperando {wait_time}s antes del siguiente intento...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"❌ {error_type} al descargar {os.path.basename(filepath)} después de {max_retries} intentos: {error_msg}")
+                        if not self.is_production:
+                            print(f"🔍 URL intentada: {url}")
+                
+                except Exception as e:
+                    error_type = "Error desconocido"
+                    error_msg = str(e)
+                    print(f"⚠️ {error_type} al descargar {os.path.basename(filepath)}: {error_msg}")
+                    if not self.is_production:
+                        print(f"🔍 URL intentada: {url}")
+                    # Limpiar archivo parcial si existe
+                    try:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                    except:
+                        pass
+                    # Limpiar memoria en caso de error
+                    gc.collect()
+                    return False
+            
+            # Si llegamos aquí, todos los reintentos fallaron
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except:
+                pass
+            gc.collect()
+            return False
         
         # Verificar qué archivos faltan
         missing_files = []
@@ -1850,6 +1964,58 @@ class SentimentNeuralNetwork:
             {'comentario': 'Superó completamente mis expectativas', 'valor': 'positivo'},
             {'comentario': 'Estoy muy satisfecho con el resultado final', 'valor': 'positivo'},
             {'comentario': 'Muy contento con esta compra realizada', 'valor': 'positivo'},
+            
+            # 🔧 PATRÓN: Textos balanceados (positivos + negativos) = NEUTRO
+            # Caso 1: "Hubo X positivo, pero también Y negativo. En general, intermedia/adecuada"
+            {'comentario': 'El desempeño fue constante durante todo el proceso. Hubo buena comunicación en algunos puntos, pero también momentos de espera innecesarios. En general, fue una experiencia intermedia.', 'valor': 'neutro'},
+            {'comentario': 'Hubo buena comunicación en algunos puntos, pero también momentos de espera innecesarios', 'valor': 'neutro'},
+            {'comentario': 'En general, fue una experiencia intermedia', 'valor': 'neutro'},
+            {'comentario': 'El desempeño fue constante durante todo el proceso', 'valor': 'neutro'},
+            
+            # Variaciones del patrón "positivo pero también negativo = neutro"
+            {'comentario': 'Hubo aspectos positivos pero también algunos negativos', 'valor': 'neutro'},
+            {'comentario': 'Algunas cosas funcionaron bien pero otras no tanto', 'valor': 'neutro'},
+            {'comentario': 'Hubo momentos buenos pero también momentos de espera', 'valor': 'neutro'},
+            {'comentario': 'La comunicación fue buena en algunos puntos pero también hubo demoras', 'valor': 'neutro'},
+            {'comentario': 'El proceso fue constante aunque con algunos altibajos', 'valor': 'neutro'},
+            
+            # Caso 2: "Funcionó adecuadamente. No impresión fuerte, pero cumple con lo esperado" = NEUTRO
+            {'comentario': 'Probé el servicio por primera vez y funcionó de manera adecuada. No tuve una impresión especialmente fuerte, pero considero que cumple con lo que se espera normalmente.', 'valor': 'neutro'},
+            {'comentario': 'Funcionó de manera adecuada', 'valor': 'neutro'},
+            {'comentario': 'No tuve una impresión especialmente fuerte, pero considero que cumple con lo que se espera', 'valor': 'neutro'},
+            {'comentario': 'Cumple con lo que se espera normalmente', 'valor': 'neutro'},
+            
+            # Variaciones del patrón "adecuado/cumple con lo esperado = neutro"
+            {'comentario': 'El servicio funcionó de manera adecuada aunque no fue excepcional', 'valor': 'neutro'},
+            {'comentario': 'No tuve una impresión fuerte pero cumple con lo esperado', 'valor': 'neutro'},
+            {'comentario': 'Funcionó correctamente y cumple con lo que se espera normalmente', 'valor': 'neutro'},
+            {'comentario': 'El servicio fue adecuado aunque no me impresionó especialmente', 'valor': 'neutro'},
+            {'comentario': 'Cumple con las expectativas normales sin ser destacable', 'valor': 'neutro'},
+            {'comentario': 'Funcionó bien aunque no fue nada especial', 'valor': 'neutro'},
+            
+            # 🔧 PATRÓN: Textos "estándar/predecible/correcto pero no sorprendente" = NEUTRO
+            {'comentario': 'Recibí el pedido en el tiempo estimado y en condiciones correctas. No hubo errores, pero tampoco algo que me sorprendiera. Todo fue bastante estándar y predecible.', 'valor': 'neutro'},
+            {'comentario': 'Todo fue bastante estándar y predecible', 'valor': 'neutro'},
+            {'comentario': 'No hubo errores, pero tampoco algo que me sorprendiera', 'valor': 'neutro'},
+            {'comentario': 'El servicio fue correcto pero nada especial', 'valor': 'neutro'},
+            {'comentario': 'Cumplió con lo esperado, nada más ni nada menos', 'valor': 'neutro'},
+            {'comentario': 'Todo funcionó bien aunque no fue excepcional', 'valor': 'neutro'},
+            {'comentario': 'El producto llegó en buen estado pero no me impresionó', 'valor': 'neutro'},
+            
+            # Variaciones del patrón "estándar/predecible"
+            {'comentario': 'El servicio fue estándar sin nada que destacar', 'valor': 'neutro'},
+            {'comentario': 'Todo fue predecible y cumplió con lo básico', 'valor': 'neutro'},
+            {'comentario': 'Funcionó correctamente aunque fue bastante estándar', 'valor': 'neutro'},
+            {'comentario': 'El desempeño fue constante pero no destacable', 'valor': 'neutro'},
+            {'comentario': 'Cumplió con lo esperado sin sorpresas', 'valor': 'neutro'},
+            
+            # 🔧 PATRÓN: Palabras clave que indican NEUTRO (no negativo)
+            {'comentario': 'Fue una experiencia intermedia', 'valor': 'neutro'},
+            {'comentario': 'El resultado fue intermedio', 'valor': 'neutro'},
+            {'comentario': 'La experiencia fue intermedia sin ser ni buena ni mala', 'valor': 'neutro'},
+            {'comentario': 'Fue adecuado para lo que se espera', 'valor': 'neutro'},
+            {'comentario': 'Cumplió con lo esperado normalmente', 'valor': 'neutro'},
+            {'comentario': 'El servicio fue constante durante todo el proceso', 'valor': 'neutro'},
         ]
     
     def _create_training_dataset(self) -> List[Dict[str, str]]:
@@ -1938,7 +2104,7 @@ class SentimentNeuralNetwork:
         # Una vez entrenado, el modelo ya aprendió estos patrones y estos ejemplos NO se ejecutan durante predicciones.
         # El modelo ya está entrenado con estos ejemplos, por lo que están desactivados por defecto.
         # Cambiar a True solo si necesitas reentrenar el modelo desde cero.
-        USE_SYNTHETIC_EXAMPLES = False  # Cambiar a True para activar ejemplos sintéticos (solo necesario al reentrenar)
+        USE_SYNTHETIC_EXAMPLES = True  # ✅ ACTIVADO para reentrenar con casos problemáticos
         
         if USE_SYNTHETIC_EXAMPLES:
             ejemplos_sinteticos = self._get_synthetic_examples()
