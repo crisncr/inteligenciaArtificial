@@ -105,8 +105,8 @@ class SalesPredictor:
                 model.fit(X_train, y_train)
                 
                 test_predictions = model.predict(X_test)
-        mse = mean_squared_error(y_test, test_predictions)
-        r2 = r2_score(y_test, test_predictions)
+                mse = mean_squared_error(y_test, test_predictions)
+                r2 = r2_score(y_test, test_predictions)
                 train_score = model.score(X_train, y_train)
                 
                 # Guardar modelo y scaler
