@@ -1208,7 +1208,7 @@ class SentimentNeuralNetwork:
                 )
             else:
                 if not self.is_production:
-                print("✅ Todos los archivos del modelo se descargaron correctamente desde GitHub Releases")
+                    print("✅ Todos los archivos del modelo se descargaron correctamente desde GitHub Releases")
                 print("✅ El modelo NO se entrenará, se usará el modelo pre-entrenado")
         
         # Intentar cargar modelo existente (local o descargado)
