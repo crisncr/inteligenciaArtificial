@@ -73,8 +73,8 @@ async def train_model(
         raise HTTPException(status_code=403, detail="Predicción de ventas disponible solo en plan Enterprise")
     
     try:
-    contents = await file.read()
-    df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+        contents = await file.read()
+        df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
     
