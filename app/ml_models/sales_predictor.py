@@ -256,14 +256,14 @@ class SalesPredictor:
             
             model = self.models[(producto_key, region_key)]
             scaler = self.scalers[(producto_key, region_key)]
-        
-        X = np.array([[
-            d.day,
-            d.month,
-            d.year,
-            d.weekday()
-        ] for d in dates])
-        
+            
+            X = np.array([[
+                d.day,
+                d.month,
+                d.year,
+                d.weekday()
+            ] for d in dates])
+            
             X_scaled = scaler.transform(X)
             predictions = model.predict(X_scaled)
             
