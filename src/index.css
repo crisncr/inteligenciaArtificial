@@ -4003,3 +4003,132 @@ footer small {
   border: none;
 }
 
+/* Route Optimization Map - Responsive Styles */
+.route-map-container {
+  width: 100%;
+}
+
+.route-map-wrapper {
+  width: 100%;
+  height: 400px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Responsive para móviles - iPhone 11, 12, 13, 14, 15, 16, 17 y Android */
+@media (max-width: 768px) {
+  .route-map-wrapper {
+    height: 300px !important;
+    min-height: 300px;
+    max-height: 300px;
+  }
+  
+  .route-map-container .form-field {
+    margin-bottom: 15px;
+  }
+  
+  /* Asegurar que el mapa no tenga problemas de z-index en móviles */
+  .route-map-wrapper .leaflet-container {
+    z-index: 1 !important;
+  }
+  
+  /* Ajustar controles del mapa para móviles */
+  .route-map-wrapper .leaflet-control-zoom {
+    margin: 10px !important;
+  }
+  
+  .route-map-wrapper .leaflet-control-zoom a {
+    width: 32px !important;
+    height: 32px !important;
+    line-height: 32px !important;
+    font-size: 18px !important;
+  }
+  
+  /* Ajustar atribución del mapa */
+  .route-map-wrapper .leaflet-control-attribution {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+  }
+}
+
+/* Responsive para móviles pequeños - iPhone SE, etc */
+@media (max-width: 480px) {
+  .route-map-wrapper {
+    height: 250px !important;
+    min-height: 250px;
+    max-height: 250px;
+  }
+  
+  .route-map-wrapper .leaflet-control-zoom {
+    margin: 8px !important;
+  }
+  
+  .route-map-wrapper .leaflet-control-zoom a {
+    width: 28px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+    font-size: 16px !important;
+  }
+}
+
+/* Responsive para tablets */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .route-map-wrapper {
+    height: 450px !important;
+  }
+}
+
+/* Asegurar que las rutas se vean correctamente sin rayas */
+.route-map-wrapper .leaflet-overlay-pane svg path {
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+/* Prevenir problemas de renderizado en móviles */
+.route-map-wrapper .leaflet-container {
+  touch-action: pan-x pan-y !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Responsive para campos del formulario de rutas */
+@media (max-width: 768px) {
+  /* Hacer que los botones se apilen en móviles - usar selector más específico */
+  .route-map-container .form-field > div {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .route-map-container .form-field button {
+    width: 100% !important;
+    min-width: unset !important;
+    white-space: normal !important;
+  }
+  
+  /* Ajustar sugerencias de autocompletado para móviles */
+  .route-map-container .form-field > div[style*="position: relative"] > div {
+    max-height: 200px !important;
+    font-size: 14px !important;
+    z-index: 10000 !important; /* Asegurar que esté por encima */
+  }
+  
+  /* Ajustar inputs para móviles */
+  .route-map-container .form-input {
+    font-size: 16px !important; /* Previene zoom automático en iOS */
+    padding: 14px !important;
+    -webkit-appearance: none;
+    border-radius: 8px;
+  }
+  
+  /* Ajustar labels */
+  .route-map-container .form-field label {
+    font-size: 0.95em !important;
+    margin-bottom: 8px !important;
+    display: block;
+  }
+  
+  /* Ajustar el contenedor de la sección completa */
+  .route-map-container {
+    padding: 0 !important;
+  }
+}
+

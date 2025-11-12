@@ -997,20 +997,22 @@ function RouteOptimization({ user }) {
         </div>
 
         {/* Mapa de Leaflet */}
-        <div className="form-field" style={{ marginBottom: '20px' }}>
+        <div className="form-field route-map-container" style={{ marginBottom: '20px' }}>
           <label>Mapa Interactivo 2025 (CartoDB Voyager)</label>
-          <div style={{
+          <div className="route-map-wrapper" style={{
             width: '100%',
             height: '400px',
-            border: '1px solid #ddd',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '8px',
             marginTop: '10px',
-            zIndex: 0
+            position: 'relative',
+            overflow: 'hidden',
+            zIndex: 1
           }}>
             <MapContainer
               center={mapCenter}
               zoom={mapZoom}
-              style={{ height: '100%', width: '100%', borderRadius: '8px' }}
+              style={{ height: '100%', width: '100%', borderRadius: '8px', zIndex: 1 }}
               scrollWheelZoom={true}
             >
               <TileLayer
@@ -1037,10 +1039,12 @@ function RouteOptimization({ user }) {
                 const colors = ['#6e8bff', '#20c997', '#f8c22b'] // Azul (mejor), Verde, Amarillo
                 const routeColor = colors[idx] || '#6e8bff'
                 
-                // La mejor ruta (índice 0) siempre se muestra más destacada
-                const weight = isBestRoute ? 7 : (isSelected ? 5 : 3)
-                const opacity = isBestRoute ? 1.0 : (isSelected ? 0.8 : 0.5)
-                const dashArray = isBestRoute ? null : (isSelected ? null : '15, 10')
+                // Ajustar grosor y estilo para evitar rayas gruesas
+                // Reducir weight y eliminar dashArray para rutas más limpias
+                const weight = isBestRoute ? 5 : (isSelected ? 4 : 3)
+                const opacity = isBestRoute ? 1.0 : (isSelected ? 0.7 : 0.4)
+                // Eliminar dashArray para evitar rayas - usar líneas continuas más sutiles
+                const dashArray = null
                 
                 return (
                   <Polyline
@@ -1050,7 +1054,10 @@ function RouteOptimization({ user }) {
                       color: routeColor,
                       weight: weight,
                       opacity: opacity,
-                      dashArray: dashArray
+                      dashArray: dashArray,
+                      lineCap: 'round',
+                      lineJoin: 'round',
+                      smoothFactor: 1.0
                     }}
                     eventHandlers={{
                       click: () => {
