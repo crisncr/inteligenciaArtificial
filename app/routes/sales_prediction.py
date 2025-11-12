@@ -73,8 +73,8 @@ async def train_model(
         raise HTTPException(status_code=403, detail="Predicción de ventas disponible solo en plan Enterprise")
     
     try:
-        contents = await file.read()
-        df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+    contents = await file.read()
+    df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
     
@@ -96,7 +96,7 @@ async def train_model(
     
     try:
         predictor = SalesPredictor()
-        result = predictor.train_linear_regression(df, region)
+            result = predictor.train_linear_regression(df, region)
         
         # Almacenar predictor entrenado (en producción usar BD o caché)
         if current_user.id not in user_data_storage:

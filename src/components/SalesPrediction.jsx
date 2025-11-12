@@ -467,22 +467,22 @@ function SalesPrediction({ user }) {
       {salesData && (
         <div className="api-form" style={{ marginBottom: '20px' }}>
           <h3>Configuración del Modelo</h3>
-          <div className="form-field">
+            <div className="form-field">
             <label htmlFor="region">Región (opcional, para filtrar entrenamiento)</label>
-            <select
-              id="region"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className="form-input"
-            >
+              <select
+                id="region"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="form-input"
+              >
               <option value="">Todas las regiones</option>
-              {salesData.regions?.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
+                {salesData.regions?.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
           <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px', marginBottom: '15px' }}>
             Modelo: Regresión Lineal (entrenará un modelo por cada combinación producto-región)
           </small>
@@ -505,14 +505,14 @@ function SalesPrediction({ user }) {
               <div className="stat-value">{trainResult.products_trained || 0}</div>
               <div className="stat-label">Modelos Entrenados</div>
             </div>
-            <div className="stat-card">
+              <div className="stat-card">
               <div className="stat-value">{trainResult.average_r2_score?.toFixed(3) || 'N/A'}</div>
               <div className="stat-label">R² Promedio</div>
-            </div>
-            <div className="stat-card">
+              </div>
+              <div className="stat-card">
               <div className="stat-value">{trainResult.average_mse?.toFixed(2) || 'N/A'}</div>
               <div className="stat-label">MSE Promedio</div>
-            </div>
+              </div>
           </div>
           <div className="message" style={{ marginTop: '15px', background: 'rgba(110, 139, 255, 0.1)', padding: '15px', borderRadius: '8px' }}>
             <p><strong>Justificación:</strong> {trainResult.justification}</p>
@@ -540,7 +540,7 @@ function SalesPrediction({ user }) {
                 const selected = Array.from(e.target.selectedOptions, option => option.value)
                 setChart1Products(selected)
               }}
-              className="form-input"
+                className="form-input"
               style={{ minHeight: '100px' }}
             >
               {availableProducts.length > 0 ? availableProducts.map((p) => (
@@ -623,16 +623,16 @@ function SalesPrediction({ user }) {
           </div>
 
           <div className="form-field" style={{ marginTop: '15px' }}>
-            <label htmlFor="days">Días a Predecir</label>
-            <input
-              type="number"
-              id="days"
-              value={days}
-              onChange={(e) => setDays(parseInt(e.target.value) || 30)}
-              className="form-input"
-              min="1"
-              max="365"
-            />
+              <label htmlFor="days">Días a Predecir</label>
+              <input
+                type="number"
+                id="days"
+                value={days}
+                onChange={(e) => setDays(parseInt(e.target.value) || 30)}
+                className="form-input"
+                min="1"
+                max="365"
+              />
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
               Las predicciones comenzarán desde el día siguiente al último dato histórico disponible
             </small>
