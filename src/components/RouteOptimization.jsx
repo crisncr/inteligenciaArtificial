@@ -781,7 +781,7 @@ function RouteOptimization({ user }) {
                 }}
                 placeholder="Escribe una dirección o selecciona del mapa"
                 className="form-input"
-                style={{ width: '100%', padding: '12px' }}
+                style={{ width: '100%' }}
               />
               {showStartSuggestions && startSuggestions.length > 0 && (
                 <div style={{
@@ -898,7 +898,7 @@ function RouteOptimization({ user }) {
                 }}
                 placeholder="Escribe una dirección o selecciona del mapa"
                 className="form-input"
-                style={{ width: '100%', padding: '12px' }}
+                style={{ width: '100%' }}
               />
               {showEndSuggestions && endSuggestions.length > 0 && (
                 <div style={{

@@ -4166,24 +4166,59 @@ select.form-input[multiple]:hover {
   
   /* Inputs aún más grandes en móviles pequeños */
   .route-map-container .form-input {
-    font-size: 24px !important;
-    padding: 26px 22px !important;
-    min-height: 76px !important;
+    font-size: 26px !important;
+    padding: 30px 24px !important;
+    min-height: 84px !important;
+    line-height: 2 !important;
+  }
+  
+  .route-map-container .form-input:focus {
+    min-height: 84px !important;
   }
   
   .route-map-container .form-input::placeholder {
-    font-size: 22px !important;
+    font-size: 24px !important;
+    line-height: 2 !important;
   }
   
   .route-map-container .form-field label {
-    font-size: 1.2em !important;
-    margin-bottom: 14px !important;
+    font-size: 1.25em !important;
+    margin-bottom: 16px !important;
   }
   
   .route-map-container .form-field button {
-    padding: 20px !important;
-    font-size: 19px !important;
-    min-height: 60px !important;
+    padding: 22px !important;
+    font-size: 20px !important;
+    min-height: 64px !important;
+  }
+}
+
+/* Estilos específicos para orientación vertical (portrait) en móviles */
+@media (max-width: 768px) and (orientation: portrait) {
+  .route-map-container .form-input {
+    font-size: 26px !important;
+    padding: 32px 24px !important;
+    min-height: 88px !important;
+    line-height: 2.2 !important;
+  }
+  
+  .route-map-container .form-input:focus {
+    min-height: 88px !important;
+  }
+  
+  .route-map-container .form-input::placeholder {
+    font-size: 24px !important;
+    line-height: 2.2 !important;
+  }
+  
+  .route-map-container .form-field label {
+    font-size: 1.3em !important;
+    margin-bottom: 18px !important;
+  }
+  
+  /* Asegurar que el input sea visible cuando está enfocado */
+  .route-map-container .form-field > div[style*="position: relative"] {
+    margin-bottom: 8px !important;
   }
 }
 
@@ -4232,18 +4267,21 @@ select.form-input[multiple]:hover {
   
   /* Ajustar inputs para móviles - MUY GRANDES Y FÁCILES DE USAR */
   .route-map-container .form-input {
-    font-size: 22px !important; /* Muy grande para móviles */
-    padding: 24px 20px !important; /* Mucho más padding vertical y horizontal */
+    font-size: 24px !important; /* Muy grande para móviles */
+    padding: 28px 22px !important; /* Mucho más padding vertical y horizontal */
     -webkit-appearance: none;
     appearance: none;
     border-radius: 14px !important;
-    min-height: 72px !important; /* Altura mínima muy grande para fácil toque */
-    line-height: 1.7 !important;
+    min-height: 80px !important; /* Altura mínima muy grande para fácil toque y ver texto */
+    height: auto !important;
+    line-height: 1.8 !important;
     border: 2px solid rgba(110, 139, 255, 0.3) !important;
     background: var(--panel) !important;
     color: var(--text) !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    overflow: visible !important;
+    word-wrap: break-word !important;
   }
   
   .route-map-container .form-input:focus {
@@ -4251,12 +4289,14 @@ select.form-input[multiple]:hover {
     outline: none !important;
     box-shadow: 0 0 0 5px rgba(110, 139, 255, 0.3) !important;
     background: rgba(10, 14, 26, 0.8) !important;
+    min-height: 80px !important;
   }
   
   .route-map-container .form-input::placeholder {
-    font-size: 20px !important;
+    font-size: 22px !important;
     color: var(--text-secondary) !important;
     opacity: 0.7 !important;
+    line-height: 1.8 !important;
   }
   
   /* Ajustar labels - más grandes y visibles */

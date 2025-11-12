@@ -635,11 +635,15 @@ class SentimentNeuralNetwork:
         build_time = time.time() - build_start
         print(f"✅ [DEBUG] Modelo construido en {build_time:.2f}s")
         
-        # OPTIMIZACIÓN: Balance entre memoria y aprendizaje
-        actual_epochs = 20  # Reducir épocas para evitar memorización (de 30 a 20)
-        # Batch size balanceado para mejor aprendizaje
-        actual_batch_size = min(8, len(X_train))  # Batch size aumentado para mejor estabilidad (aumentado de 3)
-        print(f"🔍 [DEBUG] Batch size: {actual_batch_size}, Épocas: {actual_epochs} (optimizado para mejor aprendizaje)")
+        # OPTIMIZACIÓN: Balance entre memoria, velocidad y aprendizaje
+        # En producción, usar menos épocas y batch_size más grande para entrenar más rápido
+        if self.is_production:
+            actual_epochs = 15  # Menos épocas en producción para evitar timeout
+            actual_batch_size = min(16, len(X_train))  # Batch size más grande = entrenamiento más rápido
+        else:
+            actual_epochs = 20  # Más épocas en desarrollo para mejor aprendizaje
+            actual_batch_size = min(8, len(X_train))  # Batch size balanceado
+        print(f"🔍 [DEBUG] Batch size: {actual_batch_size}, Épocas: {actual_epochs} (optimizado para {'producción' if self.is_production else 'desarrollo'})")
         
         print(f"🚀 Iniciando entrenamiento: {actual_epochs} épocas (reducido de {epochs}), batch_size={actual_batch_size} (ajustado de {batch_size})")
         print(f"📊 Datos de entrenamiento: {len(X_train)} muestras")
@@ -826,8 +830,9 @@ class SentimentNeuralNetwork:
                 print(f"❌ [PREDICT] Error: No se pudieron preparar los datos")
                 raise ValueError("No se pudieron preparar los datos para predicción")
             
-            # Optimización de memoria en producción: batch size más pequeño
-            batch_size = 8 if not self.is_production else 2  # Reducido de 4 a 2 para ahorrar memoria
+            # Optimización de memoria en producción: batch size balanceado
+            # Batch size más grande = predicciones más rápidas (pero más memoria)
+            batch_size = 16 if not self.is_production else 8  # Aumentado para mejor rendimiento
             if not self.is_production:
                 print(f"⚙️  [PREDICT] Batch size para modelo: {batch_size}")
             
@@ -1015,8 +1020,9 @@ class SentimentNeuralNetwork:
             import gc
             
             max_retries = 3
-            timeout_seconds = 180  # 3 minutos
-            retry_delays = [5, 10, 20]  # Espera progresiva: 5s, 10s, 20s
+            # Timeout reducido para evitar problemas en Render (timeout de requests ~30-60s)
+            timeout_seconds = 60 if self.is_production else 180  # 60s en producción, 180s en desarrollo
+            retry_delays = [3, 5, 10] if self.is_production else [5, 10, 20]  # Espera más corta en producción
             
             for attempt in range(max_retries):
                 try:
