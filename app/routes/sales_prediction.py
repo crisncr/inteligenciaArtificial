@@ -96,7 +96,7 @@ async def train_model(
     
     try:
         predictor = SalesPredictor()
-            result = predictor.train_linear_regression(df, region)
+        result = predictor.train_linear_regression(df, region)
         
         # Almacenar predictor entrenado (en producción usar BD o caché)
         if current_user.id not in user_data_storage:
